@@ -1141,6 +1141,7 @@
         $removeWindowsUpdateItem = $window.FindName('HDTRemoveWindowsUpdateMenuItem')
         $updateMediaItem = $window.FindName('HDTUpdateMediaMenuItem')
         $newMediaItem = $window.FindName('HDTNewMediaMenuItem')
+        $removeMedia = $window.FindName('HDTRemoveMediaMenuItem')
 
         $newFolder = $window.FindName('HDTNewFolderMenuItem')
         $moveToFolder = $window.FindName('HDTMoveToFolderMenuItem')
@@ -1498,6 +1499,20 @@
 
                 if ($isMediaCategory -and -not [string]::IsNullOrWhiteSpace($NewMediaXaml)) {
                     $newMediaItem.Visibility = [System.Windows.Visibility]::Visible
+                }
+
+                # MDT'S Media NODE'S Delete - THE ITEM ONLY, NEVER THE
+                # CATEGORY. The opposite asymmetry from Update Media Content
+                # above: removing the category would have to mean removing
+                # every media definition on the share at once, which is not
+                # the press anybody is making by right-clicking a branch. No
+                # markup gate - Remove Media composes a MessageBox from
+                # Get-HDTConsoleRemoval, not a window of its own, so it needs
+                # no -XamlPath to exist.
+                $removeMedia.Visibility = [System.Windows.Visibility]::Collapsed
+
+                if ($null -ne $chosen -and [string] $chosen.Kind -eq 'Media') {
+                    $removeMedia.Visibility = [System.Windows.Visibility]::Visible
                 }
 
                 if ($onFolderRow -and ($isRoot -or $isShare -or $isCategory -or $isSequence -or $isOsCategory -or $isOperatingSystem -or $isAppCategory -or $isApplication -or $isBootImage -or $menuRow.IsSelectionProfile)) {
@@ -2067,6 +2082,66 @@
 
                 try {
                     [void] (Remove-HDTApplication -WorkspaceRoot $where -Id $which -Confirm:$false)
+                    $command.Text = [string] $ask.Command
+                } catch {
+                    $command.Text = [string] $_.Exception.Message
+                }
+
+                & $rebuildTree
+            }.GetNewClosure())
+
+        # THE SAME SKELETON AS removeApplication ABOVE, with Remove-HDTMedia's
+        # own -WhatIf answer - Id, Path, IsoLeftBehind - in place of
+        # UsedBy/RequiredBy: nothing on this share depends on a media item the
+        # way a sequence depends on an application or an image, so
+        # Get-HDTConsoleRemoval's UsedFormat stays empty for 'Media' and the
+        # one consequence this kind DOES have - an ISO left outside the media
+        # folder - is appended to the question here rather than taught to
+        # that generic composer.
+        $removeMedia.Add_Click({
+                $chosen = $tree.SelectedItem
+                if ($null -eq $chosen) { return }
+
+                $where = [string] $chosen.HeaderRoot
+                $which = [string] $chosen.Name
+
+                $refusal = & $call 'Get-HDTConsoleRemoval' -Kind 'Media' -Root $where -Id $which
+                if (-not $refusal.CanRemove) {
+                    $command.Text = [string] $refusal.Refusal
+                    return
+                }
+
+                $answer = $null
+
+                try {
+                    $answer = Remove-HDTMedia -WorkspaceRoot $where -Id $which -WhatIf
+                } catch {
+                    $command.Text = [string] $_.Exception.Message
+                    return
+                }
+
+                $ask = & $call 'Get-HDTConsoleRemoval' -Kind 'Media' -Root $where -Id $which
+
+                # THE ONE CONSEQUENCE ONLY Remove-HDTMedia HAS, appended to
+                # the shared question rather than a fourth shape taught to
+                # Get-HDTConsoleRemoval for the one kind that needs it.
+                $question = [string] $ask.Question
+                if (-not [string]::IsNullOrEmpty([string] $answer.IsoLeftBehind)) {
+                    $question = '{0}{1}{1}Its ISO is at {2}, outside the media folder, and will NOT be removed.' -f
+                        $question, [System.Environment]::NewLine, [string] $answer.IsoLeftBehind
+                }
+
+                $asked = [System.Windows.MessageBox]::Show($window,
+                    $question,
+                    [string] $ask.Title,
+                    [System.Windows.MessageBoxButton]::YesNo,
+                    [System.Windows.MessageBoxImage]::Warning,
+                    [System.Windows.MessageBoxResult]::No)
+
+                if ($asked -ne [System.Windows.MessageBoxResult]::Yes) { return }
+
+                try {
+                    [void] (Remove-HDTMedia -WorkspaceRoot $where -Id $which -Confirm:$false)
                     $command.Text = [string] $ask.Command
                 } catch {
                     $command.Text = [string] $_.Exception.Message

@@ -693,6 +693,63 @@ output: Media\WS2025-LAB\HDT-WS2025-LAB.iso
         }
     }
 
+    # -----------------------------------------------------------------------
+    #
+    # REMOVE MEDIA - THE ITEM ONLY, NEVER THE CATEGORY. This is the opposite
+    # asymmetry from Update Media Content just above, which both rows offer:
+    # removing the category would have to mean removing every media
+    # definition on the share at once, which is not the press anybody makes
+    # by right-clicking a branch. No markup gate here - Remove Media composes
+    # its confirmation from Get-HDTConsoleRemoval and a MessageBox, not a
+    # window of its own, so it needs no -XamlPath to exist.
+
+    Describe 'right-clicking the media rows to remove one' {
+
+        BeforeAll {
+            $script:removeMedia = New-HDTTestMenuWindow -NewSequenceXaml '<Window/>' -MediaCount 1
+        }
+
+        It 'offers Remove Media on a media item' {
+            [void] (Select-HDTTestTreeBranch -Window $script:removeMedia `
+                    -Path @('Deployment Shares', 'HDT share', 'Media', 'Windows 11 field build'))
+
+            [void] (Invoke-HDTTestRightClick -Window $script:removeMedia)
+
+            $script:removeMedia.FindName('HDTRemoveMediaMenuItem').Visibility |
+                Should -Be ([System.Windows.Visibility]::Visible)
+        }
+
+        # THERE IS NO SINGLE THING TO REMOVE THERE - unlike Update Media
+        # Content, which resolves the category to the only media when the
+        # share has exactly one.
+        It 'never offers Remove Media on the Media category - there is no single thing to remove there' {
+            [void] (Select-HDTTestTreeBranch -Window $script:removeMedia `
+                    -Path @('Deployment Shares', 'HDT share', 'Media'))
+
+            [void] (Invoke-HDTTestRightClick -Window $script:removeMedia)
+
+            $script:removeMedia.FindName('HDTRemoveMediaMenuItem').Visibility |
+                Should -Be ([System.Windows.Visibility]::Collapsed)
+        }
+
+        # WHAT THE ADMINISTRATOR ACTUALLY READS. The header comes from the
+        # string table, and an item whose Header never got filled draws as a
+        # blank strip nobody can identify.
+        It 'puts a readable name on the item it shows' {
+            [void] (Select-HDTTestTreeBranch -Window $script:removeMedia `
+                    -Path @('Deployment Shares', 'HDT share', 'Media', 'Windows 11 field build'))
+
+            [void] (Invoke-HDTTestRightClick -Window $script:removeMedia)
+
+            $visible = @(@($script:removeMedia.FindName('HDTConsoleTreeMenu').Items) |
+                    Where-Object { $_ -is [System.Windows.Controls.MenuItem] } |
+                    Where-Object { $_.Visibility -eq [System.Windows.Visibility]::Visible } |
+                    ForEach-Object { [string] $_.Header })
+
+            $visible | Should -Contain 'Remove Media'
+        }
+    }
+
     Describe 'the same console built with the markup' {
 
         BeforeAll {

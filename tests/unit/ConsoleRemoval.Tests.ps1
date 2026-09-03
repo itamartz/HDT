@@ -107,6 +107,50 @@ Describe 'Get-HDTConsoleRemoval' {
         }
     }
 
+    # THE FOURTH REMOVABLE KIND, AND THE ONLY ONE WHERE -WhatIf ANSWERS A
+    # QUESTION THIS FUNCTION WAS NEVER BUILT TO ASK: whether an ISO sits
+    # outside the media folder. That warning is composed by the caller, not
+    # here - see New-HDTConsoleView.ps1's removeMedia.Add_Click - so this
+    # context proves only the generic shape every other kind already has.
+    Context 'a media definition' {
+
+        BeforeAll {
+            $script:media = Get-HDTConsoleRemoval -Kind 'Media' -Root 'C:\ws' -Id 'WIN11-FIELD'
+        }
+
+        It 'can be removed' {
+            $script:media.CanRemove | Should -BeTrue
+        }
+
+        It 'titles the dialog Remove Media' {
+            $script:media.Title | Should -BeExactly 'Remove Media'
+        }
+
+        It 'names the thing and the share it is leaving' {
+            $script:media.Question | Should -Match "media definition 'WIN11-FIELD'"
+            $script:media.Question | Should -Match 'C:\\ws'
+        }
+
+        It 'says what goes with it and that there is no undo' {
+            $script:media.Question | Should -Match 'media\.yaml'
+            $script:media.Question | Should -Match 'ISO beside it'
+            $script:media.Question | Should -Match 'cannot be undone'
+        }
+
+        It 'echoes the command with -WorkspaceRoot, which is what Remove-HDTMedia takes' {
+            $script:media.Command |
+                Should -BeExactly "Remove-HDTMedia -WorkspaceRoot 'C:\ws' -Id 'WIN11-FIELD'"
+        }
+    }
+
+    Context 'a media definition, the row names neither a share nor an id' {
+
+        It 'refuses, naming a media definition id - the existing "row does not name" shape' {
+            (Get-HDTConsoleRemoval -Kind 'Media' -Root '' -Id '').Refusal |
+                Should -BeExactly 'that row does not name a share and a media definition id, so there is nothing to remove.'
+        }
+    }
+
     # A MACHINE ARRIVES WITHOUT IT - it does not fail.
     Context 'an application some task sequences install' {
 

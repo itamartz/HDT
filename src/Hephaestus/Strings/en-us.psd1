@@ -103,6 +103,7 @@
         # for it should not have to translate. HDT is a homage, not a rename.
         'HDTUpdateMediaMenuItem.Header' = 'Update Media Content'
         'HDTNewMediaMenuItem.Header' = 'New Media'
+        'HDTRemoveMediaMenuItem.Header' = 'Remove Media'
         # CLEAR, NOT DELETE. Nothing on the share reads a heartbeat, so this is
         # the one item on this menu that costs a record rather than a component.
         'HDTRemoveMonitorRunMenuItem.Header' = 'Clear Run'

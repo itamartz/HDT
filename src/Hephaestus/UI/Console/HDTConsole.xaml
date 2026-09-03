@@ -458,8 +458,9 @@
                              several - naming an ambiguous target is the one
                              thing this console does not do.
 
-                             REMOVE MEDIA IS STILL NOT HERE - Remove-HDTMedia at
-                             a prompt, closed by 07-04-02. -->
+                             REMOVE MEDIA IS ON THE ITEM ONLY, below - see the
+                             comment on HDTRemoveMediaMenuItem for why that is
+                             the opposite asymmetry from this one. -->
                         <MenuItem x:Name="HDTUpdateMediaMenuItem" />
 
                         <!-- MDT'S New Media - THE CATEGORY ONLY, NEVER A MEDIA
@@ -470,6 +471,18 @@
                              those two act on one thing that may already be
                              singular; this creates a second. -->
                         <MenuItem x:Name="HDTNewMediaMenuItem" />
+
+                        <!-- REMOVE MEDIA - THE ITEM ONLY, NEVER THE CATEGORY,
+                             which is the opposite asymmetry from Update Media
+                             Content above: removing the category would have to
+                             mean removing every media definition on the share
+                             at once, not the one press somebody is making by
+                             right-clicking a branch. Composes its confirmation
+                             through Get-HDTConsoleRemoval -Kind 'Media', the
+                             Remove Application shape, and needs no window of
+                             its own - so it is offered whether or not
+                             -NewMediaXaml was given. -->
+                        <MenuItem x:Name="HDTRemoveMediaMenuItem" />
 
                         <!-- WORKBENCH'S Monitoring NODE, AND THE THING IT
                              ALWAYS NEEDED. The engine writes a heartbeat per

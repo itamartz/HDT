@@ -84,7 +84,7 @@
     param(
         [Parameter(Mandatory = $true, Position = 0)]
         [ValidateSet('TaskSequence', 'OperatingSystem', 'Application', 'DriverFolder', 'MonitorRun',
-            'WindowsUpdate')]
+            'WindowsUpdate', 'Media')]
         [string] $Kind,
 
         [Parameter(Mandatory = $true, Position = 1)]
@@ -190,6 +190,25 @@
                 IdName    = 'Id'
                 # A SEQUENCE WITHOUT ITS IMAGE FAILS OUTRIGHT.
                 UsedFormat = 'These task sequences apply it and will fail without it: {0}.'
+            }
+        }
+        'Media' {
+            @{
+                Noun      = 'media definition'
+                Title     = 'Remove Media'
+                Command   = 'Remove-HDTMedia'
+                Parameter = 'WorkspaceRoot'
+                Goes      = 'media.yaml and the ISO beside it, when the ISO is inside the folder'
+                IdName    = 'Id'
+                # NOTHING ON THIS SHARE DEPENDS ON A MEDIA ITEM the way a
+                # sequence depends on an application or an image - it is a
+                # leaf, PROJECTED FROM the share, never referenced BY
+                # anything on it. The ISO-left-behind warning that Media DOES
+                # have is composed by the caller, not here - see
+                # New-HDTConsoleView.ps1's removeMedia.Add_Click - because it
+                # is not the "these depend on it" shape this column carries
+                # for every other kind.
+                UsedFormat = ''
             }
         }
         default {
