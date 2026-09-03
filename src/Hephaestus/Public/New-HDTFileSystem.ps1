@@ -183,13 +183,41 @@ function New-HDTFileSystem {
         $this.Record('RemoveItem', @($Path, $Recurse))
         $full = $this.NormalizePath($Path)
 
+        # THE READ-ONLY ATTRIBUTE IS CLEARED FIRST, WHICH IS Remove-Item -Force's
+        # BEHAVIOUR AND NOT System.IO's. [System.IO.File]::Delete and
+        # ::Directory.Delete both throw UnauthorizedAccessException on a
+        # read-only file; Remove-Item clears the bit and deletes.
+        #
+        # THE ADK SHIPS ONE, AND IT BROKE EVERY SECOND MEDIA BUILD. Its WinPE
+        # Media tree carries autorun.inf read-only, Update-HDTMediaContent copies
+        # that tree into scratch and clears the tree before the next build, and
+        # the second build died on
+        #   Access to the path 'autorun.inf' is denied.
+        # Watched 2026-09-03. tests/integration/FileSystemReadOnly.Integration.Tests.ps1
+        # holds it, as an integration test because only a real NTFS enforces the
+        # attribute a fake cannot reproduce.
+        #
+        # A READ-ONLY BIT IS NOT A PERMISSION. Every caller here is deleting
+        # something it created in this run - a scratch tree, a staging directory,
+        # a mount folder - and the attribute arrived by being copied off a
+        # vendor's file rather than being chosen by anybody.
         if ([System.IO.File]::Exists($full)) {
+            [System.IO.File]::SetAttributes($full, [System.IO.FileAttributes]::Normal)
             [System.IO.File]::Delete($full)
             return
         }
 
         if (-not [System.IO.Directory]::Exists($full)) {
             return
+        }
+
+        # ONLY WHEN RECURSING. A non-recursive delete of a populated directory
+        # must still throw, so there is nothing to clear and walking the tree
+        # would be work done to reach an exception.
+        if ($Recurse) {
+            foreach ($item in [System.IO.Directory]::GetFiles($full, '*', [System.IO.SearchOption]::AllDirectories)) {
+                [System.IO.File]::SetAttributes($item, [System.IO.FileAttributes]::Normal)
+            }
         }
 
         # Directory.Delete throws IOException for a populated directory when
