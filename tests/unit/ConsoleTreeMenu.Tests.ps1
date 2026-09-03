@@ -270,7 +270,7 @@ $script:emittedKind = @(
 # menu is decided by the NAME - so the kind alone proves nothing about any of
 # them.
 $script:categoryName = @('TaskSequences', 'OperatingSystems', 'Applications',
-    'BootImage', 'SelectionProfiles', 'Drivers', 'WindowsUpdates')
+    'BootImage', 'SelectionProfiles', 'Drivers', 'WindowsUpdates', 'Media')
 
 # DELIBERATELY MENU-LESS, AND WHY. Each of these is a decision somebody made,
 # not a kind that was forgotten - which is the difference this file exists to
@@ -345,5 +345,113 @@ Describe 'every kind the tree can emit' {
         $script:noMenuReason.Keys | ForEach-Object { @{ Kind = $_; Emitted = $script:emittedKind } }
     ) {
         $Emitted | Should -Contain $Kind -Because 'a reason for a kind that is gone is a leftover'
+    }
+}
+
+# ---------------------------------------------------------------------------
+#
+# THE MEDIA ROWS, AND THE THIRD TIME THIS LIST HAS BEEN THE DEFECT.
+#
+# Plans 07-01 and 07-02 built media.yaml, four commands and
+# Update-HDTMediaContent. Plan 07-03 put the node on screen. None of that is
+# reachable with a mouse unless the Kind is written down in $offers - which is
+# the exact shape of the Windows Updates half-feature above, and of the one
+# before that.
+
+Describe 'Get-HDTConsoleTreeMenuRow, on the media rows' {
+
+    It 'opens a menu on a Media row, which is a Kind it did not know' {
+        (& $script:ask 'Media' 'WIN11-FIELD').Opens | Should -BeTrue
+    }
+
+    It 'says a Media row is one, so the window can show Update Media Content on it' {
+        (& $script:ask 'Media' 'WIN11-FIELD').IsMediaRow | Should -BeTrue
+    }
+
+    # BOTH ROWS OFFER IT, which is the rule the boot image and selection profile
+    # rows already follow and for their reason: it is one action on one thing,
+    # and which of the two somebody right-clicks when there is one media
+    # definition is not worth being wrong about.
+    #
+    # 'Category' IS ALREADY IN $offers, so Opens on the category proves nothing
+    # about this change - IsMediaRow is what carries the category half.
+    It 'says the Media category is one too, for the boot image rows'' reason' {
+        $row = & $script:ask 'Category' 'Media'
+
+        $row.Opens | Should -BeTrue
+        $row.IsMediaRow | Should -BeTrue
+    }
+
+    # THE ID IS WHAT THE COMMAND NAMES. An item row carries its own; the
+    # category names none, because nothing has been chosen there.
+    It 'carries the media id from an item row and none from the category' {
+        (& $script:ask 'Media' 'WIN11-FIELD').MediaId | Should -BeExactly 'WIN11-FIELD'
+        (& $script:ask 'Category' 'Media').MediaId | Should -BeExactly ''
+    }
+
+    It 'says nothing else is a media row' {
+        (& $script:ask 'Category' 'Applications').IsMediaRow | Should -BeFalse
+        (& $script:ask 'Category' 'SelectionProfiles').IsMediaRow | Should -BeFalse
+        (& $script:ask 'OperatingSystem' 'WIN11-LTSC').IsMediaRow | Should -BeFalse
+        (& $script:ask 'BootImage' 'HDTPE_x64').IsMediaRow | Should -BeFalse
+    }
+
+    # THE REGRESSION GUARD, WRITTEN AGAINST THE SET. A test naming Media passes
+    # for Media and fails nobody after it - so this walks every Kind
+    # Get-HDTConsoleIcon accepts and compares Opens against what it was, one
+    # element at a time. Adding a kind to that set and forgetting this file is
+    # then a failure with the kind's name in it.
+    It 'still answers exactly as it did for every kind it already knew' {
+        $expected = [ordered] @{
+            # In $offers, and each of them has items.
+            'Root'             = $true
+            'Share'            = $true
+            'Category'         = $true
+            'TaskSequence'     = $true
+            'OperatingSystem'  = $true
+            'Application'      = $true
+            'BootImage'        = $true
+            'Folder'           = $true
+            'MonitorRun'       = $true
+            'UpdateRelease'    = $true
+            'WindowsUpdate'    = $true
+            'Media'            = $true
+
+            # Decided outside $offers, by a rule of their own.
+            'SelectionProfile' = $true
+            'DriverFolder'     = $true
+
+            # Deliberately menu-less, each for a reason written down in
+            # $script:noMenuReason above.
+            'Empty'            = $false
+            'StepGroup'        = $false
+            'Step'             = $false
+            'MonitorCategory'  = $false
+
+            # A GLYPH NAME, NOT A ROW KIND. Get-HDTConsoleIcon takes several the
+            # tree never emits; the Drivers category is Kind 'Category' and only
+            # asks for this picture.
+            'DriverStore'      = $false
+        }
+
+        # READ INSIDE THE MODULE, because Get-HDTConsoleIcon is private and this
+        # file does not run in module scope - the same hop $script:ask makes.
+        $module = Get-Module -Name Hephaestus
+
+        $kind = @(& $module {
+                (Get-Command -Name 'Get-HDTConsoleIcon').Parameters['Kind'].Attributes |
+                    Where-Object { $_ -is [System.Management.Automation.ValidateSetAttribute] } |
+                    ForEach-Object { $_.ValidValues }
+            })
+
+        # THE TWO LISTS HAVE TO BE THE SAME LIST, or this passes by testing
+        # fewer kinds than exist.
+        @($kind | Sort-Object) | Should -Be @(@($expected.Keys) | Sort-Object) `
+            -Because 'a Kind with no line here is a Kind whose menu nobody decided'
+
+        foreach ($current in @($kind)) {
+            (& $script:ask $current '').Opens |
+                Should -Be ([bool] $expected[$current]) -Because ('{0} answered differently' -f $current)
+        }
     }
 }

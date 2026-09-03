@@ -70,6 +70,13 @@ $script:notYet = @{
 # quietly grows.
 $script:alsoFills = @{
     'ImportProgress' = 'HDTBuildProgress.xaml'
+
+    # A THIRD JOB FOR THE SAME WINDOW: Update-HDTMediaContent, which projects
+    # the share onto a bootable ISO. -StringPage defaults to the boot image's
+    # wording and does not fail at bind time when it is left off, so without
+    # this block the window is headed 'Updating Boot Image' while it burns a
+    # disc - the same lie ImportProgress was added to stop, one command over.
+    'MediaProgress'  = 'HDTBuildProgress.xaml'
 }
 
 # AT FILE SCOPE, NOT IN BeforeAll: -ForEach is read while Pester is DISCOVERING

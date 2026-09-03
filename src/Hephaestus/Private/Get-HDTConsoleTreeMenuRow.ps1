@@ -1,4 +1,4 @@
-function Get-HDTConsoleTreeMenuRow {
+﻿function Get-HDTConsoleTreeMenuRow {
     <#
         .SYNOPSIS
             What a tree row's right-click menu offers, and whether it opens at
@@ -46,7 +46,8 @@ function Get-HDTConsoleTreeMenuRow {
         .OUTPUTS
             System.Management.Automation.PSCustomObject with Opens,
             IsSelectionProfile, SelectionProfileHeader, IsDriverRow,
-            DriverParent, IsUpdateRow, IsWindowsUpdate and UpdateRelease.
+            DriverParent, IsUpdateRow, IsWindowsUpdate, UpdateRelease,
+            IsMediaRow and MediaId.
 
         .EXAMPLE
             Get-HDTConsoleTreeMenuRow -Kind 'Category' -Name 'SelectionProfiles'
@@ -101,9 +102,14 @@ function Get-HDTConsoleTreeMenuRow {
     # right-clicking any of it did nothing, because none of its kinds were
     # written down here. Nothing could see that but a person with a mouse, which
     # is how it reached one.
+    # AND THE MEDIA ROWS ARE HERE FOR THE THIRD TIME THAT SENTENCE HAS HAD TO BE
+    # WRITTEN. Media\<id>\media.yaml, four commands, Update-HDTMediaContent and
+    # a tree node were all built before this line existed; every one of them is
+    # unreachable with a mouse until the Kind is on this list, and nothing but a
+    # person with a mouse can see that it is not.
     $offers = @('Root', 'Share', 'Category', 'TaskSequence', 'OperatingSystem',
         'Application', 'BootImage', 'Folder', 'MonitorRun',
-        'UpdateRelease', 'WindowsUpdate')
+        'UpdateRelease', 'WindowsUpdate', 'Media')
 
     # THE DRIVER STORE'S OWN TWO, on the Drivers category and on every folder in
     # it. MDT hangs New Folder and Import Drivers off both, and for the reason it
@@ -162,6 +168,28 @@ function Get-HDTConsoleTreeMenuRow {
     $release = ''
     if ($isUpdateRelease) { $release = $Name }
 
+    # MDT'S Media NODE AND ITS ONE ACTION, Update Media Content.
+    #
+    # BOTH MEDIA ROWS OFFER IT - the category and an item under it - which is
+    # the rule the boot image and selection profile rows already follow and it
+    # holds here for their reason: it is one action on one thing, and which of
+    # the two somebody right-clicks when there is a single media definition is
+    # not worth being wrong about.
+    #
+    # New Media AND Remove Media ARE DELIBERATELY NOT HERE. They are
+    # New-HDTMedia and Remove-HDTMedia at a prompt in this phase; the absence is
+    # a deferral written down rather than an item nobody got to.
+    $isMediaCategory = (($Kind -eq 'Category') -and ($Name -eq 'Media'))
+    $isMedia = ($Kind -eq 'Media')
+    $isMediaRow = ($isMediaCategory -or $isMedia)
+
+    # WHICH MEDIA THE ACTION BUILDS. An item row names itself; the category
+    # names nothing, because nothing has been chosen there - and the view
+    # resolves the category to the ONLY media when the share has exactly one,
+    # which is the case where the ambiguity does not exist.
+    $mediaId = ''
+    if ($isMedia) { $mediaId = $Name }
+
     $opens = ($offers -contains $Kind) -or $isSelectionProfile -or $isDriverRow -or $HasFolderAction
 
     return [pscustomobject] @{
@@ -173,5 +201,7 @@ function Get-HDTConsoleTreeMenuRow {
         IsUpdateRow            = [bool] $isUpdateRow
         IsWindowsUpdate        = [bool] $isWindowsUpdate
         UpdateRelease          = [string] $release
+        IsMediaRow             = [bool] $isMediaRow
+        MediaId                = [string] $mediaId
     }
 }

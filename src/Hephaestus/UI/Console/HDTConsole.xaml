@@ -437,6 +437,32 @@
                              are making. -->
                         <MenuItem x:Name="HDTRemoveWindowsUpdateMenuItem" />
 
+                        <!-- MDT'S Media NODE, AND ITS ONE ACTION. Update Media
+                             Content projects the share onto a bootable ISO for
+                             a machine that cannot reach the deployment share -
+                             DESIGN 13's content projection with the provider
+                             swapped, not a second code path.
+
+                             IT TAKES MINUTES AND GIGABYTES, so it runs in its
+                             own runspace through the same progress window the
+                             boot image build and the driver import use. That
+                             window exists because a 2.38 GB driver pack froze
+                             the console for 86 seconds on the dispatcher and
+                             was reported as a crash; burning an ISO is longer
+                             again.
+
+                             ON THE CATEGORY AND ON A MEDIA ROW BOTH, which is
+                             the boot image rows' rule. The category resolves to
+                             the only media when the share has exactly one, and
+                             is disabled with the reason on it when there are
+                             several - naming an ambiguous target is the one
+                             thing this console does not do.
+
+                             New Media AND Remove Media ARE NOT HERE, and the
+                             absence is a decision: they are New-HDTMedia and
+                             Remove-HDTMedia at a prompt in this phase. -->
+                        <MenuItem x:Name="HDTUpdateMediaMenuItem" />
+
                         <!-- WORKBENCH'S Monitoring NODE, AND THE THING IT
                              ALWAYS NEEDED. The engine writes a heartbeat per
                              deployment under Logs\_active\ and nothing ever

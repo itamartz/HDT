@@ -43,7 +43,13 @@ InModuleScope -ModuleName Hephaestus {
             [OutputType([object])]
             param(
                 [Parameter()] [AllowEmptyString()] [string] $NewSequenceXaml = '',
-                [Parameter()] [AllowEmptyString()] [string] $ImportWindowsUpdateXaml = '')
+                [Parameter()] [AllowEmptyString()] [string] $ImportWindowsUpdateXaml = '',
+
+                # HOW MANY MEDIA DEFINITIONS THE SHARE HOLDS, which is the whole
+                # question on the Media CATEGORY row: one is unambiguous and the
+                # item runs for it, none means there is nothing to update, and
+                # several means the row cannot say which without guessing.
+                [Parameter()] [ValidateRange(0, 2)] [int] $MediaCount = 1)
 
             # AN UPDATE ON THE SHARE, so the release group and the update row
             # exist to be right-clicked at all. Without one the Windows Updates
@@ -62,6 +68,29 @@ architecture: x64
 fileName: windows11.0-kb5094126-x64_1b7f.msu
 '@
                 'C:\ws\WindowsUpdates\KB5094126-x64\windows11.0-kb5094126-x64_1b7f.msu' = 'not a real msu'
+            }
+
+            # STANDALONE MEDIA ON THE SHARE, so the Media category has rows to
+            # right-click at all. Without one the branch draws a (none)
+            # placeholder and the item row this is about is never built.
+            if ($MediaCount -ge 1) {
+                $share.SeedFile('C:\ws\Media\WIN11-FIELD\media.yaml', @'
+schemaVersion: 1
+id: WIN11-FIELD
+name: Windows 11 field build
+selectionProfile: everything
+output: Media\WIN11-FIELD\HDT-WIN11-FIELD.iso
+'@)
+            }
+
+            if ($MediaCount -ge 2) {
+                $share.SeedFile('C:\ws\Media\WS2025-LAB\media.yaml', @'
+schemaVersion: 1
+id: WS2025-LAB
+name: Server 2025 lab disc
+selectionProfile: boot-critical
+output: Media\WS2025-LAB\HDT-WS2025-LAB.iso
+'@)
             }
 
             # THE TREE'S ROOTS, NOT A SHARE NODE. Get-HDTConsoleTreeNode returns
@@ -395,6 +424,193 @@ fileName: windows11.0-kb5094126-x64_1b7f.msu
 
             $bare.FindName('HDTImportWindowsUpdateMenuItem').Visibility |
                 Should -Be ([System.Windows.Visibility]::Collapsed)
+        }
+    }
+
+    # -----------------------------------------------------------------------
+    #
+    # THE MEDIA ROWS, AND WHY A PICTURE CANNOT PROVE THIS EITHER.
+    #
+    # A closed context menu photographs exactly like a broken one - the tree
+    # looks perfect and right-clicking does nothing - which is how the Windows
+    # Updates node above shipped with no menu at all. So the real event is
+    # raised on the real window: Handled is the whole defect, because a Handled
+    # ContextMenuOpening is a menu that never opens however Visible its items
+    # are.
+
+    Describe 'right-clicking the media rows' {
+
+        BeforeAll {
+            $script:media = New-HDTTestMenuWindow -NewSequenceXaml '<Window/>' -MediaCount 1
+        }
+
+        # THE ROWS EXIST BEFORE ANY OF THIS MEANS ANYTHING.
+        It 'reaches the <Row> row and the media rows under it' -ForEach @(
+            @{ Row = 'Media'; Path = @('Deployment Shares', 'HDT share', 'Media') }
+            @{ Row = 'a media definition'; Path = @('Deployment Shares', 'HDT share', 'Media', 'Windows 11 field build') }
+        ) {
+            Select-HDTTestTreeBranch -Window $script:media -Path $Path | Should -Not -BeNullOrEmpty
+        }
+
+        It 'opens a menu on a media row at all' {
+            [void] (Select-HDTTestTreeBranch -Window $script:media `
+                    -Path @('Deployment Shares', 'HDT share', 'Media', 'Windows 11 field build'))
+
+            $opening = Invoke-HDTTestRightClick -Window $script:media
+
+            $opening.Handled | Should -BeFalse `
+                -Because 'a Handled ContextMenuOpening is a menu that never opens, however Visible its items are'
+        }
+
+        # AND IT IS NOT AN EMPTY POPUP. A menu that opens with nothing on it is
+        # the same experience as one that does not open, so the item is NAMED.
+        It 'offers Update Media Content on a media row' {
+            [void] (Select-HDTTestTreeBranch -Window $script:media `
+                    -Path @('Deployment Shares', 'HDT share', 'Media', 'Windows 11 field build'))
+
+            [void] (Invoke-HDTTestRightClick -Window $script:media)
+
+            $item = $script:media.FindName('HDTUpdateMediaMenuItem')
+
+            $item.Visibility | Should -Be ([System.Windows.Visibility]::Visible)
+            $item.IsEnabled | Should -BeTrue
+
+            # AND THE SAME ITEM ON A ROW IT DOES NOT BELONG TO, IN THE SAME
+            # TEST. Every item on this menu is Visible until the guard collapses
+            # it, so 'Visible here' on its own passes with nothing wired at all -
+            # the file's opening note records exactly that trap. The pair is
+            # what cannot pass unguarded.
+            [void] (Select-HDTTestTreeBranch -Window $script:media `
+                    -Path @('Deployment Shares', 'HDT share', 'Windows Updates'))
+
+            [void] (Invoke-HDTTestRightClick -Window $script:media)
+
+            $script:media.FindName('HDTUpdateMediaMenuItem').Visibility |
+                Should -Be ([System.Windows.Visibility]::Collapsed)
+        }
+
+        # BOTH ROWS OFFER IT, which is the boot image rows' rule: which of the
+        # two somebody right-clicks when there is one media definition is not
+        # worth being wrong about.
+        It 'offers Update Media Content on the category when the share has exactly one media' {
+            [void] (Select-HDTTestTreeBranch -Window $script:media `
+                    -Path @('Deployment Shares', 'HDT share', 'Media'))
+
+            [void] (Invoke-HDTTestRightClick -Window $script:media)
+
+            $item = $script:media.FindName('HDTUpdateMediaMenuItem')
+
+            $item.Visibility | Should -Be ([System.Windows.Visibility]::Visible)
+            $item.IsEnabled | Should -BeTrue
+
+            # AND THE SAME ITEM ON A ROW IT DOES NOT BELONG TO, IN THE SAME
+            # TEST. Every item on this menu is Visible until the guard collapses
+            # it, so 'Visible here' on its own passes with nothing wired at all -
+            # the file's opening note records exactly that trap. The pair is
+            # what cannot pass unguarded.
+            [void] (Select-HDTTestTreeBranch -Window $script:media `
+                    -Path @('Deployment Shares', 'HDT share', 'Windows Updates'))
+
+            [void] (Invoke-HDTTestRightClick -Window $script:media)
+
+            $script:media.FindName('HDTUpdateMediaMenuItem').Visibility |
+                Should -Be ([System.Windows.Visibility]::Collapsed)
+        }
+
+        # AN AMBIGUOUS TARGET IS REFUSED, SHOWN AND EXPLAINED - never guessed.
+        # Two media on the share and the category cannot say which one this
+        # press meant, so the item is there with its reason on it rather than
+        # silently building whichever came first in the folder.
+        It 'shows it disabled on the category when the share has several, rather than guessing' {
+            $several = New-HDTTestMenuWindow -NewSequenceXaml '<Window/>' -MediaCount 2
+
+            [void] (Select-HDTTestTreeBranch -Window $several `
+                    -Path @('Deployment Shares', 'HDT share', 'Media'))
+
+            [void] (Invoke-HDTTestRightClick -Window $several)
+
+            $item = $several.FindName('HDTUpdateMediaMenuItem')
+
+            $item.Visibility | Should -Be ([System.Windows.Visibility]::Visible)
+            $item.IsEnabled | Should -BeFalse
+            [string] $item.ToolTip | Should -Not -BeNullOrEmpty `
+                -Because 'a disabled item without a reason is one somebody presses twice'
+        }
+
+        # NOTHING TO UPDATE IS NOT AN ACTION. A share with no media has nothing
+        # this item could name, and an item that can only ever answer no is
+        # worse than no item - the update store's own rule.
+        It 'does not offer it on the category when the share has none' {
+            $none = New-HDTTestMenuWindow -NewSequenceXaml '<Window/>' -MediaCount 0
+
+            [void] (Select-HDTTestTreeBranch -Window $none `
+                    -Path @('Deployment Shares', 'HDT share', 'Media'))
+
+            [void] (Invoke-HDTTestRightClick -Window $none)
+
+            $none.FindName('HDTUpdateMediaMenuItem').Visibility |
+                Should -Be ([System.Windows.Visibility]::Collapsed)
+        }
+
+        It 'never offers Update Media Content on <Row>, which is not media' -ForEach @(
+            @{ Row = 'the share'; Path = @('Deployment Shares', 'HDT share') }
+            @{ Row = 'Windows Updates'; Path = @('Deployment Shares', 'HDT share', 'Windows Updates') }
+            @{ Row = 'Selection Profiles'; Path = @('Deployment Shares', 'HDT share', 'Selection Profiles') }
+        ) {
+            [void] (Select-HDTTestTreeBranch -Window $script:media -Path $Path)
+
+            [void] (Invoke-HDTTestRightClick -Window $script:media)
+
+            $script:media.FindName('HDTUpdateMediaMenuItem').Visibility |
+                Should -Be ([System.Windows.Visibility]::Collapsed)
+        }
+
+        # WHAT THE ADMINISTRATOR ACTUALLY READS. An item whose Header never got
+        # filled draws as a blank strip nobody can identify, which is the same
+        # dead end by another route.
+        It 'puts a readable name on the item it shows' {
+            [void] (Select-HDTTestTreeBranch -Window $script:media `
+                    -Path @('Deployment Shares', 'HDT share', 'Media', 'Windows 11 field build'))
+
+            [void] (Invoke-HDTTestRightClick -Window $script:media)
+
+            $visible = @(@($script:media.FindName('HDTConsoleTreeMenu').Items) |
+                    Where-Object { $_ -is [System.Windows.Controls.MenuItem] } |
+                    Where-Object { $_.Visibility -eq [System.Windows.Visibility]::Visible } |
+                    ForEach-Object { [string] $_.Header })
+
+            # MDT'S OWN WORDING, verbatim. An MDT administrator looking for this
+            # should not have to translate.
+            $visible | Should -Contain 'Update Media Content'
+        }
+
+        # AN ITEM WITH NO COMMAND BEHIND IT IS THE DEFECT THIS FILE IS ABOUT.
+        # Visible, readable, enabled - and pressing it does nothing, because
+        # nobody wired the Click. Only a person with a mouse can see that, so it
+        # is asserted here instead.
+        It 'wires the click, so the item is not one with no command behind it' {
+            # PRESSED FOR REAL, AND ON THE ONE ROW WHERE IT ANSWERS WITHOUT
+            # BUILDING ANYTHING. The category of a share with two media names no
+            # single one, so the handler refuses in words and returns before it
+            # opens any window - which is what makes this safe to raise in a
+            # test, and what proves a handler is there at all. Nothing wired
+            # leaves the command box exactly as it was.
+            $several = New-HDTTestMenuWindow -NewSequenceXaml '<Window/>' -MediaCount 2
+
+            [void] (Select-HDTTestTreeBranch -Window $several `
+                    -Path @('Deployment Shares', 'HDT share', 'Media'))
+
+            [void] (Invoke-HDTTestRightClick -Window $several)
+
+            $several.FindName('HDTCommandText').Text = ''
+
+            $several.FindName('HDTUpdateMediaMenuItem').RaiseEvent(
+                (New-Object -TypeName System.Windows.RoutedEventArgs `
+                        -ArgumentList ([System.Windows.Controls.MenuItem]::ClickEvent)))
+
+            [string] $several.FindName('HDTCommandText').Text |
+                Should -Not -BeNullOrEmpty `
+                    -Because 'a menu item nobody wired is one somebody presses to find out nothing happens'
         }
     }
 

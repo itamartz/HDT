@@ -1135,6 +1135,7 @@
         $removeMonitorRunItem = $window.FindName('HDTRemoveMonitorRunMenuItem')
         $importWindowsUpdateItem = $window.FindName('HDTImportWindowsUpdateMenuItem')
         $removeWindowsUpdateItem = $window.FindName('HDTRemoveWindowsUpdateMenuItem')
+        $updateMediaItem = $window.FindName('HDTUpdateMediaMenuItem')
 
         $newFolder = $window.FindName('HDTNewFolderMenuItem')
         $moveToFolder = $window.FindName('HDTMoveToFolderMenuItem')
@@ -1432,6 +1433,47 @@
 
                 if ($menuRow.IsWindowsUpdate) {
                     $removeWindowsUpdateItem.Visibility = [System.Windows.Visibility]::Visible
+                }
+
+                # MDT'S Media NODE AND ITS ONE ACTION.
+                #
+                # BOTH MEDIA ROWS OFFER IT - the category and an item under it -
+                # which is the boot image rows' rule: it is one action on one
+                # thing, and which of the two somebody right-clicks when there
+                # is a single media definition is not worth being wrong about.
+                #
+                # THE CATEGORY RESOLVES TO THE ONLY MEDIA WHEN THERE IS ONE, and
+                # is SHOWN DISABLED WITH THE REASON ON IT when there are
+                # several: naming an ambiguous target is the one thing this
+                # console does not do, and an item that vanished instead would
+                # teach that media cannot be built from the category at all.
+                # Hidden entirely on a share with none, because there is then
+                # nothing it could ever name - the update store's own rule that
+                # an item which can only answer no is worse than no item.
+                $updateMediaItem.Visibility = [System.Windows.Visibility]::Collapsed
+                $updateMediaItem.IsEnabled = $true
+                $updateMediaItem.ToolTip = $null
+
+                if ($menuRow.IsMediaRow) {
+                    # THE ROW'S CHILDREN ARE READ, NOT THE SHARE. This runs in
+                    # front of a menu that is supposed to appear under the
+                    # pointer, and re-reading Media\ over SMB to count two
+                    # folders is the 400ms the folder actions above refuse to
+                    # spend for the same reason.
+                    $mediaUnder = @(@($chosen.Children) |
+                            Where-Object { [string] $_.Kind -eq 'Media' })
+
+                    $mediaCount = @($mediaUnder).Count
+                    if ([string] $chosen.Kind -eq 'Media') { $mediaCount = 1 }
+
+                    if ($mediaCount -ge 1) {
+                        $updateMediaItem.Visibility = [System.Windows.Visibility]::Visible
+                    }
+
+                    if ($mediaCount -gt 1) {
+                        $updateMediaItem.IsEnabled = $false
+                        $updateMediaItem.ToolTip = ('This share has {0} media definitions. Right-click the one you want to build.' -f $mediaCount)
+                    }
                 }
 
                 if ($onFolderRow -and ($isRoot -or $isShare -or $isCategory -or $isSequence -or $isOsCategory -or $isOperatingSystem -or $isAppCategory -or $isApplication -or $isBootImage -or $menuRow.IsSelectionProfile)) {
@@ -2183,6 +2225,84 @@
                         -LogFile ([System.IO.Path]::Combine(
                             (Get-HDTWorkspacePath -Root $where -Kind Drivers), 'driver-import.log')))
 
+                & $rebuildTree
+            }.GetNewClosure())
+
+        # MDT'S Update Media Content, ON THE Media NODE.
+        #
+        # NOT ON THIS THREAD, AND FOR A LONGER REASON THAN THE DRIVER IMPORT'S.
+        # Update-HDTMediaContent projects the whole share onto a bootable ISO -
+        # twelve steps, a scratch tree, oscdimg - which is minutes and gigabytes
+        # where a 2.38 GB driver pack was 86 seconds, and that one was already
+        # reported as a crashed console. It goes through the same window the
+        # boot image build and the driver import use, which is why that method
+        # takes a command NAME and a plain hashtable rather than naming one: both
+        # cross a runspace boundary, where a scriptblock would arrive bound to a
+        # session state the far side cannot invoke. So no runspace code is
+        # written here at all.
+        #
+        # -StringPage AND -LogFile ARE BOTH NAMED, AND NEITHER FAILS AT BIND TIME
+        # WHEN IT IS NOT. -StringPage defaults to the boot image's wording, so an
+        # omission heads the window 'Updating Boot Image' while it burns an ISO -
+        # the exact lie the ImportProgress page was added to stop. -LogFile
+        # empty derives the boot image's own Boot\<image>.build.log, and its own
+        # parameter comment records the defect that cost: a driver import took
+        # the default and overwrote the build log of an image it had nothing to
+        # do with.
+        $updateMediaItem.Add_Click({
+                $chosen = $tree.SelectedItem
+                if ($null -eq $chosen) { return }
+
+                $where = [string] $chosen.Subject
+                if ([string]::IsNullOrWhiteSpace($where)) {
+                    $command.Text = 'that row does not name a share, so there is no media to build.'
+                    return
+                }
+
+                # THE ROW SAYS WHICH MEDIA, and the category says which only
+                # when there is exactly one under it. The guard above already
+                # disabled this item for an ambiguous category, so reaching here
+                # without an id means the row was pressed some other way - and
+                # it says so rather than guessing, which is the same refusal
+                # Update-HDTMediaContent would make about a -Id it was not given.
+                $menuRow = & $call 'Get-HDTConsoleTreeMenuRow' `
+                    -Kind ([string] $chosen.Kind) -Name ([string] $chosen.Name)
+
+                $which = [string] $menuRow.MediaId
+
+                if ([string]::IsNullOrWhiteSpace($which)) {
+                    $only = @(@($chosen.Children) | Where-Object { [string] $_.Kind -eq 'Media' })
+
+                    if (@($only).Count -eq 1) { $which = [string] @($only)[0].Name }
+                }
+
+                # IT SAYS SO RATHER THAN DOING NOTHING, as every other item on
+                # this menu does: one that returns quietly is one somebody
+                # presses twice and then reports as broken.
+                if ([string]::IsNullOrWhiteSpace($which)) {
+                    $command.Text = 'that row does not name one media definition. Right-click the media you want to build.'
+                    return
+                }
+
+                $command.Text = "Update-HDTMediaContent -WorkspaceRoot '{0}' -Id '{1}'" -f $where, $which
+
+                # THE MEDIA'S OWN LOG, BESIDE ITS OWN DOCUMENT.
+                # [IO.Path]::Combine and never Join-Path: the share may be a UNC
+                # path nothing has mounted, and Join-Path resolves the drive and
+                # throws DriveNotFound.
+                $logFile = [System.IO.Path]::Combine(
+                    (Get-HDTWorkspacePath -Root $where -Kind Media -ChildPath $which), 'media.build.log')
+
+                [void] (Show-HDTBuildProgressWindow -WorkspaceRoot $where -ConsoleHost $consoleHost `
+                        -Screen (New-HDTConsoleScreen) `
+                        -Command 'Update-HDTMediaContent' `
+                        -Argument @{ WorkspaceRoot = $where; Id = $which } `
+                        -StringPage 'MediaProgress' `
+                        -LogFile $logFile)
+
+                # THE ISO WAS JUST WRITTEN AND THE ROW READS THE MANIFEST, so
+                # 'Last build' on it is stale until the tree is read again -
+                # which is what the boot image build does for the same reason.
                 & $rebuildTree
             }.GetNewClosure())
 

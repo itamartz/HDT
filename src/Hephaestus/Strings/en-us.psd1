@@ -98,6 +98,10 @@
         # the same word the node does rather than MDT's.
         'HDTImportWindowsUpdateMenuItem.Header' = 'Import Windows Update'
         'HDTRemoveWindowsUpdateMenuItem.Header' = 'Remove Windows Update'
+        # MDT'S OWN WORDING, VERBATIM. Deployment Workbench's Media node has one
+        # action and it is spelled exactly this - an MDT administrator looking
+        # for it should not have to translate. HDT is a homage, not a rename.
+        'HDTUpdateMediaMenuItem.Header' = 'Update Media Content'
         # CLEAR, NOT DELETE. Nothing on the share reads a heartbeat, so this is
         # the one item on this menu that costs a record rather than a component.
         'HDTRemoveMonitorRunMenuItem.Header' = 'Clear Run'
@@ -158,6 +162,24 @@
         'HDTBuildCloseButton.Content' = 'Close'
         'HDTBuildLogButton.Content' = 'Open Log'
         'HDTBuildLogButton.ToolTip' = 'Writes every line above to a log file and opens it. Works while the import is still running.'
+    }
+
+    # THE SAME WINDOW AGAIN, BURNING A DISC. Update-HDTMediaContent projects the
+    # share onto a bootable ISO, which takes minutes and gigabytes.
+    #
+    # AND IT NEEDS ITS OWN WORDS FOR THE REASON ImportProgress DOES. -StringPage
+    # defaults to 'BuildProgress' and does not fail at bind time when it is left
+    # off, so an omitted page produces a window headed 'Updating Boot Image'
+    # while it writes an ISO - a window that is lying, and an administrator who
+    # cancels it because they think they clicked the wrong thing has learned to
+    # distrust the screen. Cancelling this one leaves a scratch tree behind.
+    MediaProgress = @{
+
+        'HDTBuildTitleText.Text' = 'Updating Media Content'
+        'HDTBuildStepText.Text' = 'Starting...'
+        'HDTBuildCloseButton.Content' = 'Close'
+        'HDTBuildLogButton.Content' = 'Open Log'
+        'HDTBuildLogButton.ToolTip' = 'Writes every line above to Media\<id>\media.build.log and opens it. Works while the build is still running.'
     }
 
     # MDT's New Task Sequence wizard, as one dialog: ShowNewSequence.
