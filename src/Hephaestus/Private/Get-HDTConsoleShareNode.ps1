@@ -892,6 +892,32 @@
         [void] $profileCategory.Children.Add($profileRow)
     }
 
+    # -- standalone media ---------------------------------------------------
+    #
+    # AFTER THE PROFILES AND BEFORE MONITORING, and both halves of that are the
+    # decision. A media definition is SHARE-WIDE CONFIGURATION like a profile -
+    # MDT puts both under Advanced Configuration, and a media item is a
+    # selection profile pointed at a disc - so it belongs beside one rather than
+    # among the content categories. Monitoring stays last because it is the
+    # share IN USE rather than another thing to build.
+    #
+    # THE WHOLE SUBTREE IS Get-HDTConsoleMediaNode'S, the way the monitoring one
+    # is: this file is already nine hundred lines of seven categories, and the
+    # branch with the most to say per row is the one hardest to read in the
+    # middle of it.
+    $mediaCategory = Get-HDTConsoleMediaNode -Media $Workspace.Media `
+        -MediaFailure $Workspace.MediaFailure -Root $Workspace.Root -Header $header
+
+    [void] $node.Add($mediaCategory)
+    [void] $shareNode.Children.Add($mediaCategory)
+
+    # THE FLAT READING GETS THE ROWS TOO - it is every row in display order, and
+    # a caller counting them must not find the branch missing from it. Building
+    # the two separately is how they come to disagree.
+    foreach ($current in @($mediaCategory.Children)) {
+        [void] $node.Add($current)
+    }
+
     $monitorCategory = Get-HDTConsoleMonitorNode -Path $Workspace.Root -Header $header `
         -Monitor $Workspace.Monitor
 

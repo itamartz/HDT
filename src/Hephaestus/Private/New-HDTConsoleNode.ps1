@@ -89,7 +89,7 @@
         [Parameter(Mandatory = $true)]
         [ValidateSet('Root', 'Share', 'Category', 'Folder', 'TaskSequence', 'OperatingSystem', 'Application', 'BootImage', 'Empty',
             'DriverStore', 'SelectionProfile', 'DriverFolder', 'StepGroup', 'Step', 'MonitorRun', 'MonitorCategory',
-            'WindowsUpdate', 'UpdateRelease')]
+            'WindowsUpdate', 'UpdateRelease', 'Media')]
         [string] $Kind,
 
         [Parameter(Mandatory = $true)]

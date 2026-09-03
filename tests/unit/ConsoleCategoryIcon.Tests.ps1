@@ -54,9 +54,9 @@ InModuleScope -ModuleName Hephaestus {
 
     Describe 'the icons on a share''s category rows' {
 
-        It 'draws all eight categories' {
+        It 'draws all nine categories' {
             # If this drops, the assertion below stops covering what it names.
-            @($script:category).Count | Should -Be 8
+            @($script:category).Count | Should -Be 9
         }
 
         It 'gives every category a glyph of some kind' {
@@ -103,6 +103,59 @@ InModuleScope -ModuleName Hephaestus {
         ) {
             (& $script:iconOf $Category) |
                 Should -BeExactly (Get-HDTConsoleIcon -Kind $Kind -Status 'Ok')
+        }
+
+        # THE NEWEST CATEGORY, AND THE ONE MOST AT RISK OF THE OLD DEFECT: an
+        # optical disc is already the Operating Systems glyph, so the obvious
+        # picture for a disc-burning node is one somebody would have to read the
+        # label to tell apart.
+        It 'gives Media a glyph of its own, not the plain folder every category used to wear' {
+            (& $script:iconOf 'Media') |
+                Should -BeExactly (Get-HDTConsoleIcon -Kind 'Media' -Status 'Ok')
+
+            (& $script:iconOf 'Media') | Should -Not -BeExactly ([char]::ConvertFromUtf32(0x1F4C1))
+            (& $script:iconOf 'Media') |
+                Should -Not -BeExactly (Get-HDTConsoleIcon -Kind 'OperatingSystem' -Status 'Ok')
+        }
+    }
+
+    # THE SET, NOT THE ONE THAT WAS JUST ADDED.
+    #
+    # Get-HDTConsoleIcon's -Kind ValidateSet is closed on purpose, and the glyph
+    # table beside it is a separate hashtable - so a kind added to the set and
+    # not to the table returns an EMPTY STRING rather than throwing, which draws
+    # as a row with no picture and looks like a theme problem. This reads the
+    # ValidateSet by reflection and makes every value in it account for itself.
+    Describe 'every Kind Get-HDTConsoleIcon accepts' {
+
+        BeforeAll {
+            $script:kind = @(
+                (Get-Command -Name 'Get-HDTConsoleIcon').Parameters['Kind'].Attributes |
+                    Where-Object { $_ -is [System.Management.Automation.ValidateSetAttribute] } |
+                    ForEach-Object { $_.ValidValues }
+            )
+        }
+
+        It 'read the set at all, so the rest of this is testing something' {
+            @($script:kind).Count | Should -BeGreaterThan 10
+            $script:kind | Should -Contain 'Media'
+        }
+
+        It 'gives every Kind in the ValidateSet a glyph, with none falling through' {
+            foreach ($current in @($script:kind)) {
+                Get-HDTConsoleIcon -Kind $current -Status 'Ok' |
+                    Should -Not -BeNullOrEmpty -Because ("{0} is in the ValidateSet and needs a line in the glyph table" -f $current)
+            }
+        }
+
+        # THE SAME TRAP, ONE TABLE OVER. Get-HDTConsoleIconColor carries its own
+        # copy of the set and its own hashtable, and a kind missing from that one
+        # returns an empty brush - a glyph drawn in whatever the row inherits.
+        It 'gives every Kind a colour too, from the other table that keeps its own copy' {
+            foreach ($current in @($script:kind)) {
+                Get-HDTConsoleIconColor -Kind $current -Status 'Ok' |
+                    Should -Not -BeNullOrEmpty -Because ("{0} needs a line in the colour table as well" -f $current)
+            }
         }
     }
 

@@ -61,7 +61,7 @@
         [Parameter(Mandatory = $true, Position = 0)]
         [ValidateSet('Root', 'Share', 'Category', 'TaskSequence', 'OperatingSystem', 'Application', 'BootImage', 'Empty',
             'DriverStore', 'SelectionProfile', 'DriverFolder', 'Folder', 'StepGroup', 'Step', 'MonitorRun', 'MonitorCategory',
-            'WindowsUpdate', 'UpdateRelease')]
+            'WindowsUpdate', 'UpdateRelease', 'Media')]
         [string] $Kind,
 
         [Parameter(Mandatory = $true, Position = 1)]
@@ -143,6 +143,22 @@
         # row is somewhere to put things, and it is not - it is computed from
         # what the updates declare and cannot be created or renamed.
         UpdateRelease   = [char]::ConvertFromUtf32(0x1F4BF)   # optical disc - the release these updates are for
+
+        # A BRIEFCASE, AND DELIBERATELY NOT A DISC. The obvious picture for a
+        # node that burns an ISO is an optical disc, and OperatingSystem has
+        # already got it - two rows under the same share wearing the same
+        # picture is the exact defect this table was rewritten to remove, and it
+        # would be the worst place to reintroduce it: an operating system and a
+        # disc BUILT FROM one are the two things somebody most needs to tell
+        # apart at a glance.
+        #
+        # AND THE BRIEFCASE SAYS WHAT THE NODE IS FOR. Standalone media is the
+        # share PACKED TO TRAVEL - DESIGN 13 calls it a content projection of
+        # the share with the provider swapped - carried to a site with no
+        # network by somebody who cannot reach the deployment share at all. The
+        # output happens to be an ISO today and a USB stick tomorrow; what does
+        # not change is that it leaves the building.
+        Media           = [char]::ConvertFromUtf32(0x1F4BC)   # briefcase - the share packed to travel
         Empty           = [string] ([char] 0x25AB)            # small white square
     }
 

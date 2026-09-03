@@ -479,6 +479,32 @@
         $selectionProfileFailure = [string] $_.Exception.Message
     }
 
+    # -- the standalone media ----------------------------------------------
+    #
+    # READ THE WAY THE PROFILES ABOVE ARE READ, and for the same reason: a share
+    # whose media will not read must still OPEN. Get-HDTConsoleShareNode draws a
+    # row saying which document failed, and the other eight branches are
+    # unaffected.
+    #
+    # -FileSystem IS WHAT MAKES ANY OF THIS TESTABLE. Get-HDTMedia defaults it
+    # to the real adapter, so omitting it here would be silent: the console
+    # would read this laptop's disk while a test had seeded a fake, and every
+    # assertion about the media branch would be about C:\ rather than about the
+    # fixture.
+    #
+    # A SHARE WITH NO Media\ FOLDER RETURNS NOTHING RATHER THAN FAILING - that
+    # is Get-HDTMedia's own rule, and it matters here because New-HDTWorkspace
+    # never writes over an existing share: every share created before Media\ was
+    # part of the layout has not got one.
+    $media = @()
+    $mediaFailure = ''
+
+    try {
+        $media = @(Get-HDTMedia -WorkspaceRoot $root -FileSystem $FileSystem)
+    } catch {
+        $mediaFailure = [string] $_.Exception.Message
+    }
+
     # -- the boot image ----------------------------------------------------
 
     $bootImage = Get-HDTConsoleBootImage -Root $root -BootImage $workspace.BootImage -FileSystem $FileSystem
@@ -524,6 +550,12 @@
         Driver          = $driver
         SelectionProfile = [object[]] @($selectionProfile)
         SelectionProfileFailure = $selectionProfileFailure
+
+        # MDT'S Media NODE, under Advanced Configuration beside the profiles -
+        # and it belongs beside them for more than layout: a media definition is
+        # a selection profile pointed at a disc.
+        Media           = [object[]] @($media)
+        MediaFailure    = $mediaFailure
         BootImage       = $bootImage
 
         # WHAT IS RUNNING ON IT, right now. DESIGN 12 lists Monitoring among the

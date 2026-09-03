@@ -59,7 +59,7 @@
         [Parameter(Mandatory = $true, Position = 0)]
         [ValidateSet('Root', 'Share', 'Category', 'TaskSequence', 'OperatingSystem', 'Application', 'BootImage', 'Empty',
             'DriverStore', 'SelectionProfile', 'DriverFolder', 'Folder', 'StepGroup', 'Step', 'MonitorRun', 'MonitorCategory',
-            'WindowsUpdate', 'UpdateRelease')]
+            'WindowsUpdate', 'UpdateRelease', 'Media')]
         [string] $Kind,
 
         [Parameter(Mandatory = $true, Position = 1)]
@@ -105,6 +105,19 @@
         # this share an administrator AUTHORS. The teal above is content brought
         # in from outside; a profile is a decision somebody made about it.
         SelectionProfile = '#FF8764B8'
+
+        # VIOLET, WITH THE SELECTION PROFILE, and not the teal of imported
+        # content. The palette says WHERE a thing came from: teal is brought in
+        # from outside, violet is authored here. A media definition is authored
+        # - it names a profile and an output path and nothing else - and the ISO
+        # it produces is made ON this share rather than carried onto it.
+        #
+        # AND IT IS THE PROFILE'S OWN COLOUR ON PURPOSE. A media item IS a
+        # selection profile pointed at a disc: DESIGN 13 calls standalone media
+        # a content projection of the share, and the profile is that
+        # projection's filter. The two rows belonging together is the true
+        # thing to say.
+        Media           = '#FF8764B8'
         DriverFolder    = '#FFCA5010'   # a container, like the amber ones below
         Folder          = '#FFCA5010'   # the amber every other container in this tree uses
         StepGroup       = '#FF8764B8'   # a group belongs to its sequence
