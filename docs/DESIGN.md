@@ -1897,6 +1897,51 @@ check: `Assert-HDTSelectionProfileDocument` allows only the five content folders
 as an include's first segment and `Get-HDTSelectionProfile` validates on read, so
 such a share is refused by name before a projection is ever asked for.
 
+#### 6.2.3 The Media node in the console
+
+**MDT puts Media under Advanced Configuration and hangs one action off it, and
+so does HDT.** `Get-HDTConsoleMediaNode` draws a `Media (n)` category between
+Selection Profiles and Monitoring - beside the profiles rather than among the
+content categories, because a media definition **is a selection profile pointed
+at a disc**, and before Monitoring, which stays last because it is the share in
+use rather than another thing to build.
+
+**The row answers the three questions somebody opens the branch to ask**:
+which selection profile, where the ISO goes, and when it was last built.
+`Last build` reads `LastBuildUtc` off `Get-HDTMedia` and shows
+`(never built)` in words when there is no manifest beside the document - not a
+blank and not a zero date, because that is precisely the state in which Update
+Media Content is the action the administrator wants.
+
+**A media document that will not parse is a row saying so, WITH the media that
+did parse still listed under it.** A share whose media are unreadable still has
+eight other branches worth opening, and a branch that empties itself over one
+typo hides every disc that is fine.
+
+**Update Media Content runs through `Show-HDTBuildProgressWindow`**, the same
+window the boot image build and the driver import use, so no cross-runspace code
+is written for it: `-Command` is a command NAME and `-Argument` a plain
+hashtable, both deliberately, because they cross a runspace boundary where a
+scriptblock would arrive bound to a session state the far side cannot invoke.
+`-StringPage 'MediaProgress'` and `-LogFile Media\<id>\media.build.log` are
+both named explicitly: the first defaults to the boot image's wording, which
+would head the window "Updating Boot Image" while it burns an ISO, and the
+second defaults to a boot image's own build log, which a driver import once
+overwrote for an image it had nothing to do with. **Neither fails at bind time
+when it is left off.**
+
+**Both media rows offer the action** - the category and an item under it - which
+is the boot image rows' rule. The category resolves to the **only** media when
+the share has exactly one; with several it is **shown disabled with the reason on
+it**, because naming an ambiguous target is the one thing this console does not
+do; with none it is not shown at all, since there is then nothing it could ever
+name.
+
+**New Media and Remove Media are deliberately NOT on the menu.** They are
+`New-HDTMedia` and `Remove-HDTMedia` at a prompt. The gap between the command
+set and the menu is a deferral recorded here rather than an oversight to be
+discovered.
+
 ### 6.3 Share credentials
 
 **Decision: the deployment account credential is embedded in the boot image**,

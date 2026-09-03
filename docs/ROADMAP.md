@@ -766,8 +766,13 @@ evidence.
 >
 > **The media COMMANDS are built** — phase 07: `New-HDTMedia`, `Get-HDTMedia`,
 > `Set-HDTMedia`, `Remove-HDTMedia` (07-01) and `Update-HDTMediaContent` with the
-> projection behind it (07-02). **The media EXIT is not met**, and it is met by a
-> booted VM rather than by a green suite. See "Exit — media" below.
+> projection behind it (07-02). **And they are on screen** — 07-03 added the
+> `Media (n)` node, its rows and MDT'''s own **Update Media Content** action,
+> running through the progress window the boot image build already uses
+> (DESIGN 6.2.3). **New Media and Remove Media are deliberately not on the menu**
+> and stay at a prompt in this phase. **The media EXIT is still not met**, and it
+> is met by a booted VM rather than by a green suite or a screenshot. See
+> "Exit — media" below.
 >
 > The milestone was written with one exit that tests only the media half, so the
 > capture half is given its own below; both must pass before M7 as a whole is
