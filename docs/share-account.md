@@ -90,6 +90,7 @@ of them, so the document and the checker cannot drift apart.
 | `Drivers\` | Read | the driver store |
 | `WindowsUpdates\` | Read | the .msu packages the ApplyUpdates step injects |
 | `Boot\` | Read | boot images and PXE payloads |
+| `Media\` | Read | standalone media definitions and the ISOs built from them |
 | `Control\` | Read | per-machine overrides, and its own credential file |
 | `Scripts\` | Read | user scripts the engine dot-sources |
 | `Modules\` | Read | third-party step modules |
@@ -143,8 +144,8 @@ follows it.
 $root = '\\server\HdtShare'
 $accessRule = @{}
 foreach ($folder in @('.', 'TaskSequences', 'OperatingSystems', 'Applications',
-                      'Drivers', 'WindowsUpdates', 'Boot', 'Control', 'Scripts',
-                      'Modules', 'Logs', 'Captures')) {
+                      'Drivers', 'WindowsUpdates', 'Boot', 'Media', 'Control',
+                      'Scripts', 'Modules', 'Logs', 'Captures')) {
 
     $path = $root
     if ($folder -ne '.') { $path = Join-Path -Path $root -ChildPath $folder }

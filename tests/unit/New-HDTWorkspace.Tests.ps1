@@ -67,6 +67,18 @@ Describe 'New-HDTWorkspace' {
             }
         }
 
+        It 'creates a Media folder on a new share' {
+            # Standalone media is a document family like any other, so a new
+            # share has the folder that holds it. Nothing in New-HDTWorkspace
+            # names Media: it is in Get-HDTWorkspacePath's -Kind set and the
+            # loop above reads that set, which is what the set-driven test
+            # immediately above this one proves.
+            $null = New-HDTWorkspace -Path $script:workspaceRoot -Id 'HDT-LAB' -FileSystem $script:fileSystem
+
+            $media = Get-HDTWorkspacePath -Root $script:workspaceRoot -Kind Media
+            $script:fileSystem.TestPath($media) | Should -BeTrue
+        }
+
         It 'creates Control\machines, where a per-machine override lands' {
             $null = New-HDTWorkspace -Path $script:workspaceRoot -Id 'HDT-LAB' -FileSystem $script:fileSystem
 

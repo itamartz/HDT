@@ -1,0 +1,52 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://hephaestus/schemas/media.schema.json",
+  "title": "HDT media.yaml",
+  "description": "A standalone media definition - MDT's media item, as YAML. One folder per item at Media\\<id>\\, holding this document, the ISO built from it and the manifest that records the build. Update-HDTMediaContent regenerates the ISO; nothing regenerates this file, which is why an administrator may comment it freely.",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "id",
+    "name",
+    "selectionProfile",
+    "output"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": {
+      "description": "The document format this file is written in. Every HDT document declares one; this engine understands 1.",
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 1
+    },
+    "id": {
+      "description": "The folder name under Media\\ and the key every command addresses the item by. Pattern-checked because Remove-HDTMedia deletes the folder it names: a separator, a space or a '..' in it would be a delete target built from a typed string.",
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]*$"
+    },
+    "name": {
+      "description": "What an administrator reads in the console's Media node and in a build log. The id is what documents reference.",
+      "type": "string",
+      "minLength": 1
+    },
+    "description": {
+      "description": "Free text - Workbench's Comments box. Optional, and omitted rather than written empty.",
+      "type": "string"
+    },
+    "selectionProfile": {
+      "description": "Which of the share's content travels onto the disc. A built-in profile id or one authored in Control\\selection-profiles.yaml. Defaults to 'everything' when New-HDTMedia creates the item, which is what MDT defaults a media item to: a whole share on a disc is the first answer somebody making standalone media wants.",
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]*$"
+    },
+    "output": {
+      "description": "The ISO the build writes. Share-relative unless it is rooted, and resolved against the workspace root at read time rather than at write time - a share is authored on one machine and built on another, so a path expanded to a drive letter when the item was created is the one value that is certainly wrong later. A rooted path is legal because media is routinely built onto another disk. It must name an .iso and may carry no '..' segment.",
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^(?!.*(^|[\\\\/])\\.\\.([\\\\/]|$)).*\\.[iI][sS][oO]$"
+    },
+    "enabled": {
+      "description": "The tick MDT's media item carries. Update-HDTMediaContent refuses a disabled item by name rather than skipping it silently - a build that did nothing reads as a broken build. Defaults to true.",
+      "type": "boolean"
+    }
+  }
+}

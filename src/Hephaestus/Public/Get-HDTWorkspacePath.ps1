@@ -58,9 +58,21 @@
         [string] $Root,
 
         # The set is closed on purpose: an unknown folder is a defect, not a path.
+        #
+        # IT IS ALSO THE ONLY PLACE THE LAYOUT IS WRITTEN DOWN. New-HDTWorkspace
+        # and Test-HDTShareAcl both read this ValidateSet by reflection, so a
+        # folder added here is created on every new share and ACL-checked
+        # without either of them being touched. docs/share-account.md names them
+        # too, and a test holds the two together.
+        #
+        # Media\ holds one folder per standalone media definition -
+        # Media\<id>\media.yaml, the ISO built from it, and the manifest that
+        # records the build. Generated, like Boot\, which is why it sits beside
+        # it and why the deployment account has no business writing to it.
         [Parameter(Mandatory = $true)]
         [ValidateSet('TaskSequences', 'OperatingSystems', 'Applications', 'Drivers',
-            'Boot', 'Logs', 'Captures', 'Control', 'Scripts', 'Modules', 'WindowsUpdates')]
+            'Boot', 'Media', 'Logs', 'Captures', 'Control', 'Scripts', 'Modules',
+            'WindowsUpdates')]
         [string] $Kind,
 
         [Parameter()]

@@ -29,9 +29,33 @@ Describe 'Get-HDTWorkspacePath' {
             @{ Kind = 'Scripts';          Folder = 'Scripts' }
             @{ Kind = 'Modules';          Folder = 'Modules' }
             @{ Kind = 'WindowsUpdates';   Folder = 'WindowsUpdates' }
+            @{ Kind = 'Media';            Folder = 'Media' }
         ) {
             $result = Get-HDTWorkspacePath -Root 'X:\Deploy' -Kind $Kind
             $result | Should -Be ([System.IO.Path]::Combine('X:\Deploy', $Folder))
+        }
+
+        It 'answers a Media path, because a media definition is part of the layout' {
+            # Media\<id>\media.yaml is a document like any other on the share, so
+            # the folder that holds it is named where every other folder is named.
+            # That one edit is also what creates it on a new share and what makes
+            # Test-HDTShareAcl judge it - both read this set by reflection.
+            Get-HDTWorkspacePath -Root 'X:\Deploy' -Kind Media -ChildPath 'WIN11-FIELD', 'media.yaml' |
+                Should -Be ([System.IO.Path]::Combine('X:\Deploy', 'Media', 'WIN11-FIELD', 'media.yaml'))
+        }
+
+        It 'still answers every other kind it did, so nothing was displaced' {
+            # Adding to a ValidateSet cannot be proved by a test that names the
+            # addition: what has to hold is that the set only GREW.
+            $kind = @((Get-Command -Name Get-HDTWorkspacePath).Parameters['Kind'].Attributes |
+                    Where-Object { $_ -is [System.Management.Automation.ValidateSetAttribute] } |
+                    ForEach-Object { $_.ValidValues })
+
+            foreach ($name in @('TaskSequences', 'OperatingSystems', 'Applications', 'Drivers',
+                    'Boot', 'Logs', 'Captures', 'Control', 'Scripts', 'Modules', 'WindowsUpdates')) {
+
+                $kind | Should -Contain $name -Because "$name was part of the layout before Media was"
+            }
         }
 
         It 'rejects a folder name that is not part of the layout' {
