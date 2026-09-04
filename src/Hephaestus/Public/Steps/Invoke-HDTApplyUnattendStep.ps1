@@ -259,9 +259,17 @@
                 # The whole line first, so removing the element does not leave a
                 # blank line where it was; then the bare element, for a template
                 # that puts it inline with something else.
-                $text = $text -replace '(?m)^[ 	]*<ProductKey>%HDTProductKey%</ProductKey>[ 	]*
-?
-?', ''
+                #
+                # \r?\n AS TWO-CHARACTER ESCAPES, NOT A REAL NEWLINE PASTED INTO
+                # THE PATTERN. This carried an actual line break inside the
+                # single-quoted string in place of \n, which made the pattern's
+                # meaning depend on the end-of-line bytes THIS SOURCE FILE
+                # happens to be saved with - a local edit kept LF and worked, a
+                # CI checkout normalised to CRLF and the match silently stopped
+                # firing. The identical trap in Set-HDTDocumentHeaderKey.ps1
+                # broke CI on 2026-09-04 without failing locally; found here by
+                # sweeping for the same shape.
+                $text = $text -replace '(?m)^[ 	]*<ProductKey>%HDTProductKey%</ProductKey>[ 	]*\r?\n?\r?\n?', ''
                 $text = $text -replace '<ProductKey>%HDTProductKey%</ProductKey>', ''
             } else {
                 # Trimmed, because a key arrives pasted out of a licensing

@@ -118,4 +118,37 @@ Describe 'Set-HDTDocumentHeaderKey' {
             }
         }
     }
+
+    Context 'a value that spans lines, whichever line ending it carries' {
+
+        # THE COLLAPSE REGEX USED TO BE WRITTEN WITH A REAL LINE BREAK PASTED
+        # INTO THE PATTERN, in place of \n. That parses - a single-quoted
+        # string needs no escape to contain one - but it makes the pattern's
+        # MEANING depend on the end-of-line bytes THIS SOURCE FILE happens to
+        # be saved with. git's CRLF normalisation can rewrite those bytes on a
+        # fresh checkout, so a working tree edited in place (LF preserved)
+        # passed every local run while a CI checkout (CRLF) silently stopped
+        # collapsing the value at all - reproduced directly from the CI run's
+        # own log on 2026-09-04, not re-derived. \r?\n as two ASCII characters
+        # is unaffected by any checkout's line-ending choice, which is the
+        # whole point of these three cases.
+
+        It 'collapses a value that arrived with <Label>' -ForEach @(
+            @{ Label = 'CRLF'; Newline = "`r`n" }
+            @{ Label = 'LF only'; Newline = "`n" }
+        ) {
+            InModuleScope Hephaestus -Parameters @{ Newline = $Newline } {
+                param($Newline)
+
+                $line = [string[]] @('schemaVersion: 1', 'id: M1', 'name: Demo')
+                $value = 'One line.{0}And another.' -f $Newline
+
+                $result = @(Set-HDTDocumentHeaderKey -Line $line -Key 'name' -Value $value)
+
+                @($result | Where-Object { $_ -like 'name:*' }).Count | Should -Be 1 -Because 'a collapsed value is one line, never a splice that put the next key inside it'
+                $result | Should -Contain 'name: One line. And another.'
+                @($result).Count | Should -Be @($line).Count -Because 'the collapse must not have added a line'
+            }
+        }
+    }
 }

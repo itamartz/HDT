@@ -584,6 +584,34 @@ Describe 'Invoke-HDTApplyUnattendStep' {
             [string] $fs.File[$script:pantherPath] | Should -BeLike '*<ComputerName>HDT-M3-01</ComputerName>*'
         }
 
+        It 'leaves no blank line where the element was' {
+            # THE REGEX THAT REMOVES THIS LINE USED TO BE WRITTEN WITH A REAL
+            # LINE BREAK PASTED INTO THE PATTERN in place of \n, which makes its
+            # meaning depend on the end-of-line bytes THIS SOURCE FILE happens
+            # to be saved with - git's CRLF normalisation can rewrite them on a
+            # fresh checkout. Under that corruption the line-eating half of the
+            # regex stops matching, a bare fallback still strips the element
+            # TEXT, and 'Should -Not -BeLike ProductKey*' above still passes -
+            # but the line survives as a bare blank one, which is what this
+            # asserts against directly. Found 2026-09-04 sweeping for the same
+            # shape as the CI failure in Set-HDTDocumentHeaderKey.ps1.
+            $fs = New-HDTFakeFileSystem -File @{ $script:templatePath = $script:keyedTemplate }
+            $script:fileSystem = $fs
+            $context = & $script:newContextFor $null $script:state
+
+            $null = Invoke-HDTApplyUnattendStep -Step $script:step -Context $context
+
+            $written = [string] $fs.File[$script:pantherPath]
+            $blank = @(($written -split '\r?\n') | Where-Object { $_ -match '^[ \t]*$' })
+
+            # THE TEMPLATE FIXTURE'S OWN SHAPE, NOT A MAGIC NUMBER. keyedTemplate
+            # is a here-string with no blank line in it at all; any blank line
+            # in the output was put there by a failed removal.
+            $templateBlank = @(($script:keyedTemplate -split '\r?\n') | Where-Object { $_ -match '^[ \t]*$' })
+
+            $blank.Count | Should -Be $templateBlank.Count -Because 'removing the element must not leave a blank line where it was'
+        }
+
         It 'never removes a key an author hard-coded into the template' {
             # THE TRAP THIS AVOIDS. Stripping every ProductKey element would
             # delete the literal key of a template that carries one and never

@@ -120,9 +120,21 @@
     # - which put the NEXT key inside the description and took the folder off
     # the tree. Nothing in a document header is meant to carry a paragraph, so
     # the value is collapsed rather than quoted across lines.
-    $oneLine = ($Value -replace '\s*
-?
-\s*', ' ').Trim()
+    #
+    # \r?\n AS TWO-CHARACTER ESCAPES, NEVER AS A REAL NEWLINE PASTED INTO THE
+    # PATTERN. This regex used to be written with an actual line break sitting
+    # inside the single-quoted string in place of \n - which parses, and even
+    # passes here, because a single-quoted string does not need an escape
+    # sequence to contain one. But it makes the regex's MEANING depend on the
+    # end-of-line bytes THIS SOURCE FILE happens to be saved with, and git's
+    # CRLF normalisation can rewrite those bytes on checkout. A local working
+    # tree edited in place kept LF and passed; a CI runner's fresh checkout
+    # normalised to CRLF, the embedded newline stopped matching what it used
+    # to, the collapse silently did nothing, and Import-HDTSequenceDocument
+    # died on 'did not find expected key' - the exact failure this comment
+    # block above already describes, reintroduced by the fix for it. Found
+    # 2026-09-04 from a CI-only failure that would not reproduce locally.
+    $oneLine = ($Value -replace '\s*\r?\n\s*', ' ').Trim()
     $written = '{0}: {1}' -f $Key, (Get-HDTConsoleScalarText -Value $oneLine)
 
     $at = -1
