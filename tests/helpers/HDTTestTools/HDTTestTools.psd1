@@ -11,6 +11,7 @@
     CompatiblePSEditions = @('Desktop', 'Core')
 
     FunctionsToExport    = @(
+        'Assert-HDTLabMemoryBudget',
         'Assert-HDTLabScratchDisk',
         'Assert-HDTLabVmName',
         'Assert-HDTLabVmPath',
@@ -18,7 +19,10 @@
         'Get-HDTAutoLogonArtifact',
         'Get-HDTBadgeColor',
         'Get-HDTFunctionNameViolation',
+        'Get-HDTLabMemoryBudget',
+        'Get-HDTLabMemoryUse',
         'Get-HDTLabOfflineComputerName',
+        'Get-HDTLabVmStamp',
         'Get-HDTLogRecord',
         'Get-HDTMdtDependency',
         'Get-HDTSlowSuiteSkipViolation',
@@ -43,6 +47,7 @@
         'Split-HDTTestBucket',
         'Send-HDTLabVmText',
         'Test-HDTFunctionName',
+        'Test-HDTLabVmStamped',
         'Test-HDTModuleAvailable',
         'Test-HDTScriptCompatibility',
         'Wait-HDTLabVmState'
