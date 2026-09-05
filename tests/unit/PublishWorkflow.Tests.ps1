@@ -122,12 +122,40 @@ Describe 'the publish workflow' {
         $script:publishText | Should -Match 'PSGALLERY_API_KEY is not set'
     }
 
-    It 'asks for no more permission than reading the repository' -Skip:$script:yamlMissing {
-        # It publishes outward. Nothing here writes to the repository, and a
-        # token that could is a token that might.
+    It 'asks for exactly the write it needs to create a Release, and nothing more' -Skip:$script:yamlMissing {
+        # WIDENED FROM read ON 2026-09-05, DELIBERATELY, TO CREATE THE RELEASE
+        # ITSELF. gh release create is a repository write - there is no
+        # narrower scope for it - so this is a real posture change, made only
+        # because the workflow now performs a write it did not before. Still
+        # the single permission this job needs: nothing here pushes a commit,
+        # opens a PR, or touches anything but the Releases list.
         $permission = (ConvertFrom-Yaml $script:publishText)['permissions']
 
-        $permission['contents'] | Should -BeExactly 'read'
+        $permission['contents'] | Should -BeExactly 'write'
+    }
+
+    It 'creates a GitHub Release from the tag it just published' -Skip:$script:yamlMissing {
+        # A TAG WITH NO RELEASE BEHIND IT is what v0.13.0 through v0.19.0 all
+        # were: Publish shipped every one of them to the Gallery and none of
+        # them got a Release page, because nothing in this file ever asked
+        # for one. v0.12.0 has a Release only because somebody made it by
+        # hand once.
+        $release = @($script:publishJob['steps'] | Where-Object { [string] $_['name'] -eq 'Create a GitHub Release' })
+        $release.Count | Should -Be 1
+
+        [string] $release[0]['run'] | Should -Match 'gh release create'
+    }
+
+    It 'only creates a Release on the same condition that actually published' -Skip:$script:yamlMissing {
+        # THE DRY RUN, AND A VERSION THE GALLERY ALREADY HAS, MUST NOT GET ONE.
+        # steps.gallery.outputs.published is 'false' only when the Gallery
+        # step found this version already there and skipped the Gallery
+        # publish for the same reason - the two steps stay in lockstep by
+        # sharing the guard rather than each inventing its own.
+        $release = @($script:publishJob['steps'] | Where-Object { [string] $_['name'] -eq 'Create a GitHub Release' })
+
+        [string] $release[0]['if'] | Should -Match "github\.event_name == 'push'"
+        [string] $release[0]['if'] | Should -Match "steps\.gallery\.outputs\.published != 'false'"
     }
 }
 

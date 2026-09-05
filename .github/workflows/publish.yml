@@ -27,7 +27,7 @@ on:
         default: true
 
 permissions:
-  contents: read        # it publishes outward. Nothing here writes to the repo.
+  contents: write        # gh release create is a repository write; there is no narrower scope for it.
 
 jobs:
   publish:
@@ -189,3 +189,33 @@ jobs:
           Publish-Module -Path $staged -NuGetApiKey $env:PSGALLERY_API_KEY -Repository PSGallery -Verbose
 
           "published Hephaestus $($manifest.ModuleVersion)"
+
+      # v0.13.0 THROUGH v0.19.0 ALL SHIPPED WITH NO RELEASE BEHIND THEM. Every
+      # one published to the Gallery correctly; none of them got a Release
+      # page, because nothing in this file ever asked for one. v0.12.0 has one
+      # only because somebody ran `gh release create` by hand, once.
+      #
+      # SAME GUARD AS THE GALLERY PUBLISH, so the two cannot drift: a dry run
+      # (workflow_dispatch) and a version the Gallery already has both leave
+      # steps.gallery.outputs.published as anything but the string 'false' is
+      # wrong to read here too, and a Release that appeared for a publish that
+      # did not happen is worse than one that is late.
+      #
+      # --generate-notes RATHER THAN A HAND-WRITTEN BODY: GitHub diffs this tag
+      # against the previous Release and lists the commits, which is accurate
+      # by construction and needs nothing added here when the commit style
+      # changes.
+      - name: Create a GitHub Release
+        if: github.event_name == 'push' && steps.gallery.outputs.published != 'false'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          $manifest = Import-PowerShellDataFile './src/Hephaestus/Hephaestus.psd1'
+
+          gh release create $env:GITHUB_REF_NAME `
+              --title "Hephaestus $($manifest.ModuleVersion)" `
+              --generate-notes
+
+          "created the GitHub Release for $env:GITHUB_REF_NAME"
