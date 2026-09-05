@@ -748,7 +748,7 @@ evidence.
 
 ---
 
-## M7 — Capture and standalone media  ·  **CAPTURE IN PROGRESS · MEDIA COMMANDS BUILT, MEDIA EXIT UNMET**
+## M7 — Capture and standalone media  ·  **CAPTURE EXIT UNMET · MEDIA EXIT MET 2026-09-03**
 
 > **v2, not cut.** Scheduled out of v1 at the user's direction; the milestone is
 > kept here in full so v2 starts from a written plan rather than a memory. See
