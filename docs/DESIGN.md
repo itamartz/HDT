@@ -1949,6 +1949,48 @@ Application shape, and running `Remove-HDTMedia`. This paragraph used to
 record the gap between the command set and the menu as a deliberate
 deferral; it is closed.
 
+**Four rows of the media pane are writable, and they are drawn by three
+different controls** (phase 07-05). A media row's details pane is not a
+read-out: `description`, `selectionProfile`, `output` and `enabled` each carry
+`-Property`, so editing one and pressing Apply splices that key in
+`Media\<id>\media.yaml`. What draws each is decided by what the document will
+accept:
+
+| Row | Control | Why |
+|---|---|---|
+| `description` | text box | free text; nothing to constrain it to |
+| `selectionProfile` | **list** of the share's profile ids | a typed name that is wrong produces a disc with no content on it, and the document constrains the value to a profile that exists |
+| `enabled` | **list** of `true` and `false` | the two words `media.yaml` holds, and nothing else is a legal value |
+| `output` | text box **and a Browse button** | a path on disk, and the one row in this console that opens a file dialog |
+
+**The profile list is fed the collection the Selection Profiles category
+already walks** — `Get-HDTConsoleShareNode` hands `Get-HDTConsoleMediaNode` its
+`-SelectionProfile`, rather than the pane reading `selection-profiles.yaml` a
+second time. Two reads are two chances to disagree, and the one that disagreed
+would be the one an administrator is choosing from. A media naming a profile
+the share has since dropped still shows that name, first, on its own list —
+the pane says what the document holds even when the share no longer offers it.
+
+**`enabled` is a LIST and not a tick box, and that is a deviation recorded
+rather than a pattern.** Every other yes/no in this console is a tick box
+(`New-HDTConsoleField -Check`), which is the house rule and the MDT homage.
+This one is a list at the user's explicit instruction (2026-09-05). It is
+written down here because the next person to sweep this window for consistency
+will otherwise "fix" it back.
+
+**`-Browse` is a KIND, not a switch**, so a contract test can walk the set of
+rows that declare one and assert what each opens; a boolean would only ever
+prove the row it was written for. `Get-HDTConsoleFieldBrowse` turns a kind into
+a dialog description and is **pure** — no WPF type, no disk, `System.IO.Path`
+rather than `Split-Path` — so what the button will do is decided in a command
+Pester can call and the click handler only obeys it. The dialog itself is a
+`SaveFileDialog` and not an open dialog, because the file the box names is one
+`Update-HDTMediaContent` is going to **create**; an open dialog would refuse
+every path that does not already exist, which is every path that matters here.
+Cancel writes nothing, and Browse on an empty box still writes nothing —
+`New-HDTMedia` fills an empty `output` with `Media\<id>\HDT_<id>.iso` itself,
+and a browse that forced a value would take that default away.
+
 ### 6.3 Share credentials
 
 **Decision: the deployment account credential is embedded in the boot image**,
