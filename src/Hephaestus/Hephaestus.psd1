@@ -198,6 +198,7 @@
         'Invoke-HDTSysprepStep',
         'Invoke-HDTBootToWinPEStep',
         'Invoke-HDTCaptureImageStep',
+        'Invoke-HDTWindowsUpdateStep',
         'Invoke-HDTBootReconciliation',
         'Invoke-HDTStep',
         'Invoke-HDTTaskSequence',

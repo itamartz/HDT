@@ -326,3 +326,28 @@ Describe 'Select-HDTApplicableUpdate' {
         }
     }
 }
+
+Describe 'Get-HDTUpdateResultName' {
+
+    # DESIGN 10.1 ASKS FOR THE CODE AND WHAT IT MEANS. A log line reading
+    # "result code 4" makes an administrator look up an enumeration before they
+    # can read their own deployment; "result code 4 (failed)" does not.
+    It 'names each of the agent operation result codes' {
+        InModuleScope Hephaestus {
+            Get-HDTUpdateResultName -ResultCode 0 | Should -BeExactly 'not started'
+            Get-HDTUpdateResultName -ResultCode 1 | Should -BeExactly 'in progress'
+            Get-HDTUpdateResultName -ResultCode 2 | Should -BeExactly 'succeeded'
+            Get-HDTUpdateResultName -ResultCode 3 | Should -BeExactly 'succeeded with errors'
+            Get-HDTUpdateResultName -ResultCode 4 | Should -BeExactly 'failed'
+            Get-HDTUpdateResultName -ResultCode 5 | Should -BeExactly 'aborted'
+        }
+    }
+
+    # A CODE NOBODY HAS SEEN IS STILL REPORTED. Returning an empty string would
+    # produce "result code 9 ()" in the one line an administrator is relying on.
+    It 'reports a code outside the set rather than returning nothing' {
+        InModuleScope Hephaestus {
+            Get-HDTUpdateResultName -ResultCode 9 | Should -BeLike '*9*'
+        }
+    }
+}
