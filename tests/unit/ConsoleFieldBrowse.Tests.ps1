@@ -113,8 +113,12 @@ InModuleScope -ModuleName Hephaestus {
             }
 
             It 'filters to .iso and keeps an All files escape hatch' {
-                [string] $script:iso.Filter | Should -BeLike '*\*.iso*'
-                [string] $script:iso.Filter | Should -BeLike '*\*.\**'
+                # -Match AND NOT -BeLike. A dialog filter is made of asterisks,
+                # and -BeLike's wildcard escape is a BACKTICK - so '*\*.iso*'
+                # asks for a literal backslash and fails against a filter that
+                # is perfectly correct.
+                [string] $script:iso.Filter | Should -Match '\*\.iso'
+                [string] $script:iso.Filter | Should -Match '\*\.\*'
             }
 
             It 'titles it in one line, saying where the ISO is written' {

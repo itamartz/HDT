@@ -248,7 +248,17 @@ function Get-HDTConsoleMediaNode {
             # THE RESOLVED PATH, NOT THE DECLARED ONE. The document may name a
             # share-relative path - Media\<id>\<id>.iso - and where the file
             # actually lands is the question somebody opens this row to answer.
+            #
+            # AND IT IS POINTED AT, NOT REMEMBERED. This is the only row on this
+            # pane whose value is a filesystem path, and until now it was a box
+            # a technician typed one into from memory. What the button opens is
+            # Get-HDTConsoleFieldBrowse's decision, not this call site's.
+            #
+            # THE VALUE SHOWN IS STILL THE RESOLVED PATH, so a browse writes an
+            # absolute one - which is what typing into this box already did, not
+            # a change the button makes.
             New-HDTConsoleField -Label 'Output' -Value ([string] $current.OutputPath) -Property 'output' `
+                -Browse 'IsoFile' `
                 -Hint 'Where the next build writes its ISO. A path in the document that is not rooted is taken from the share root.'
 
             New-HDTConsoleField -Label 'Last build' -Value $lastBuild

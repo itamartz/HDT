@@ -39,13 +39,31 @@
             document writes as a YAML boolean - wipe, expand, recoveryPassword -
             where a text box asks an administrator to type the word True.
 
+        .PARAMETER Browse
+            The row's value is picked off the disk rather than typed, and this
+            says WHAT is picked. A path is a thing to point at, not a thing to
+            remember.
+
+            A KIND AND NOT A SWITCH. A bare switch would force the window's
+            click handler to know that "a browse here means a save dialog
+            filtered to .iso" - a decision, inside an adapter, where nothing can
+            test it. Get-HDTConsoleFieldBrowse decides it instead, and a CLOSED
+            SET is a thing a contract can walk: the contract reads this
+            ValidateSet and asserts the mapper answers every member of it, so
+            the day somebody adds a kind the mapper does not know, the sweep
+            fails rather than the button doing nothing.
+
+            AN ADJUNCT, NOT A FOURTH Kind. The box is still the control; the
+            button sits beside it in the third column, the way the help dot
+            does.
+
         .INPUTS
             None. This command does not accept pipeline input.
 
         .OUTPUTS
             System.Management.Automation.PSCustomObject with Label, Value,
             Property, Editable, ReadOnly, Original, Hint, HasHint, Choice,
-            HasChoice and Kind.
+            HasChoice, Browse, HasBrowse and Kind.
 
         .EXAMPLE
             New-HDTConsoleField -Label 'Steps' -Value $sequence.StepCount
@@ -114,11 +132,44 @@
         # name. Get-HDTConsoleStepChange reads this and routes to
         # Set-HDTStepPropertyList instead.
         [Parameter()]
-        [switch] $List
+        [switch] $List,
+
+        # WHAT THIS ROW PICKS OFF THE DISK, for the row whose value is a path.
+        # See the help above for why it is a kind rather than a switch.
+        #
+        # NO [AllowEmptyString()], DELIBERATELY, AND THIS IS NOT THE SHAPE THE
+        # REST OF THIS FUNCTION USES. Every other optional string here carries
+        # one; this one must not. AllowEmptyString exempts a value from the
+        # null/empty check and NOT from ValidateSet, so the pair would accept
+        # -Browse unbound - a default is never validated - and then refuse
+        # -Browse '' with a set error naming IsoFile: two spellings of "no
+        # browse", one of which throws. Leaving it off makes this ValidateSet
+        # EXACTLY the set of browse kinds, which is what the contract sweep
+        # reads off this parameter and walks.
+        [Parameter()]
+        [ValidateSet('IsoFile')]
+        [string] $Browse = ''
     )
 
     Set-StrictMode -Version Latest
     $ErrorActionPreference = 'Stop'
+
+    if (-not [string]::IsNullOrEmpty($Browse)) {
+
+        # A PICKER WITH NOWHERE TO PUT THE ANSWER is a defect that looks, from
+        # the outside, like a UI that does nothing: the dialog opens, a file is
+        # chosen, and the value is dropped. Refused here, the failure names the
+        # line that declared the row.
+        if ([string]::IsNullOrEmpty($Property)) {
+            throw (New-Object System.ArgumentException (
+                    "the '{0}' row asks for a Browse button but names no document key, so there is nowhere to put what it picks." -f $Label))
+        }
+
+        if ($Choice.Count -gt 0 -or $Check) {
+            throw (New-Object System.ArgumentException (
+                    "the '{0}' row asks for a Browse button and a closed set at the same time. A path picked off the disk is not one of a list." -f $Label))
+        }
+    }
 
     return [pscustomobject] @{
         Label    = $Label
@@ -140,6 +191,14 @@
         # converter this markup has nowhere to load from.
         Choice   = [string[]] $Choice
         HasChoice = ($Choice.Count -gt 0)
+
+        # WHAT THIS ROW PICKS, AND WHETHER IT PICKS AT ALL. Two properties for
+        # one fact, for the same reason HasHint exists above: the template shows
+        # the browse button on a DataTrigger, and a trigger compares a value -
+        # it cannot ask whether a string is empty without a converter this
+        # markup has nowhere to load from.
+        Browse    = $Browse
+        HasBrowse = (-not [string]::IsNullOrEmpty($Browse))
 
         # WHICH CONTROL DRAWS THIS ROW, AS ONE STRING. A DataTrigger compares a
         # value, so three booleans would need three triggers that can all fire
