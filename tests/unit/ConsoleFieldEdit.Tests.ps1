@@ -367,4 +367,178 @@ InModuleScope -ModuleName Hephaestus {
             }
         }
     }
+
+    # THE SAME DEFECT THIS FILE EXISTS FOR, ON THE NEWEST ROW KIND. $writeRow's
+    # Media branch calls & $call 'Get-HDTConsoleMediaEdit' from inside a closure
+    # bound to a fresh dynamic module - a private name written any other way
+    # resolves in the GLOBAL scope and throws 'is not recognized' the moment a
+    # technician types into the box, the way the version defect this file's
+    # header describes did for Get-HDTHandlerCall. Nothing that reads the
+    # source rather than running it can catch that.
+    Describe 'a field typed into the details pane of a media item' {
+
+        BeforeAll {
+            $script:mediaRoot = Join-Path -Path $TestDrive -ChildPath 'share'
+            $script:mediaFolder = Join-Path -Path $script:mediaRoot -ChildPath 'Media\HYDRA'
+
+            [void] (New-Item -Path $script:mediaFolder -ItemType Directory -Force)
+
+            [System.IO.File]::WriteAllText(
+                (Join-Path -Path $script:mediaRoot -ChildPath 'workspace.yaml'),
+                "schemaVersion: 1`nid: HDT`nname: HDT share`n")
+
+            $script:mediaPath = Join-Path -Path $script:mediaFolder -ChildPath 'media.yaml'
+
+            [System.IO.File]::WriteAllText($script:mediaPath, (@(
+                        '# HDT standalone media definition.'
+                        'schemaVersion: 1'
+                        'id: HYDRA'
+                        'name: Hydration - Windows 11 and Server 2025'
+                        'selectionProfile: hydration'
+                        'output: Media\HYDRA\HDT_HYDRA.iso'
+                        'enabled: true'
+                    ) -join [System.Environment]::NewLine))
+
+            # THE REAL ROW BUILDER, so the shape under test is the shape the
+            # console shows - Get-HDTConsoleMediaNode.ps1's own field list.
+            $field = @(
+                New-HDTConsoleField -Label 'Description' -Value '' -Property 'description'
+                New-HDTConsoleField -Label 'Enabled' -Value 'yes' -Property 'enabled'
+            )
+
+            $script:mediaNode = New-HDTConsoleNode -Depth 0 -Kind 'Media' -Status 'Ok' `
+                -Text 'Hydration - Windows 11 and Server 2025' -Name 'HYDRA' -Field $field `
+                -Command "Update-HDTMediaContent -WorkspaceRoot '$script:mediaRoot' -Id 'HYDRA'" `
+                -Subject ([pscustomobject] @{ Path = $script:mediaPath }) `
+                -Header ([pscustomobject] @{
+                        Title = 'HDT'; Root = $script:mediaRoot; DeployRoot = $script:mediaRoot
+                    })
+
+            $script:mediaWindow = New-HDTConsoleView `
+                -ConsoleHost ([pscustomobject] @{
+                        Answer = ''; Width = 0; Height = 0; Window = $null; OpenShare = [string[]] @()
+                    }) `
+                -Xaml $script:consoleXaml -Title 'Hephaestus' -Node ([object[]] @($script:mediaNode)) `
+                -Theme (Get-HDTConsoleTheme) `
+                -Size ([pscustomobject] @{ Width = 1800; Height = 900; Left = 0; Top = 0 })
+
+            $content = $script:mediaWindow.Content
+            $content.Measure([System.Windows.Size]::new(1800, 900))
+            $content.Arrange([System.Windows.Rect]::new(0, 0, 1800, 900))
+            $content.UpdateLayout()
+
+            $tree = $script:mediaWindow.FindName('HDTConsoleTree')
+            $tree.UpdateLayout()
+
+            $item = $tree.ItemContainerGenerator.ContainerFromItem($script:mediaNode)
+            $item.IsSelected = $true
+
+            $script:mediaWindow.Dispatcher.Invoke([action] {},
+                [System.Windows.Threading.DispatcherPriority]::Background)
+
+            $detail = $script:mediaWindow.FindName('HDTDetailList')
+            $detail.UpdateLayout()
+
+            $script:mediaDescriptionBox = Get-HDTTestTemplateBox -Root $detail.ItemContainerGenerator.ContainerFromIndex(0)
+            $script:mediaEnabledBox = Get-HDTTestTemplateBox -Root $detail.ItemContainerGenerator.ContainerFromIndex(1)
+        }
+
+        It 'draws a typeable box for both rows' {
+            $script:mediaDescriptionBox.DataContext.Property | Should -BeExactly 'description'
+            $script:mediaEnabledBox.DataContext.Property | Should -BeExactly 'enabled'
+
+            $script:mediaDescriptionBox.IsReadOnly | Should -BeFalse
+            $script:mediaEnabledBox.IsReadOnly | Should -BeFalse
+        }
+
+        Context 'the description, typed and focus moved off it' {
+
+            BeforeAll {
+                $script:mediaDescriptionThrew = ''
+                $script:mediaDescriptionBox.Text = 'The bench disc.'
+
+                try {
+                    $script:mediaDescriptionBox.RaiseEvent((New-Object -TypeName System.Windows.RoutedEventArgs `
+                                -ArgumentList ([System.Windows.Controls.TextBox]::LostFocusEvent)))
+                } catch {
+                    $script:mediaDescriptionThrew = [string] $_.Exception.Message
+                }
+
+                $script:mediaDescriptionWritten = [System.IO.File]::ReadAllText($script:mediaPath)
+            }
+
+            It 'does not throw Get-HDTConsoleMediaEdit is not recognized, or anything else' {
+                $script:mediaDescriptionThrew | Should -BeNullOrEmpty
+            }
+
+            It 'writes the description into media.yaml on disk, through Set-HDTMedia' {
+                $script:mediaDescriptionWritten | Should -Match 'description:.*The bench disc\.'
+            }
+
+            It 'splices rather than re-serialising, so the comment survives' {
+                $script:mediaDescriptionWritten | Should -Match '# HDT standalone media definition\.'
+                $script:mediaDescriptionWritten | Should -Match 'id:\s*HYDRA'
+                $script:mediaDescriptionWritten | Should -Match 'selectionProfile:\s*hydration'
+            }
+        }
+
+        Context 'enabled, typed as no and focus moved off it' {
+
+            BeforeAll {
+                $script:mediaEnabledThrew = ''
+                $script:mediaEnabledBox.Text = 'no'
+
+                try {
+                    $script:mediaEnabledBox.RaiseEvent((New-Object -TypeName System.Windows.RoutedEventArgs `
+                                -ArgumentList ([System.Windows.Controls.TextBox]::LostFocusEvent)))
+                } catch {
+                    $script:mediaEnabledThrew = [string] $_.Exception.Message
+                }
+
+                $script:mediaEnabledWritten = [System.IO.File]::ReadAllText($script:mediaPath)
+            }
+
+            # THE ONE ROW Get-HDTConsoleMediaEdit PARSES RATHER THAN PASSES
+            # THROUGH. A typo in that branch - or in the closure reaching it -
+            # is what this proves absent, the same way the description context
+            # above proves it for the plain-string branch.
+            It 'does not throw out of the handler and onto a message box' {
+                $script:mediaEnabledThrew | Should -BeNullOrEmpty
+            }
+
+            It 'writes enabled: false, because Set-HDTMedia takes it as [bool]' {
+                $script:mediaEnabledWritten | Should -Match 'enabled:\s*false'
+            }
+        }
+
+        Context 'enabled, typed as a word that is not yes or no' {
+
+            BeforeAll {
+                $script:mediaBadEnabledThrew = ''
+                $script:mediaEnabledBox.Text = 'maybe'
+
+                try {
+                    $script:mediaEnabledBox.RaiseEvent((New-Object -TypeName System.Windows.RoutedEventArgs `
+                                -ArgumentList ([System.Windows.Controls.TextBox]::LostFocusEvent)))
+                } catch {
+                    $script:mediaBadEnabledThrew = [string] $_.Exception.Message
+                }
+            }
+
+            # A REFUSAL PUTS THE BOX BACK, as everywhere else on this pane - it
+            # does not throw out of the handler and onto a message box, and the
+            # footer names what was wrong rather than the document.
+            It 'does not throw out of the handler and onto a message box' {
+                $script:mediaBadEnabledThrew | Should -BeNullOrEmpty
+            }
+
+            It 'puts the box back to what it was, rather than leaving a word the document never saw' {
+                [string] $script:mediaEnabledBox.Text | Should -BeExactly 'no'
+            }
+
+            It 'does not write "maybe" or anything else new to media.yaml' {
+                [System.IO.File]::ReadAllText($script:mediaPath) | Should -Not -Match 'maybe'
+            }
+        }
+    }
 }

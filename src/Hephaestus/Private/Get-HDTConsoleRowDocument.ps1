@@ -120,7 +120,7 @@
         CommandFormat = ''
     }
 
-    if (@('TaskSequence', 'OperatingSystem', 'Share', 'Application', 'WindowsUpdate') -notcontains $kind) { return $answer }
+    if (@('TaskSequence', 'OperatingSystem', 'Share', 'Application', 'WindowsUpdate', 'Media') -notcontains $kind) { return $answer }
 
     $answer.Supported = $true
 
@@ -160,6 +160,30 @@
 
         $answer.CommandFormat = "Set-HDTWindowsUpdate -WorkspaceRoot '{0}' -Id '{1}' -{2} '{{0}}'" -f
         $answer.WorkspaceRoot, $answer.Id, $answer.Parameter
+
+        return $answer
+    }
+
+    # A MEDIA ITEM WRITES ITSELF TOO, through Set-HDTMedia - the same shape as
+    # an application, and for the same reason: it takes a share and an id
+    # rather than lines, and there is no Save-HDTMediaDocument to pair it with.
+    #
+    # NEEDSREBUILD STAYS FALSE FOR EVERY KEY. Unlike an application or an
+    # imported update, no field the pane edits here - description,
+    # selectionProfile, output, enabled - appears in the tree row's own label,
+    # which is the media's Name and untouched by any of them. The Property
+    # loop above already set it true for 'name', and there is no editable name
+    # field on this row to make that reachable; it is left as the generic rule
+    # computes it rather than special-cased, so a 'name' edit added here later
+    # inherits the rebuild it would actually need.
+    #
+    # THE ECHO IS COMPOSED BY THE CALLER, not here - Get-HDTConsoleMediaEdit's
+    # decision, because Enabled is [bool] and the others are strings, the same
+    # split Get-HDTConsoleApplicationEdit already makes.
+    if ($kind -eq 'Media') {
+        $answer.Setter = 'Set-HDTMedia'
+        $answer.WorkspaceRoot = [string] $Row.HeaderRoot
+        $answer.Id = [string] $Row.Name
 
         return $answer
     }

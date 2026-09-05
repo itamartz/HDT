@@ -98,6 +98,11 @@ output: Media\WS2025-LAB\HDT-WS2025-LAB.iso
             return [string] $found.Value
         }
 
+        $script:fieldObjectOf = {
+            param([object] $Node, [string] $Label)
+            return @($Node.Field) | Where-Object { [string] $_.Label -eq $Label } | Select-Object -First 1
+        }
+
         $script:rowFor = {
             param([string] $Id)
             return @($script:row) | Where-Object { [string] $_.Name -eq $Id } | Select-Object -First 1
@@ -189,6 +194,50 @@ output: Media\WS2025-LAB\HDT-WS2025-LAB.iso
 
                 [string] (& $script:rowFor 'WIN11-FIELD').Command |
                     Should -BeLike "*WIN11-FIELD*"
+            }
+        }
+
+        # NEW, RATHER THAN DEFERRED: description, selectionProfile, output and
+        # enabled were read-only text until 2026-09-05, and Set-HDTMedia already
+        # existed to change every one of them - there was a command with no box
+        # to reach it from. This is the set those four fields draw on the row,
+        # the same way ConsoleRowDocument.Tests.ps1's "every kind this pane
+        # edits" asserts over every KIND rather than the one just added.
+        Context 'the fields a technician can type into' {
+
+            It 'wires <Label> for -Property ''<Property>'', so it is a box that writes' -ForEach @(
+                @{ Label = 'Description'; Property = 'description' }
+                @{ Label = 'Selection profile'; Property = 'selectionProfile' }
+                @{ Label = 'Output'; Property = 'output' }
+                @{ Label = 'Enabled'; Property = 'enabled' }
+            ) {
+                $built = & $script:rowFor 'WIN11-FIELD'
+                $field = & $script:fieldObjectOf $built $Label
+
+                $field | Should -Not -BeNullOrEmpty -Because ("the row must have a {0} field to type into" -f $Label)
+                [string] $field.Property | Should -BeExactly $Property
+                [bool] $field.Editable | Should -BeTrue
+            }
+
+            It 'shows the description even when it is unset, the same rule every other editable description follows' {
+                # NO FALLBACK IN A BOX THAT WRITES. WS2025-LAB's document has no
+                # description: key at all - the empty box is what lets an
+                # administrator add one by typing, rather than deleting a
+                # placeholder phrase first.
+                $field = & $script:fieldObjectOf (& $script:rowFor 'WS2025-LAB') 'Description'
+
+                $field | Should -Not -BeNullOrEmpty
+                [string] $field.Value | Should -BeExactly ''
+            }
+
+            It 'shows Enabled as the one word it is, not the sentence about what happens when it is off' {
+                # THE EXPLANATION MOVED TO -Hint. A box that writes has to hold
+                # exactly what a technician typed back, and 'no - Update Media
+                # Content refuses it while it is off' was never that.
+                (& $script:fieldOf (& $script:rowFor 'WIN11-FIELD') 'Enabled') | Should -BeExactly 'yes'
+
+                $field = & $script:fieldObjectOf (& $script:rowFor 'WIN11-FIELD') 'Enabled'
+                [string] $field.Hint | Should -BeLike '*refuses*'
             }
         }
 

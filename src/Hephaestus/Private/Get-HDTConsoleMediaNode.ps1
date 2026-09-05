@@ -162,35 +162,42 @@
         # being left out: Update-HDTMediaContent REFUSES a disabled item by
         # name, and a branch that hid it would leave an administrator reading a
         # refusal about something they cannot see.
+        #
+        # THE BOX HOLDS 'yes' OR 'no', NOTHING ELSE. The explanation of what
+        # happens when it is off used to be IN the value, which made it the one
+        # field on this row a technician could not type back unchanged. It
+        # moved to -Hint - CLAUDE.md's rule for exactly this: the box is one
+        # word, the reasoning is a line underneath.
         $enabledText = 'yes'
-        if (-not [bool] $current.Enabled) { $enabledText = 'no - Update Media Content refuses it while it is off' }
+        if (-not [bool] $current.Enabled) { $enabledText = 'no' }
 
         $field = @(
             New-HDTConsoleField -Label 'Id' -Value ([string] $current.Id)
 
+            # NO FALLBACK IN A BOX THAT WRITES - the rule every other editable
+            # description on this tree already follows. Always shown, even
+            # empty, so adding one is typing into the box rather than finding
+            # a command first.
+            New-HDTConsoleField -Label 'Description' -Value ([string] $current.Description) -Property 'description'
+
             # THE PROFILE IS THE WHOLE PROJECTION. DESIGN 13 calls standalone
             # media a content projection of the share, and this names its
             # filter: what the disc holds is exactly what the profile includes.
-            New-HDTConsoleField -Label 'Selection profile' -Value ([string] $current.SelectionProfile) `
+            New-HDTConsoleField -Label 'Selection profile' -Value ([string] $current.SelectionProfile) -Property 'selectionProfile' `
                 -Hint 'What goes on the disc. The media holds exactly the folders this profile includes.'
 
             # THE RESOLVED PATH, NOT THE DECLARED ONE. The document may name a
             # share-relative path - Media\<id>\<id>.iso - and where the file
             # actually lands is the question somebody opens this row to answer.
-            New-HDTConsoleField -Label 'Output' -Value ([string] $current.OutputPath) `
+            New-HDTConsoleField -Label 'Output' -Value ([string] $current.OutputPath) -Property 'output' `
                 -Hint 'Where the next build writes its ISO. A path in the document that is not rooted is taken from the share root.'
 
             New-HDTConsoleField -Label 'Last build' -Value $lastBuild
-            New-HDTConsoleField -Label 'Enabled' -Value $enabledText
+            New-HDTConsoleField -Label 'Enabled' -Value $enabledText -Property 'enabled' `
+                -Hint 'Type yes or no. Update Media Content refuses to build this disc while it is off.'
             New-HDTConsoleField -Label 'Document' -Value ([string] $current.DocumentPath)
             New-HDTConsoleField -Label 'To build it' -Value ("Update-HDTMediaContent -WorkspaceRoot '{0}' -Id '{1}'" -f $Root, [string] $current.Id)
         )
-
-        if (-not [string]::IsNullOrEmpty([string] $current.Description)) {
-            $field = @(
-                New-HDTConsoleField -Label 'Description' -Value ([string] $current.Description)
-            ) + $field
-        }
 
         # THE ROW'S OWN COMMAND IS THE ACTION, not the read. Every other row in
         # this tree shows what it runs, and what a media row runs is the build -

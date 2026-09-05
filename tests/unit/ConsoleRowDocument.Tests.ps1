@@ -164,6 +164,40 @@ Describe 'Get-HDTConsoleRowDocument' {
         }
     }
 
+    # A MEDIA ITEM WRITES ITSELF TOO. Set-HDTMedia takes a share and an id, the
+    # way Set-HDTApplication and Set-HDTWindowsUpdate do, and there is no
+    # Save-HDTMediaDocument to pair it with. Unlike either of those, no field on
+    # a media row is on the tree's own label - the row reads the media's Name,
+    # which nothing here edits - so a change to it never rebuilds the tree.
+    Context 'a media row' {
+
+        BeforeAll {
+            $script:media = Get-HDTConsoleRowDocument -Property 'description' `
+                -Row (New-HDTTestDetailRow -Kind 'Media' -Name 'HYDRA')
+        }
+
+        It 'is a row this pane edits' {
+            $script:media.Supported | Should -BeTrue
+        }
+
+        It 'names its own setter and no saver' {
+            $script:media.Setter | Should -BeExactly 'Set-HDTMedia'
+            $script:media.Saver | Should -BeExactly ''
+        }
+
+        It 'carries the share and the id it takes instead of lines' {
+            $script:media.WorkspaceRoot | Should -BeExactly 'C:\HDTLab\Share'
+            $script:media.Id | Should -BeExactly 'HYDRA'
+        }
+
+        It 'never rebuilds the tree, because no editable field is on the row''s label' {
+            foreach ($property in @('description', 'selectionProfile', 'output', 'enabled')) {
+                (Get-HDTConsoleRowDocument -Property $property -Row (New-HDTTestDetailRow -Kind 'Media' -Name 'HYDRA')).NeedsRebuild |
+                    Should -BeFalse -Because ("{0} does not appear in the tree's own label" -f $property)
+            }
+        }
+    }
+
     # THE SET, NOT THE ONE JUST ADDED. Every kind this pane edits writes through
     # EITHER a setter-and-saver pair against a document path, OR a command that
     # takes a share and an id - and a kind wired for neither is a row whose boxes
@@ -172,7 +206,7 @@ Describe 'Get-HDTConsoleRowDocument' {
     Context 'every kind this pane edits' {
 
         It 'is wired for one of the two ways of writing, and never for neither' {
-            foreach ($kind in @('TaskSequence', 'OperatingSystem', 'Share', 'Application', 'WindowsUpdate')) {
+            foreach ($kind in @('TaskSequence', 'OperatingSystem', 'Share', 'Application', 'WindowsUpdate', 'Media')) {
                 $answer = Get-HDTConsoleRowDocument -Property 'name' `
                     -Row (New-HDTTestDetailRow -Kind $kind -WorkspacePath 'C:\HDTLab\Share\workspace.yaml')
 

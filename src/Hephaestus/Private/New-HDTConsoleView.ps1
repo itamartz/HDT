@@ -869,6 +869,57 @@
                 return
             }
 
+            # A MEDIA ITEM WRITES ITSELF TOO, the same shape as an application:
+            # Set-HDTMedia takes a share and an id rather than lines. Enabled is
+            # the one row that is not a string - Get-HDTConsoleMediaEdit is
+            # where that split lives, the same way successCodes and dependencies
+            # live in Get-HDTConsoleApplicationEdit for an application row.
+            #
+            # NO REBUILD, EVER. Get-HDTConsoleRowDocument already says so for
+            # every key this pane edits on a media row - none of them is on the
+            # tree's own label - so there is nothing here to check.
+            if ($kind -eq 'Media') {
+                $splat = @{
+                    WorkspaceRoot = [string] $selected.HeaderRoot
+                    Id            = [string] $selected.Name
+                    Confirm       = $false
+                }
+
+                $key = [string] $row.Property
+                $edit = $null
+
+                try {
+                    $edit = & $call 'Get-HDTConsoleMediaEdit' -Property $key -Text $typed
+                } catch {
+                    # A WORD THAT IS NOT YES OR NO NEVER REACHES THE DOCUMENT.
+                    # The box goes back and the footer says what was wrong,
+                    # which is the sentence a technician can act on.
+                    & $revert ([string] $row.Original)
+                    $command.Text = [string] $_.Exception.Message
+                    return
+                }
+
+                $splat[$edit.Parameter] = $edit.Value
+
+                try {
+                    [void] (Set-HDTMedia @splat)
+                } catch {
+                    # A REFUSAL PUTS THE BOX BACK, as everywhere else: a box
+                    # holding a value the document rejected is a lie about
+                    # what is on disk.
+                    & $revert ([string] $row.Original)
+                    $command.Text = [string] $_.Exception.Message
+                    return
+                }
+
+                $row.Original = $typed
+
+                $command.Text = "Set-HDTMedia -WorkspaceRoot '{0}' -Id '{1}' -{2} {3}" -f
+                $splat.WorkspaceRoot, $splat.Id, $edit.Parameter, $edit.Text
+
+                return
+            }
+
             # AN IMPORTED UPDATE WRITES ITSELF TOO, and with nothing to decide
             # about types on the way: only name and description reach here -
             # everything else on that pane came out of the package's own
