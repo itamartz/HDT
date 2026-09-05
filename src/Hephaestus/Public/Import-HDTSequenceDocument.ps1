@@ -301,6 +301,27 @@
             $runIn = [string] $node['runIn']
         }
 
+        # AND THE ONE VALIDATION THAT CANNOT LIVE IN THE VALIDATOR.
+        #
+        # Assert-HDTSequenceDocument sees the RAW document, where a step that
+        # inherits its group's runIn declares none of its own - so a refusal
+        # there would see no phase at all and would miss the WinPE-GROUP case
+        # entirely, which is the case DESIGN 10.1 is actually about. THIS is the
+        # only place the effective runIn exists, three lines above, so this is
+        # the only place the question can be asked correctly.
+        #
+        # IT WALKS A SET AND NAMES NO TYPE (CLAUDE.md 8). The set and the
+        # decision are Get-HDTFullOsOnlyStepType and Test-HDTStepPhaseForbidden;
+        # a type added to that list is refused here by construction, without
+        # anybody having to find this file.
+        if (Test-HDTStepPhaseForbidden -Type ([string] $node['type']) -RunIn $runIn) {
+            $locator = "step {0} ('{1}')" -f $index, [string] $node['name']
+
+            $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $Path `
+                        -Message ("{0}: a '{1}' step cannot run in the WinPE phase. The Windows Update Agent (Microsoft.Update.Session) is not present in a WinPE image, so this step has nothing to talk to. Move it into a FullOS group, or remove runIn: WinPE. To apply .msu packages offline while WinPE is still running, use an ApplyUpdates step instead." -f
+                            $locator, [string] $node['type'])))
+        }
+
         $log = $null
         if ($node.Contains('log')) {
             $log = [string] $node['log']
