@@ -48,6 +48,19 @@
         .PARAMETER MediaFailure
             Why they could not be read, when they could not. Empty otherwise.
 
+        .PARAMETER SelectionProfile
+            The selection profiles this share offers, as Get-HDTSelectionProfile
+            reported them - the profile OBJECTS, not their ids; this file maps
+            .Id itself, in one place a test can read, rather than at a call site
+            where nothing checks it.
+
+            A PARAMETER RATHER THAN A READ, and deliberately. The share node has
+            already read selection-profiles.yaml for its own Selection Profiles
+            category, and a second Get-HDTSelectionProfile here would be a second
+            answer to the same question - one that can disagree with the first
+            the moment the document changes between the two calls, leaving a list
+            that offers a profile the category beside it does not.
+
         .PARAMETER Root
             The deployment share's root.
 
@@ -87,13 +100,30 @@
 
         [Parameter(Mandatory = $true)]
         [ValidateNotNull()]
-        [object] $Header
+        [object] $Header,
+
+        # DEFAULTED, so a caller that has no profiles to offer still builds a
+        # row - $Workspace.SelectionProfileFailure is a real state, and the
+        # branch must survive it rather than throwing on the way to a list.
+        [Parameter()]
+        [AllowEmptyCollection()]
+        [AllowNull()]
+        [object[]] $SelectionProfile = @()
     )
 
     Set-StrictMode -Version Latest
     $ErrorActionPreference = 'Stop'
 
     $item = @($Media)
+
+    # THE IDS, ONCE, ABOVE THE LOOP. The document stores the profile's Id -
+    # New-HDTMedia and Set-HDTMedia both validate with $_.Id -eq
+    # $SelectionProfile - so a list of Names would be a list every entry of
+    # which the command refuses.
+    $shareProfile = @(@($SelectionProfile) |
+            Where-Object { $null -ne $_ } |
+            ForEach-Object { [string] $_.Id } |
+            Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
 
     # [IO.Path]::Combine BY WAY OF Get-HDTWorkspacePath, NEVER Join-Path. The
     # root may be a share nothing has mounted, and Join-Path resolves the drive
@@ -163,13 +193,29 @@
         # name, and a branch that hid it would leave an administrator reading a
         # refusal about something they cannot see.
         #
-        # THE BOX HOLDS 'yes' OR 'no', NOTHING ELSE. The explanation of what
-        # happens when it is off used to be IN the value, which made it the one
-        # field on this row a technician could not type back unchanged. It
-        # moved to -Hint - CLAUDE.md's rule for exactly this: the box is one
-        # word, the reasoning is a line underneath.
-        $enabledText = 'yes'
-        if (-not [bool] $current.Enabled) { $enabledText = 'no' }
+        # THE WORDS ARE true AND false, NOT yes AND no. media.yaml carries a
+        # bare YAML boolean, Set-HDTMedia writes $Enabled.ToString() lowercased,
+        # and Assert-HDTMediaDocument refuses a quoted one - "quoting it makes
+        # it a string, and a string is not a tick box". A row showing a
+        # different word than the file does is a row a technician has to
+        # translate.
+        $enabledText = 'true'
+        if (-not [bool] $current.Enabled) { $enabledText = 'false' }
+
+        # THE PROFILE THE DOCUMENT NAMES GOES ON THE LIST, FIRST, when the share
+        # no longer offers it. A LIST THAT DOES NOT OFFER WHAT THE FILE SAYS
+        # SHOWS NOTHING - an empty combo over a document that plainly sets a
+        # profile reads as "no profile set", and opening the list to find out
+        # what it really is would replace it with whatever was clicked. This is
+        # the same bargain Get-HDTConsoleStepNode makes for a step resolving its
+        # scope from a variable: a value the command will refuse is shown, for
+        # the reason that a media item that cannot build should not look fine.
+        $profileChoice = @($shareProfile)
+        $profileText = [string] $current.SelectionProfile
+
+        if (-not [string]::IsNullOrWhiteSpace($profileText) -and -not ($profileChoice -contains $profileText)) {
+            $profileChoice = @($profileText) + $profileChoice
+        }
 
         $field = @(
             New-HDTConsoleField -Label 'Id' -Value ([string] $current.Id)
@@ -183,7 +229,20 @@
             # THE PROFILE IS THE WHOLE PROJECTION. DESIGN 13 calls standalone
             # media a content projection of the share, and this names its
             # filter: what the disc holds is exactly what the profile includes.
-            New-HDTConsoleField -Label 'Selection profile' -Value ([string] $current.SelectionProfile) -Property 'selectionProfile' `
+            #
+            # A LIST, NEVER A BOX. Set-HDTMedia refuses an id this share does
+            # not have, so a typo is caught - but the failure this guards
+            # against is a LEGAL id that is the wrong one, which nothing
+            # refuses and which produces a media item whose disc has no content
+            # on it. HDTNewMedia.xaml makes exactly this argument for why ITS
+            # profile picker is a ComboBox; this pane is the other door to the
+            # same key, and it was left a box.
+            #
+            # AN EMPTY LIST DEGRADES TO A BOX, and that is correct: Kind falls
+            # back to 'Text' when Choice is empty, and a box can at least be
+            # typed into where a combo holding nothing cannot be used at all.
+            New-HDTConsoleField -Label 'Selection profile' -Value $profileText -Property 'selectionProfile' `
+                -Choice $profileChoice `
                 -Hint 'What goes on the disc. The media holds exactly the folders this profile includes.'
 
             # THE RESOLVED PATH, NOT THE DECLARED ONE. The document may name a
@@ -193,8 +252,25 @@
                 -Hint 'Where the next build writes its ISO. A path in the document that is not rooted is taken from the share root.'
 
             New-HDTConsoleField -Label 'Last build' -Value $lastBuild
+            # THE WORDS ARE true AND false because that is what media.yaml
+            # holds and what Assert-HDTMediaDocument accepts; anything else
+            # asks a technician to hold two vocabularies for one key.
+            #
+            # THE EXPLANATION IS IN -Hint, NOT IN THE VALUE. CLAUDE.md's rule -
+            # one or two lines on screen, the reasoning in the code - and a live
+            # defect besides: while it lived inside the VALUE, an Apply spliced
+            # an English sentence into the key.
+            #
+            # IT IS A LIST RATHER THAN THE TICK BOX EVERY OTHER YES-OR-NO IN
+            # THIS WINDOW IS, BY EXPLICIT INSTRUCTION AND NOT BY OVERSIGHT. The
+            # Options tab's Disabled and Continue on error, and a step's wipe,
+            # expand, recoveryPassword and wait, are all New-HDTConsoleField
+            # -Check. The user asked for a dropdown on this row specifically.
+            # A later consistency sweep should leave it alone rather than
+            # "fixing" it, and should not change any other row to match.
             New-HDTConsoleField -Label 'Enabled' -Value $enabledText -Property 'enabled' `
-                -Hint 'Type yes or no. Update Media Content refuses to build this disc while it is off.'
+                -Choice @('true', 'false') `
+                -Hint 'Update Media Content refuses to build this disc while this is false.'
             New-HDTConsoleField -Label 'Document' -Value ([string] $current.DocumentPath)
             New-HDTConsoleField -Label 'To build it' -Value ("Update-HDTMediaContent -WorkspaceRoot '{0}' -Id '{1}'" -f $Root, [string] $current.Id)
         )

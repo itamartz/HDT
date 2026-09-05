@@ -10,11 +10,16 @@ function Get-HDTConsoleMediaEdit {
             passed straight on - the capital-letter rule already names their
             parameter, the same rule Get-HDTConsoleApplicationEdit falls back to
             for the rows an application has that are plain strings too. Enabled
-            is the one that is not: the row shows 'yes' or
-            'no - Update Media Content refuses it while it is off', and
-            Set-HDTMedia takes it as [bool]. The explanation stays out of what
-            gets typed back - it lives in the row's -Hint instead - so the box
-            holds only the word a technician actually types.
+            is the one that is not: the row is a LIST of 'true' and 'false' -
+            the two words media.yaml itself holds - and Set-HDTMedia takes it as
+            [bool]. The explanation stays out of the value and lives in the row's
+            -Hint, so nothing English can be spliced into the key.
+
+            IT KEEPS READING yes, no, 1 AND 0 ALL THE SAME. Nothing in the pane
+            can produce them since the row became a list, but this is a decision
+            with its own file rather than a branch of the window, and narrowing
+            it would break a value typed by hand or carried in from an older
+            pane for no gain at all.
 
             AN UNRECOGNISED WORD IS REFUSED, NOT GUESSED AT. 'maybe', 'y', or a
             stray space-only box are not silently false; Set-HDTMedia would
@@ -42,7 +47,7 @@ function Get-HDTConsoleMediaEdit {
             Get-HDTConsoleMediaEdit -Property 'description' -Text 'The bench disc.'
 
         .EXAMPLE
-            Get-HDTConsoleMediaEdit -Property 'enabled' -Text 'no'
+            Get-HDTConsoleMediaEdit -Property 'enabled' -Text 'false'
     #>
     [CmdletBinding()]
     [OutputType([pscustomobject])]
@@ -79,7 +84,7 @@ function Get-HDTConsoleMediaEdit {
         }
 
         throw (New-Object System.ArgumentException (
-                "Enabled: '{0}' is not yes or no. Type yes to let Update Media Content build this disc, or no to hold it back." -f $Text))
+                "Enabled: '{0}' is not true or false. Pick true to let Update Media Content build this disc, or false to hold it back." -f $Text))
     }
 
     return [pscustomobject] @{

@@ -905,8 +905,15 @@
     # is: this file is already nine hundred lines of seven categories, and the
     # branch with the most to say per row is the one hardest to read in the
     # middle of it.
+    #
+    # AND IT IS HANDED THE PROFILES THIS FILE ALREADY READ, rather than reading
+    # them again: the media row draws its selection profile as a LIST of this
+    # share's ids, and the list the row offers has to be the same collection the
+    # Selection Profiles category above lists. Two reads of one document are two
+    # answers waiting to disagree.
     $mediaCategory = Get-HDTConsoleMediaNode -Media $Workspace.Media `
-        -MediaFailure $Workspace.MediaFailure -Root $Workspace.Root -Header $header
+        -MediaFailure $Workspace.MediaFailure -Root $Workspace.Root -Header $header `
+        -SelectionProfile $Workspace.SelectionProfile
 
     [void] $node.Add($mediaCategory)
     [void] $shareNode.Children.Add($mediaCategory)

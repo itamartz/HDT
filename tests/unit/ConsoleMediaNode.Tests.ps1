@@ -291,10 +291,24 @@ output: Media\WS2025-LAB\HDT-WS2025-LAB.iso
                 # New-HDTMedia and Set-HDTMedia both validate against
                 # $_.Id -eq $SelectionProfile. A list of Names would be a list
                 # every one of whose entries the command refuses.
+                #
+                # -ceq AND NOT -contains. PowerShell's -contains is
+                # case-INSENSITIVE, so a list of Names would satisfy it against
+                # the ids and this test would pass on the defect it exists to
+                # catch. The combo's own SelectedItem match is case-sensitive,
+                # which is the behaviour being pinned.
                 $field = & $script:fieldObjectOf (& $script:rowFor 'WIN11-FIELD') 'Selection profile'
 
-                @($field.Choice) | Should -Contain 'everything'
-                @($field.Choice) | Should -Not -Contain 'Everything'
+                $offered = @($field.Choice)
+                @($offered | Where-Object { $_ -ceq 'everything' }).Count | Should -Be 1
+
+                foreach ($profile in @($script:model.SelectionProfile)) {
+                    if ([string] $profile.Name -ceq [string] $profile.Id) { continue }
+
+                    @($offered | Where-Object { $_ -ceq [string] $profile.Name }).Count |
+                        Should -Be 0 -Because ("'{0}' is the display name; the document stores '{1}'" -f
+                            $profile.Name, $profile.Id)
+                }
             }
 
             It 'keeps its Hint, which is the sentence that says what the profile decides' {
