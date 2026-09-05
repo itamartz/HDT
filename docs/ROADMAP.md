@@ -748,15 +748,19 @@ evidence.
 
 ---
 
-## M7 — Capture and standalone media  ·  **CAPTURE EXIT UNMET · MEDIA EXIT MET 2026-09-03**
+## M7 — Capture and standalone media  ·  ✅ **BOTH EXITS MET — capture 2026-08-31, media 2026-09-03**
 
 > **v2, not cut.** Scheduled out of v1 at the user's direction; the milestone is
 > kept here in full so v2 starts from a written plan rather than a memory. See
 > `.planning/ROADMAP.md` "v1 scope" for what deferring it costs.
+> **— AND THEN BOTH HALVES WERE BUILT AND BOTH EXITS MET**, capture on
+> 2026-08-31 and media on 2026-09-03. The deferral is left standing above
+> because it is what was decided at the time; this line is what happened.
 
 > **The capture half is being built, from 2026-08-31**, at the user's direction:
 > the `Sysprep` and `CaptureImage` steps, `Captures\` output and promotion into
-> the OS catalog.
+> the OS catalog. **Built and PROVEN the same day** — see "Exit — capture"
+> below, and the two recordings in `README.md`.
 >
 > **The media half was deferred to v2 on 2026-08-24 and UN-DEFERRED on
 > 2026-09-03**, after a hand-built ISO deployed a network-less VM end to end and
@@ -767,18 +771,19 @@ evidence.
 > **The media COMMANDS are built** — phase 07: `New-HDTMedia`, `Get-HDTMedia`,
 > `Set-HDTMedia`, `Remove-HDTMedia` (07-01) and `Update-HDTMediaContent` with the
 > projection behind it (07-02). **And they are on screen** — 07-03 added the
-> `Media (n)` node, its rows and MDT'''s own **Update Media Content** action,
+> `Media (n)` node, its rows and MDT's own **Update Media Content** action,
 > running through the progress window the boot image build already uses
 > (DESIGN 6.2.3). **New Media and Remove Media were deliberately not on the
 > menu, and phase 07-04 closed that on 2026-09-03** - New Media on the
 > category (07-04-01), Remove Media on the item (07-04-02), matching
 > `New-HDTMedia` and `Remove-HDTMedia` to a mouse the way every other
-> command in this catalog already is. **The media EXIT is still not met**, and
-> it is met by a booted VM rather than by a green suite or a screenshot. See
-> "Exit — media" below.
+> command in this catalog already is. **The media EXIT was MET on 2026-09-03**,
+> and it was met the only way it can be — by booted VMs rather than by a green
+> suite or a screenshot. See "Exit — media" below.
 >
 > The milestone was written with one exit that tests only the media half, so the
 > capture half is given its own below; both must pass before M7 as a whole is
+> done. **Both have passed** — capture 2026-08-31, media 2026-09-03 — so M7 is
 > done.
 
 
@@ -828,6 +833,37 @@ enforces a combined 12 GB budget across running `HDT-*` VMs (CLAUDE.md, Hyper-V
 lab safety), so a criterion that starts the second machine while the first is
 still up fails on the budget rather than on the thing it is testing. Capture,
 stop the reference VM, then deploy the second.
+
+✅ **MET on 2026-08-31**, and recorded here on 2026-09-05 — the criterion had
+been met for five days while this block still read as though it had not.
+`REF-ACROBAT` on `HDT-ACR-REF01` (`run-20260831-194337`) ran all eighteen steps:
+deploy Windows 11, install Acrobat, remove the Appx package that blocks the
+seal, `Sysprep`, one-shot boot into WinPE, `CaptureImage` into
+`Captures\REF-ACROBAT.wim`. `DEPLOY-ACROBAT` then deployed that WIM to
+`HDT-ACR-DEP01` in 4m36s **with no `InstallApplications` step in the sequence**,
+and Acrobat was on the desktop because it came inside the image. Both runs are
+on film in `README.md`. SPIKES S23.13 holds the measurements.
+
+The three ways it could have looked green and been wrong, each answered:
+
+- **No `\HDT` in the WIM.** `Invoke-HDTCaptureImageStep` never captures without
+  `/ConfigFile`, and `tests/unit/Invoke-HDTCaptureImageStep.Tests.ps1` asserts
+  the shipped list excludes what HDT itself put on the volume. The deployed
+  machine's own log carries **zero** `InstallApplications` mentions — it did not
+  resume the reference machine's deployment.
+- **WinPE and not OOBE.** The reboot after `Sysprep` landed in WinPE with
+  `TestBootEntry` passing, on the leg the engine expected, with no host-side
+  boot-order flip (S23.13).
+- **`Captures\` proven writable before the seal.** `Invoke-HDTSysprepStep.ps1:64`
+  — "AND IT PROVES `Captures\` CAN BE WRITTEN BEFORE IT SEALS ANYTHING."
+
+**And the assertion that proves a generalize is `ImageState`, never an absent
+`MachineGuid`.** The image reads `IMAGE_STATE_GENERALIZE_RESEAL_TO_OOBE` and the
+machine built from it reads `IMAGE_STATE_COMPLETE`; their `MachineGuid`s differ
+and the deployed `InstallDate` is 1265 seconds later, so specialize minted its
+own rather than carrying the reference machine's forward. The absent-`MachineGuid`
+assertion that was tried first passes for an image nobody generalized and fails
+for every image anybody did (S23.13).
 
 **Exit — media:** ✅ **MET on 2026-09-03.** Two machines with **no network
 adapter at all** booted the same 11.92 GB ISO that `Update-HDTMediaContent`
