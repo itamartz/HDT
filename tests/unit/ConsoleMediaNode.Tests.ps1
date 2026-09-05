@@ -255,6 +255,46 @@ output: Media\WS2025-LAB\HDT-WS2025-LAB.iso
                 $field = & $script:fieldObjectOf (& $script:rowFor 'WIN11-FIELD') 'Enabled'
                 [string] $field.Hint | Should -BeLike '*refuses*'
             }
+
+            It 'gives the Output row a Browse, because an ISO path is a thing to point at and not a thing to remember' {
+                $field = & $script:fieldObjectOf (& $script:rowFor 'WIN11-FIELD') 'Output'
+
+                [bool] $field.HasBrowse | Should -BeTrue
+            }
+
+            It 'gives it the IsoFile kind and not a folder one - Update Media Content writes a file' {
+                $field = & $script:fieldObjectOf (& $script:rowFor 'WIN11-FIELD') 'Output'
+
+                [string] $field.Browse | Should -BeExactly 'IsoFile'
+            }
+
+            It 'gives no other row on a media item a Browse' {
+                # THE SWEEP, NOT THE ONE ROW. Walked over the whole field list,
+                # so a Browse added to Description or to Last build fails here
+                # rather than shipping a button beside a value nobody picks off
+                # a disk.
+                foreach ($built in @($script:row)) {
+                    if ([string] $built.Kind -ne 'Media') { continue }
+
+                    $browsing = @(@($built.Field) |
+                            Where-Object { @($_.PSObject.Properties.Match('HasBrowse')).Count -gt 0 -and [bool] $_.HasBrowse })
+
+                    $browsing.Count | Should -Be 1 -Because ('exactly one row on {0} picks a path off the disk' -f $built.Name)
+                    [string] @($browsing)[0].Label | Should -BeExactly 'Output'
+                }
+            }
+
+            It 'still shows the resolved output path as the value' {
+                # THE RESOLVED PATH, NOT THE DECLARED ONE - unchanged by the
+                # browse. Where the file actually lands is the question somebody
+                # opens this row to answer, and a browse writes an absolute path
+                # into a box that was already showing one.
+                $field = & $script:fieldObjectOf (& $script:rowFor 'WIN11-FIELD') 'Output'
+                $media = @(@($script:model.Media) | Where-Object { [string] $_.Id -eq 'WIN11-FIELD' })[0]
+
+                [string] $field.Value | Should -BeExactly ([string] $media.OutputPath)
+                [System.IO.Path]::IsPathRooted([string] $field.Value) | Should -BeTrue
+            }
         }
 
         # THE TWO ROWS THE DOCUMENT CONSTRAINS TO A CLOSED SET, drawn as lists
