@@ -76,8 +76,38 @@ Describe 'Get-HDTConsoleMediaEdit' {
             (Get-HDTTestEdit -Property 'enabled' -Text '  yes  ').Value | Should -BeTrue
         }
 
-        It 'refuses anything that is not yes or no' {
+        It 'reads true, the word the pane''s list now offers' {
+            $edit = Get-HDTTestEdit -Property 'enabled' -Text 'true'
+
+            $edit.Value | Should -BeTrue
+            $edit.Value | Should -BeOfType ([bool])
+        }
+
+        It 'reads false, the other one' {
+            $edit = Get-HDTTestEdit -Property 'enabled' -Text 'false'
+
+            $edit.Value | Should -BeFalse
+            $edit.Value | Should -BeOfType ([bool])
+        }
+
+        # NARROWING THIS WOULD BREAK A CALLER FOR NO GAIN. The pane cannot
+        # produce yes or no any more, but this function is a decision with its
+        # own file and its own tests, and a value carried in from an older pane
+        # or typed by hand still means what it always meant.
+        It 'still reads yes and no, so a value typed by hand or carried in from an older pane keeps working' {
+            (Get-HDTTestEdit -Property 'enabled' -Text 'yes').Value | Should -BeTrue
+            (Get-HDTTestEdit -Property 'enabled' -Text 'no').Value | Should -BeFalse
+        }
+
+        It 'refuses anything that is not true or false' {
             { Get-HDTTestEdit -Property 'enabled' -Text 'maybe' } | Should -Throw -ExceptionType ([System.ArgumentException])
+        }
+
+        It 'refuses anything else with a message naming true and false, which is what the pane now offers' {
+            # THE MESSAGE IS WHAT A TECHNICIAN READS. It has to name the words
+            # the list in front of them holds, not the two the row used to show.
+            { Get-HDTTestEdit -Property 'enabled' -Text 'maybe' } | Should -Throw '*true*'
+            { Get-HDTTestEdit -Property 'enabled' -Text 'maybe' } | Should -Throw '*false*'
         }
 
         It 'names the box in its refusal, the way every other refusal here does' {

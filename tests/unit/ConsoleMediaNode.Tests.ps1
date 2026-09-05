@@ -75,8 +75,16 @@ output: Media\WS2025-LAB\HDT-WS2025-LAB.iso
 
         $script:header = [pscustomobject] @{ Title = 'HDT share'; Root = 'C:\ws'; DeployRoot = 'C:\ws' }
 
+        # THE SHARE'S OWN PROFILES, HANDED IN. Get-HDTConsoleMediaNode does not
+        # read selection-profiles.yaml itself - the share node has already read
+        # it for the Selection Profiles category, and a second read of the same
+        # document is a second answer waiting to disagree with the first. This
+        # fake share has no selection-profiles.yaml, so what the model carries
+        # is the built-in fallback, which is exactly the collection the console
+        # lists beside these rows.
         $script:category = Get-HDTConsoleMediaNode -Media $script:model.Media `
-            -MediaFailure $script:model.MediaFailure -Root 'C:\ws' -Header $script:header
+            -MediaFailure $script:model.MediaFailure -Root 'C:\ws' -Header $script:header `
+            -SelectionProfile $script:model.SelectionProfile
 
         $script:row = @($script:category.Children)
 
@@ -89,7 +97,13 @@ output: Media\WS2025-LAB\HDT-WS2025-LAB.iso
             })
 
         $script:emptyCategory = Get-HDTConsoleMediaNode -Media $script:emptyModel.Media `
-            -MediaFailure $script:emptyModel.MediaFailure -Root 'C:\ws' -Header $script:header
+            -MediaFailure $script:emptyModel.MediaFailure -Root 'C:\ws' -Header $script:header `
+            -SelectionProfile $script:emptyModel.SelectionProfile
+
+        # THE IDS THIS SHARE OFFERS, read off the model rather than written down
+        # here: a list typed into the test would go on passing after the
+        # built-ins changed underneath it.
+        $script:profileId = @(@($script:model.SelectionProfile) | ForEach-Object { [string] $_.Id })
 
         $script:fieldOf = {
             param([object] $Node, [string] $Label)
@@ -205,7 +219,11 @@ output: Media\WS2025-LAB\HDT-WS2025-LAB.iso
         # edits" asserts over every KIND rather than the one just added.
         Context 'the fields a technician can type into' {
 
-            It 'wires <Label> for -Property ''<Property>'', so it is a box that writes' -ForEach @(
+            # THE SET, NOT THE TWO THAT ARE STILL BOXES. Two of these four are
+            # lists now and two are boxes; what every one of them has to be is a
+            # ROW THAT WRITES, and that is the assertion. Narrowing this to the
+            # boxes would leave the lists covered by nothing.
+            It 'wires <Label> for -Property ''<Property>'', so it is a row that writes' -ForEach @(
                 @{ Label = 'Description'; Property = 'description' }
                 @{ Label = 'Selection profile'; Property = 'selectionProfile' }
                 @{ Label = 'Output'; Property = 'output' }
@@ -231,13 +249,174 @@ output: Media\WS2025-LAB\HDT-WS2025-LAB.iso
             }
 
             It 'shows Enabled as the one word it is, not the sentence about what happens when it is off' {
-                # THE EXPLANATION MOVED TO -Hint. A box that writes has to hold
-                # exactly what a technician typed back, and 'no - Update Media
+                # THE EXPLANATION MOVED TO -Hint. A row that writes has to hold
+                # exactly what the document holds, and 'no - Update Media
                 # Content refuses it while it is off' was never that.
-                (& $script:fieldOf (& $script:rowFor 'WIN11-FIELD') 'Enabled') | Should -BeExactly 'yes'
-
                 $field = & $script:fieldObjectOf (& $script:rowFor 'WIN11-FIELD') 'Enabled'
                 [string] $field.Hint | Should -BeLike '*refuses*'
+            }
+        }
+
+        # THE TWO ROWS THE DOCUMENT CONSTRAINS TO A CLOSED SET, drawn as lists
+        # rather than as boxes somebody types a guess into. A wrong-but-legal
+        # profile name is not refused by anything a technician can see: it makes
+        # a media item whose disc has no content on it.
+        Context 'the selection profile is chosen, never typed' {
+
+            It 'offers this share''s profile ids as the row''s Choice, so a wrong-but-legal name cannot be typed into a disc with no content on it' {
+                $field = & $script:fieldObjectOf (& $script:rowFor 'WIN11-FIELD') 'Selection profile'
+
+                @($script:profileId).Count | Should -BeGreaterThan 0 -Because 'the fixture must offer some profile or this test is vacuous'
+
+                foreach ($id in @($script:profileId)) {
+                    @($field.Choice) | Should -Contain $id
+                }
+            }
+
+            It 'marks the row HasChoice, which is what swaps the ComboBox in for the box' {
+                $field = & $script:fieldObjectOf (& $script:rowFor 'WIN11-FIELD') 'Selection profile'
+
+                [bool] $field.HasChoice | Should -BeTrue
+                [string] $field.Kind | Should -BeExactly 'Choice'
+            }
+
+            It 'still writes selectionProfile, so a pick reaches the same document key the box did' {
+                $field = & $script:fieldObjectOf (& $script:rowFor 'WIN11-FIELD') 'Selection profile'
+
+                [string] $field.Property | Should -BeExactly 'selectionProfile'
+                [bool] $field.Editable | Should -BeTrue
+            }
+
+            It 'offers the ids and not the display names, because the document stores the id' {
+                # New-HDTMedia and Set-HDTMedia both validate against
+                # $_.Id -eq $SelectionProfile. A list of Names would be a list
+                # every one of whose entries the command refuses.
+                $field = & $script:fieldObjectOf (& $script:rowFor 'WIN11-FIELD') 'Selection profile'
+
+                @($field.Choice) | Should -Contain 'everything'
+                @($field.Choice) | Should -Not -Contain 'Everything'
+            }
+
+            It 'keeps its Hint, which is the sentence that says what the profile decides' {
+                $field = & $script:fieldObjectOf (& $script:rowFor 'WIN11-FIELD') 'Selection profile'
+
+                [string] $field.Hint | Should -BeLike '*disc*'
+            }
+        }
+
+        # WS2025-LAB'S DOCUMENT NAMES boot-critical, WHICH IS NOT A BUILT-IN AND
+        # NOT ON THIS SHARE. That is the stale case, and it is in the fixture
+        # rather than invented for the occasion.
+        Context 'a media naming a profile the share no longer offers' {
+
+            It 'shows that profile anyway, first on its own list - an empty combo over a document that plainly sets a profile reads as unset' {
+                $field = & $script:fieldObjectOf (& $script:rowFor 'WS2025-LAB') 'Selection profile'
+
+                [string] $field.Value | Should -BeExactly 'boot-critical'
+                [string] @($field.Choice)[0] | Should -BeExactly 'boot-critical'
+            }
+
+            It 'still offers every profile the share does have, after it' {
+                $field = & $script:fieldObjectOf (& $script:rowFor 'WS2025-LAB') 'Selection profile'
+
+                foreach ($id in @($script:profileId)) {
+                    @($field.Choice) | Should -Contain $id
+                }
+            }
+
+            It 'adds nothing when the profile IS on the list, so the list is not duplicated' {
+                $field = & $script:fieldObjectOf (& $script:rowFor 'WIN11-FIELD') 'Selection profile'
+
+                @($field.Choice).Count | Should -Be @($script:profileId).Count
+                @(@($field.Choice) | Select-Object -Unique).Count | Should -Be @($field.Choice).Count
+            }
+        }
+
+        Context 'a share whose selection profiles could not be read' {
+
+            BeforeAll {
+                # $Workspace.SelectionProfileFailure IS A REAL STATE, and the
+                # row has to survive it rather than throwing or drawing an empty
+                # list nobody can use.
+                $script:noProfileCategory = Get-HDTConsoleMediaNode -Media $script:model.Media `
+                    -MediaFailure '' -Root 'C:\ws' -Header $script:header -SelectionProfile @()
+
+                $script:noProfileRowFor = {
+                    param([string] $Id)
+                    return @($script:noProfileCategory.Children) |
+                        Where-Object { [string] $_.Name -eq $Id } | Select-Object -First 1
+                }
+            }
+
+            It 'falls back to the media''s own profile alone, rather than an empty list' {
+                $field = & $script:fieldObjectOf (& $script:noProfileRowFor 'WS2025-LAB') 'Selection profile'
+
+                @($field.Choice) | Should -Be @('boot-critical')
+            }
+
+            It 'falls back to a plain box when there is no profile on either side' {
+                # A COMBO WITH NOTHING IN IT CANNOT BE USED. A box can at least
+                # be typed into, and Set-HDTMedia refuses a bad id with a
+                # message naming every legal one.
+                $bare = Get-HDTConsoleMediaNode -Root 'C:\ws' -Header $script:header -SelectionProfile @() `
+                    -Media @([pscustomobject] @{
+                            Id = 'BARE'; Name = 'Bare'; Description = ''; SelectionProfile = ''
+                            Output = 'Media\BARE\BARE.iso'; OutputPath = 'C:\ws\Media\BARE\BARE.iso'
+                            Enabled = $true; LastBuildUtc = $null; IsoSizeBytes = 0
+                            DocumentPath = 'C:\ws\Media\BARE\media.yaml'
+                        })
+
+                $field = & $script:fieldObjectOf @($bare.Children)[0] 'Selection profile'
+
+                @($field.Choice).Count | Should -Be 0
+                [bool] $field.HasChoice | Should -BeFalse
+                [string] $field.Kind | Should -BeExactly 'Text'
+            }
+        }
+
+        Context 'enabled, which the document writes as a bare boolean' {
+
+            It 'shows true or false - the words media.yaml holds, not yes and no' {
+                (& $script:fieldOf (& $script:rowFor 'WIN11-FIELD') 'Enabled') | Should -BeExactly 'true'
+            }
+
+            It 'offers exactly true and false, in that order' {
+                $field = & $script:fieldObjectOf (& $script:rowFor 'WIN11-FIELD') 'Enabled'
+
+                @($field.Choice) | Should -Be @('true', 'false')
+            }
+
+            It 'draws it as a list and not a tick box, by explicit instruction rather than by the house pattern' {
+                # EVERY OTHER YES-OR-NO IN THIS WINDOW IS -Check. This one is a
+                # dropdown because the user asked for a dropdown here
+                # specifically - not by oversight, and not to be swept back into
+                # line by a later consistency pass.
+                $field = & $script:fieldObjectOf (& $script:rowFor 'WIN11-FIELD') 'Enabled'
+
+                [string] $field.Kind | Should -BeExactly 'Choice'
+                [bool] $field.HasChoice | Should -BeTrue
+            }
+
+            It 'keeps the explanation in the Hint and out of the value, so nothing English can be spliced into the key' {
+                $field = & $script:fieldObjectOf (& $script:rowFor 'WIN11-FIELD') 'Enabled'
+
+                [string] $field.Hint | Should -BeLike '*refuses*'
+                [string] $field.Value | Should -Not -BeLike '*refuses*'
+                [string] $field.Value | Should -Not -BeLike '* *'
+            }
+
+            It 'shows false for a disabled media and true for an enabled one' {
+                $mixed = Get-HDTConsoleMediaNode -Root 'C:\ws' -Header $script:header `
+                    -SelectionProfile $script:model.SelectionProfile `
+                    -Media @([pscustomobject] @{
+                            Id = 'OFF'; Name = 'Held back'; Description = ''; SelectionProfile = 'everything'
+                            Output = 'Media\OFF\OFF.iso'; OutputPath = 'C:\ws\Media\OFF\OFF.iso'
+                            Enabled = $false; LastBuildUtc = $null; IsoSizeBytes = 0
+                            DocumentPath = 'C:\ws\Media\OFF\media.yaml'
+                        })
+
+                (& $script:fieldOf @($mixed.Children)[0] 'Enabled') | Should -BeExactly 'false'
+                (& $script:fieldOf (& $script:rowFor 'WIN11-FIELD') 'Enabled') | Should -BeExactly 'true'
             }
         }
 
@@ -348,6 +527,31 @@ output: Media\WS2025-LAB\HDT-WS2025-LAB.iso
 
             $mediaAt | Should -BeGreaterThan $profileAt
             $mediaAt | Should -BeLessThan $monitorAt
+        }
+
+        # THE WIRING, THROUGH THE REAL SHARE NODE. Get-HDTConsoleMediaNode can
+        # take -SelectionProfile and be handed nothing, and every test that
+        # calls it directly would still pass - the row would draw a box on a
+        # live share and nobody would know until a technician typed a profile
+        # name into it.
+        It 'feeds the media rows the same selection profiles the Selection Profiles category lists' {
+            $offered = @(@($script:model.SelectionProfile) | ForEach-Object { [string] $_.Id })
+            @($offered).Count | Should -BeGreaterThan 0
+
+            $mediaBranch = @($script:tree | Where-Object {
+                    [string] $_.Kind -eq 'Category' -and [string] $_.Name -eq 'Media'
+                })[0]
+
+            $mediaRow = @(@($mediaBranch.Children) | Where-Object { [string] $_.Kind -eq 'Media' })[0]
+
+            $field = @($mediaRow.Field) | Where-Object { [string] $_.Label -eq 'Selection profile' } |
+                Select-Object -First 1
+
+            $field | Should -Not -BeNullOrEmpty
+
+            foreach ($id in $offered) {
+                @($field.Choice) | Should -Contain $id
+            }
         }
 
         # THE SET, NOT THE ONE JUST ADDED. A test naming Media passes for Media
