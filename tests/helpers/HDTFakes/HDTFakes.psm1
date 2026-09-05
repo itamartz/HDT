@@ -6570,6 +6570,480 @@ function New-HDTFakeDomainService {
     return $fake
 }
 
+class HDTFakeUpdateSessionService {
+
+    # The rows SearchUpdate answers with, in order. One [pscustomobject] each:
+    # UpdateId, Title, KBArticleId, Category, IsDownloaded, EulaAccepted,
+    # SizeByte. Mutated in place - an install removes its row, a download flips
+    # IsDownloaded - because that is what the agent does and a fake that did not
+    # would be wrong, not the caller.
+    [System.Collections.ArrayList] $Update
+
+    # One element per search pass, each an array of rows. THE ONE THING A SINGLE
+    # FIXED RESULT CANNOT SAY: installing an update can supersede or reveal
+    # another (DESIGN 10.1), so pass 1 answers with the first element, pass 2 the
+    # second, and the last element repeats once the array is exhausted. Empty
+    # when the test seeded a flat set instead.
+    [System.Collections.ArrayList] $Pass
+
+    # How many searches have run. Only read when $Pass carries something.
+    [int] $PassIndex
+
+    # UpdateId -> @{ ResultCode; HResult; RebootRequired }. The refusal seeded
+    # state cannot express: an install that reached the agent and came back
+    # failed, which is the interesting half of DESIGN 10.1.
+    [hashtable] $InstallResult
+
+    # UpdateId -> the same, for downloads.
+    [hashtable] $DownloadResult
+
+    # What GetRebootRequired answers. THE MACHINE'S ANSWER, not the last
+    # install's - the two are different questions and the step needs both.
+    [bool] $RebootRequired
+
+    # The agent throwing rather than returning a failed result.
+    [bool] $FailSearch
+    [bool] $FailInstall
+
+    # One [pscustomobject] per call: Sequence (1-based), Operation, Arguments.
+    [System.Collections.ArrayList] $Operations
+
+    # The shared cross-service journal, or $null when the test did not ask for
+    # one. Sequence, Service, Operation, Arguments.
+    [System.Collections.ArrayList] $Journal
+
+    # Names this fake in a journal entry, so neither the journal nor a test needs
+    # a class type literal.
+    [string] $ServiceName
+
+    HDTFakeUpdateSessionService() {
+        $this.Update = [System.Collections.ArrayList]::new()
+        $this.Pass = [System.Collections.ArrayList]::new()
+        $this.PassIndex = 0
+        $this.InstallResult = [System.Collections.Hashtable]::new([System.StringComparer]::OrdinalIgnoreCase)
+        $this.DownloadResult = [System.Collections.Hashtable]::new([System.StringComparer]::OrdinalIgnoreCase)
+        $this.RebootRequired = $false
+        $this.FailSearch = $false
+        $this.FailInstall = $false
+        $this.Operations = [System.Collections.ArrayList]::new()
+        $this.ServiceName = 'UpdateSessionService'
+    }
+
+    # -- recording ---------------------------------------------------------
+
+    hidden [void] Record([string] $Operation, [object[]] $Argument) {
+        [void] $this.Operations.Add([pscustomobject] @{
+                Sequence  = $this.Operations.Count + 1
+                Operation = $Operation
+                Arguments = $Argument
+            })
+
+        if ($null -ne $this.Journal) {
+            [void] $this.Journal.Add([pscustomobject] @{
+                    Sequence  = $this.Journal.Count + 1
+                    Service   = $this.ServiceName
+                    Operation = $Operation
+                    Arguments = $Argument
+                })
+        }
+    }
+
+    [string[]] GetOperationName() {
+        return [string[]] @($this.Operations | ForEach-Object { $_.Operation })
+    }
+
+    # -- seeding -----------------------------------------------------------
+
+    # A seed row may be a hashtable or a [pscustomobject]; a test writes whichever
+    # reads better and this reads both, so a missing key is a default rather than
+    # a "property cannot be found" under Set-StrictMode.
+    hidden [object] ReadField([object] $Row, [string] $Name, [object] $Default) {
+        if ($Row -is [hashtable]) {
+            if ($Row.ContainsKey($Name)) { return $Row[$Name] }
+            return $Default
+        }
+
+        $property = $Row.PSObject.Properties[$Name]
+        if ($null -ne $property) { return $property.Value }
+
+        return $Default
+    }
+
+    hidden [object] NewRow([object] $Row) {
+        $id = [string] $this.ReadField($Row, 'UpdateId', [guid]::NewGuid().ToString())
+
+        return [pscustomobject] @{
+            UpdateId     = $id
+            Title        = [string] $this.ReadField($Row, 'Title', ('Update {0}' -f $id))
+            KBArticleId  = [string[]] @($this.ReadField($Row, 'KBArticleId', @()))
+            Category     = [string[]] @($this.ReadField($Row, 'Category', @()))
+            IsDownloaded = [bool] $this.ReadField($Row, 'IsDownloaded', $false)
+            EulaAccepted = [bool] $this.ReadField($Row, 'EulaAccepted', $true)
+            SizeByte     = [long] $this.ReadField($Row, 'SizeByte', 0)
+        }
+    }
+
+    [void] SeedUpdate([object[]] $Row) {
+        $this.Update.Clear()
+
+        foreach ($current in @($Row)) {
+            [void] $this.Update.Add($this.NewRow($current))
+        }
+    }
+
+    [void] SeedPass([object[]] $Row) {
+        $projected = [System.Collections.ArrayList]::new()
+
+        foreach ($current in @($Row)) {
+            [void] $projected.Add($this.NewRow($current))
+        }
+
+        [void] $this.Pass.Add($projected)
+    }
+
+    [void] SeedInstallResult([string] $UpdateId, [hashtable] $Result) {
+        $this.InstallResult[$UpdateId] = $Result
+    }
+
+    [void] SeedDownloadResult([string] $UpdateId, [hashtable] $Result) {
+        $this.DownloadResult[$UpdateId] = $Result
+    }
+
+    # -- internals ---------------------------------------------------------
+
+    hidden [object] FindUpdate([string] $UpdateId) {
+        foreach ($row in @($this.Update)) {
+            if ($row.UpdateId -eq $UpdateId) { return $row }
+        }
+
+        return $null
+    }
+
+    hidden [void] RemoveUpdate([string] $UpdateId) {
+        $keep = @($this.Update | Where-Object { $_.UpdateId -ne $UpdateId })
+
+        $this.Update.Clear()
+        foreach ($row in $keep) { [void] $this.Update.Add($row) }
+    }
+
+    # Projects one seeded outcome, or the default success, into the per-update
+    # row a result carries.
+    hidden [object] NewOutcome([string] $UpdateId, [hashtable] $Seed) {
+        $resultCode = 2
+        $hresult = 0
+        $reboot = $false
+
+        if ($null -ne $Seed) {
+            if ($Seed.ContainsKey('ResultCode')) { $resultCode = [int] $Seed['ResultCode'] }
+            if ($Seed.ContainsKey('HResult')) { $hresult = [int] $Seed['HResult'] }
+            if ($Seed.ContainsKey('RebootRequired')) { $reboot = [bool] $Seed['RebootRequired'] }
+        }
+
+        return [pscustomobject] @{
+            UpdateId       = $UpdateId
+            ResultCode     = $resultCode
+            HResult        = $hresult
+            RebootRequired = $reboot
+        }
+    }
+
+    # ResultCode 2 is orcSucceeded. 0 NotStarted, 1 InProgress, 2 Succeeded,
+    # 3 SucceededWithErrors, 4 Failed, 5 Aborted. The aggregate is what
+    # IInstallationResult reports for the whole collection: failed if any element
+    # failed, and the first non-zero HResult, which is the one an administrator
+    # has to look up.
+    hidden [object] NewResult([object[]] $Outcome) {
+        $resultCode = 2
+        $hresult = 0
+        $reboot = $false
+
+        foreach ($row in @($Outcome)) {
+            if ($row.ResultCode -ne 2) { $resultCode = 4 }
+            if ($hresult -eq 0) { $hresult = [int] $row.HResult }
+            if ($row.RebootRequired) { $reboot = $true }
+        }
+
+        return [pscustomobject] @{
+            Success        = ($resultCode -eq 2)
+            ResultCode     = $resultCode
+            HResult        = $hresult
+            RebootRequired = $reboot
+            PerUpdate      = [object[]] @($Outcome)
+        }
+    }
+
+    # -- IUpdateSessionService ---------------------------------------------
+
+    [void] SetServer([string] $Url) {
+        $this.Record('SetServer', @($Url))
+    }
+
+    # FLAT AND UNFILTERED, for the reason IFeatureService.GetFeature() is:
+    # deciding which of these matches the step's categories, which its exclude
+    # patterns rule out and which are named by KB is pure logic that can be
+    # tested, rather than an adapter argument that cannot.
+    [object[]] SearchUpdate([string] $Criteria) {
+        $this.Record('SearchUpdate', @($Criteria))
+
+        if ($this.FailSearch) {
+            throw ('The Windows Update Agent could not complete the search for "{0}": 0x8024402C, the client could not reach the update server the policy names.' -f $Criteria)
+        }
+
+        if ($this.Pass.Count -gt 0) {
+            $index = [Math]::Min($this.PassIndex, $this.Pass.Count - 1)
+            $this.PassIndex = $this.PassIndex + 1
+
+            return [object[]] @($this.Pass[$index])
+        }
+
+        return [object[]] @($this.Update)
+    }
+
+    [void] AcceptEula([string] $UpdateId) {
+        $this.Record('AcceptEula', @($UpdateId))
+
+        $row = $this.FindUpdate($UpdateId)
+        if ($null -ne $row) { $row.EulaAccepted = $true }
+    }
+
+    [object] DownloadUpdate([string[]] $UpdateId) {
+        $this.Record('DownloadUpdate', @(, [string[]] $UpdateId))
+
+        $outcome = [System.Collections.ArrayList]::new()
+
+        foreach ($id in @($UpdateId)) {
+            $seed = $null
+            if ($this.DownloadResult.ContainsKey($id)) { $seed = [hashtable] $this.DownloadResult[$id] }
+
+            $row = $this.NewOutcome($id, $seed)
+            [void] $outcome.Add($row)
+
+            $stored = $this.FindUpdate($id)
+            if (($row.ResultCode -eq 2) -and ($null -ne $stored)) { $stored.IsDownloaded = $true }
+        }
+
+        return $this.NewResult([object[]] @($outcome))
+    }
+
+    [object] InstallUpdate([string[]] $UpdateId) {
+        $this.Record('InstallUpdate', @(, [string[]] $UpdateId))
+
+        if ($this.FailInstall) {
+            throw ('The Windows Update Agent could not install {0}: 0x80240022, the installation was refused by the agent.' -f ($UpdateId -join ', '))
+        }
+
+        $outcome = [System.Collections.ArrayList]::new()
+
+        foreach ($id in @($UpdateId)) {
+            $seed = $null
+            if ($this.InstallResult.ContainsKey($id)) { $seed = [hashtable] $this.InstallResult[$id] }
+
+            $row = $this.NewOutcome($id, $seed)
+            [void] $outcome.Add($row)
+
+            # AN UPDATE THAT WENT IN DOES NOT COME BACK from the next search: the
+            # real criteria is IsInstalled = 0. A fake that kept returning it
+            # would turn the step's termination test into a test of maxPasses and
+            # hide an infinite loop. A FAILED one stays, because it is still not
+            # installed - which is the case that makes maxPasses matter.
+            if ($row.ResultCode -eq 2) { $this.RemoveUpdate($id) }
+        }
+
+        return $this.NewResult([object[]] @($outcome))
+    }
+
+    # THE MACHINE'S ANSWER, from ISystemInformation.RebootRequired, not the last
+    # install's. The install result says "this batch asked for a restart"; this
+    # says "there is a restart pending from anything at all, including the
+    # servicing stack update that went in first".
+    [bool] GetRebootRequired() {
+        $this.Record('GetRebootRequired', @())
+
+        return $this.RebootRequired
+    }
+}
+
+function New-HDTFakeUpdateSessionService {
+    <#
+        .SYNOPSIS
+            Creates an in-memory IUpdateSessionService that records every call and
+            reaches no Windows Update Agent.
+
+        .DESCRIPTION
+            The hand-written double for DESIGN 10.1's Microsoft.Update.Session
+            wrapper. It implements the six IUpdateSessionService methods -
+            SetServer, SearchUpdate, AcceptEula, DownloadUpdate, InstallUpdate and
+            GetRebootRequired - and it is where every behavioural assertion about
+            the interface lives, because WUA does not exist in WinPE at all and a
+            test suite may not search, download or install a real update on
+            somebody's laptop.
+
+            IT MUTATES ITS SEEDED STATE THE WAY THE AGENT DOES. A successful
+            install removes its update from the next SearchUpdate, because the
+            real criteria is IsInstalled = 0; a failed one stays. A download flips
+            IsDownloaded, an AcceptEula flips EulaAccepted. A fake that kept
+            returning an installed update would turn the WindowsUpdate step's
+            termination test into a test of maxPasses and hide an infinite loop.
+
+            Every call appends a record to $Operations - Sequence (1-based),
+            Operation, Arguments - including SearchUpdate and GetRebootRequired,
+            because pass-order assertions need them.
+
+        .PARAMETER Update
+            The rows SearchUpdate answers with. A hashtable or a [pscustomobject]
+            each, with any of UpdateId, Title, KBArticleId, Category,
+            IsDownloaded, EulaAccepted and SizeByte; anything omitted takes a
+            default. Omit the parameter entirely for a small default set that
+            carries categories and KB numbers, and pass an empty array for a
+            search that matches nothing.
+
+        .PARAMETER UpdatePerPass
+            An array of arrays: pass 1 answers with the first element, pass 2 the
+            second, and the last element repeats once the array is exhausted. This
+            is how a test says "installing that update revealed another one",
+            which is the entire point of DESIGN 10.1's multi-pass loop and cannot
+            be expressed with a single fixed result. Write each element with a
+            unary comma so it stays an array.
+
+        .PARAMETER InstallResult
+            Update id to @{ ResultCode; HResult; RebootRequired }. Anything not
+            named succeeds with ResultCode 2 and no reboot. 4 is orcFailed.
+
+        .PARAMETER DownloadResult
+            The same, for downloads.
+
+        .PARAMETER RebootRequired
+            What GetRebootRequired answers - the MACHINE's pending restart, which
+            is a different question from the one an install result answers.
+
+        .PARAMETER FailSearch
+            SearchUpdate throws the way the agent does when it cannot reach the
+            server the policy names, rather than returning an empty set.
+
+        .PARAMETER FailInstall
+            InstallUpdate throws, rather than returning a failed result. Both
+            happen in the field and the step has to survive either.
+
+        .PARAMETER Journal
+            The shared cross-service operation journal. When supplied, every
+            recorded call is appended to it in addition to $Operations, numbered
+            globally across services.
+
+        .OUTPUTS
+            HDTFakeUpdateSessionService. Never write the class name as a type
+            literal in a test: it binds to whichever dynamic assembly loaded first
+            and breaks across a module reload. Use this factory.
+
+        .EXAMPLE
+            $wua = New-HDTFakeUpdateSessionService
+            $wua.SearchUpdate('IsInstalled = 0')
+
+            The default set, which carries categories and KB numbers.
+
+        .EXAMPLE
+            New-HDTFakeUpdateSessionService -UpdatePerPass @(
+                , @(@{ UpdateId = 'AAAA' })
+                , @(@{ UpdateId = 'BBBB' })
+                , @()
+            )
+
+            Three passes: one update, then the one it revealed, then nothing -
+            which is how the multi-pass loop is proved to terminate on its own
+            rather than on maxPasses.
+
+        .EXAMPLE
+            New-HDTFakeUpdateSessionService -InstallResult @{ 'AAAA' = @{ ResultCode = 4; HResult = -2145124329 } }
+
+            An install the agent refuses. 0x80240017 is WU_E_NOT_APPLICABLE.
+    #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',
+        Justification = 'Builds an in-memory test double; it changes no state and installs nothing.')]
+    [CmdletBinding()]
+    [OutputType([object])]
+    param(
+        [Parameter()]
+        [AllowEmptyCollection()]
+        [object[]] $Update,
+
+        [Parameter()]
+        [AllowEmptyCollection()]
+        [object[]] $UpdatePerPass,
+
+        [Parameter()]
+        [hashtable] $InstallResult,
+
+        [Parameter()]
+        [hashtable] $DownloadResult,
+
+        [Parameter()]
+        [bool] $RebootRequired = $false,
+
+        [Parameter()]
+        [switch] $FailSearch,
+
+        [Parameter()]
+        [switch] $FailInstall,
+
+        [Parameter()]
+        [AllowNull()]
+        [System.Collections.ArrayList] $Journal
+    )
+
+    $fake = [HDTFakeUpdateSessionService]::new()
+    $fake.Journal = $Journal
+    $fake.RebootRequired = $RebootRequired
+    $fake.FailSearch = [bool] $FailSearch
+    $fake.FailInstall = [bool] $FailInstall
+
+    # The default set is only reached when the test named neither seed, so
+    # -Update @() means "a search that matches nothing" rather than "give me the
+    # defaults" - the two are different tests and both are needed.
+    if ($PSBoundParameters.ContainsKey('Update')) {
+        $fake.SeedUpdate([object[]] @($Update))
+    } elseif (-not $PSBoundParameters.ContainsKey('UpdatePerPass')) {
+        $fake.SeedUpdate([object[]] @(
+                @{
+                    UpdateId     = '11111111-1111-1111-1111-111111111111'
+                    Title        = 'Security Update for Windows (KB5031354)'
+                    KBArticleId  = @('5031354')
+                    Category     = @('Security Updates', 'Windows 11')
+                    IsDownloaded = $false
+                    EulaAccepted = $true
+                    SizeByte     = 74547200
+                }
+                @{
+                    UpdateId     = '22222222-2222-2222-2222-222222222222'
+                    Title        = '2026-09 Cumulative Update for Windows 11 (KB5029351)'
+                    KBArticleId  = @('5029351')
+                    Category     = @('Critical Updates', 'Windows 11')
+                    IsDownloaded = $true
+                    EulaAccepted = $false
+                    SizeByte     = 613416960
+                }
+            ))
+    }
+
+    if ($PSBoundParameters.ContainsKey('UpdatePerPass')) {
+        foreach ($pass in @($UpdatePerPass)) {
+            $fake.SeedPass([object[]] @($pass))
+        }
+    }
+
+    if ($PSBoundParameters.ContainsKey('InstallResult')) {
+        foreach ($key in @($InstallResult.Keys)) {
+            $fake.SeedInstallResult([string] $key, [hashtable] $InstallResult[$key])
+        }
+    }
+
+    if ($PSBoundParameters.ContainsKey('DownloadResult')) {
+        foreach ($key in @($DownloadResult.Keys)) {
+            $fake.SeedDownloadResult([string] $key, [hashtable] $DownloadResult[$key])
+        }
+    }
+
+    return $fake
+}
+
 Export-ModuleMember -Function @(
     'New-HDTFakeBootStatusHost',
     'New-HDTFakeProgressHost',
@@ -6593,5 +7067,6 @@ Export-ModuleMember -Function @(
     'New-HDTFakeScreen',
     'New-HDTFakeScriptInvoker',
     'New-HDTFakeSmbService',
+    'New-HDTFakeUpdateSessionService',
     'New-HDTFakeWdsService'
 )

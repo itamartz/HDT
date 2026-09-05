@@ -32,6 +32,7 @@
         'New-HDTFakeScreen',
         'New-HDTFakeScriptInvoker',
         'New-HDTFakeSmbService',
+        'New-HDTFakeUpdateSessionService',
         'New-HDTFakeWdsService',
         'New-HDTFakeWizardHost'
     )
