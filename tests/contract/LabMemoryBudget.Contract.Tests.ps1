@@ -16,12 +16,12 @@
 # every count would be at least one, which is the shape in which a contract test
 # quietly stops checking anything.
 #
-# WHY THE SCAN IS CONTEXTUAL AND NOT A BARE grep. 8589934592 is 8 GB and
-# 34359738368 is 32 GB, and both are perfectly ordinary DISK sizes: they appear
-# today in eight files as fixture disk rows, a content VHDX size and a volume
-# assertion, none of which has anything to do with how much memory a VM may
-# hold. A bare-digit count would be red for reasons that are not defects and
-# would be silenced by exclusions within a week. So a hit counts when the digits
+# WHY THE SCAN IS CONTEXTUAL AND NOT A BARE grep. Both byte values are also
+# perfectly ordinary DISK sizes - 8 GB and 32 GB - and they appear today in
+# eight files as fixture disk rows, a content VHDX size and a volume assertion,
+# none of which has anything to do with how much memory a VM may hold. A
+# bare-digit count would be red for reasons that are not defects, and would be
+# silenced by exclusions within a week. So a hit counts when the digits
 # stand within two lines of the words that make them a MEMORY budget - which is
 # exactly the shape any real copy of this rule would have, and is proven to bite
 # by the last assertion in this file.
@@ -131,7 +131,24 @@ Describe 'Lab memory budget contract' {
         $hit | Should -BeNullOrEmpty -Because ('the 12 GB budget is retired: {0}' -f (($hit | ForEach-Object { '{0}:{1}' -f $_.Path, $_.Line }) -join '; '))
     }
 
-    It 'has every E2E file ask Assert-HDTLabMemoryBudget rather than compute its own total' {
+    It 'has no E2E file compute a memory total of its own' {
+        # WRITTEN AS A PROPERTY OF THE SET, and the first draft of it was wrong
+        # in an instructive way: it demanded that every e2e file call
+        # Assert-HDTLabMemoryBudget, and two of the seven do not - WinPeSmoke
+        # and Wizard never had an inline check to replace. They are not exempt.
+        # They start their VMs through New-HDTLabVirtualMachine, which asks the
+        # shared check itself, so every VM any e2e suite starts is budget-checked
+        # whether or not the suite says so. Demanding the call by name would have
+        # forced two files to repeat a check they already get, which is how a
+        # contract starts producing work instead of catching defects.
+        #
+        # So the rule is the one that actually matters, twice over:
+        #
+        #   * no e2e file totals memory itself, and
+        #   * no e2e file creates a VM behind the helper's back.
+        #
+        # Together those say every VM started by this suite went through the one
+        # budget check, which is the property the six copies never had.
         $e2e = @(Get-ChildItem -LiteralPath (Join-Path -Path $script:budgetRepoRoot -ChildPath 'tests\e2e') -File -Filter '*.E2E.Tests.ps1')
         $e2e.Count | Should -BeGreaterThan 0
 
@@ -139,14 +156,23 @@ Describe 'Lab memory budget contract' {
         foreach ($item in $e2e) {
             $text = Get-Content -LiteralPath $item.FullName -Raw
 
-            if ($text -notmatch 'Assert-HDTLabMemoryBudget') {
-                $violation += ('{0}: does not ask Assert-HDTLabMemoryBudget' -f $item.Name)
-            }
-
             # MemoryAssigned is what the five inline running totals summed. Its
             # presence in an e2e file is the old shape growing back.
             if ($text -match 'MemoryAssigned') {
                 $violation += ('{0}: totals MemoryAssigned itself' -f $item.Name)
+            }
+
+            # A VM created directly is a VM created without the budget, the name
+            # guard, the switch rule or the stamp.
+            if ($text -match 'Hyper-V\\New-VM') {
+                $violation += ('{0}: creates a VM without New-HDTLabVirtualMachine' -f $item.Name)
+            }
+
+            # And a file that still keeps a pre-flight budget check - the five
+            # did, to fail before an expensive build rather than after it - asks
+            # the shared one.
+            if ($text -match '(?i)the memory budget' -and $text -notmatch 'Assert-HDTLabMemoryBudget') {
+                $violation += ('{0}: checks the budget without Assert-HDTLabMemoryBudget' -f $item.Name)
             }
         }
 
@@ -181,12 +207,16 @@ Describe 'Lab memory budget contract' {
             $path = Join-Path -Path $script:budgetRepoRoot -ChildPath $relative
             $found = 0
 
-            foreach ($line in @(Get-Content -LiteralPath $path)) {
-                foreach ($m in @([regex]::Matches([string] $line, $pattern))) {
-                    $found++
-                    if ($m.Groups[1].Value -ne '32') {
-                        $violation += ('{0}: "{1}"' -f $relative, $m.Value)
-                    }
+            # FLATTENED FIRST, because prose wraps and the rule does not care
+            # where. PROJECT.md's rule 4 broke across "under 32 GB" / "combined"
+            # the moment it was rewritten, and a line-at-a-time scan read that
+            # as a surface stating no budget at all.
+            $text = (Get-Content -LiteralPath $path -Raw) -replace '\r?\n[ \t>#*-]*', ' '
+
+            foreach ($m in @([regex]::Matches($text, $pattern))) {
+                $found++
+                if ($m.Groups[1].Value -ne '32') {
+                    $violation += ('{0}: "{1}"' -f $relative, $m.Value)
                 }
             }
 

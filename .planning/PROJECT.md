@@ -303,9 +303,24 @@ alone.
    test, and anything else answering there would hand our VM someone else's
    boot image and silently invalidate the run. The isolated switch prevents
    both, and it is reserved for exactly this.
-4. **Memory budget: keep all HDT VMs under 12 GB combined.** Host has 63.7 GB
-   and the free figure moves with whatever else is running. Use 4 GB per test
-   VM and shut them down when a test finishes.
+4. **Memory budget: keep the HDT VMs this harness creates under 32 GB
+   combined.** Host has 63.7 GB and the free figure moves with whatever else is
+   running. Use 4 GB per test VM and shut them down when a test finishes.
+
+   **It counts only VMs the harness created, and it knows which those are
+   without a list.** `New-HDTLabVirtualMachine` stamps a marker into the `Notes`
+   field of every VM it makes; the budget counts stamped, running VMs and
+   nothing else. So a WSUS or WDS server somebody built by hand is `HDT-*`, is
+   protected from teardown by the same stamp, and does not eat the budget for
+   the machines under test. **This is deliberately not a list of names** — the
+   section above this one records what a name list already cost.
+
+   The number lives in exactly one file,
+   `tests/helpers/HDTTestTools/tools/Get-HDTLabMemoryBudget.ps1`, and
+   `tests/contract/LabMemoryBudget.Contract.Tests.ps1` fails the build if a
+   second file grows a copy. It was 12 GB, in six places, until 2026-09-06 —
+   five of them e2e suites that each re-implemented the same running total — and
+   raising it meant finding all six.
 5. **VM files go to `C:\HDTLab\vms\`**, not the host default `C:\HyperVVMs`
    where the user's VMs live.
 6. Test VMs are **Generation 2** (UEFI + Secure Boot) — that is what HDT

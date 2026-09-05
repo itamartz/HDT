@@ -1274,8 +1274,10 @@ function Invoke-HDTEndToEndTest {
 
             PROJECT.md's lab safety rules apply in full: HDT test VMs are named
             HDT-*, sit on the 'HDT Lab' switch, keep their files under
-            C:\HDTLab\vms and stay under 12 GB combined. No VM outside that
-            prefix is touched. The helpers in tests/helpers/HDTTestTools enforce all of
+            C:\HDTLab\vms and stay under 32 GB combined. That budget counts only
+            the VMs this harness created and stamped, so the lab's own HDT-*
+            infrastructure neither eats it nor can be removed by the teardown
+            helper. No VM outside that prefix is touched. The helpers in tests/helpers/HDTTestTools enforce all of
             that in code; this function only checks that the run is possible at
             all.
     #>

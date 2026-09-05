@@ -235,15 +235,15 @@ BeforeAll {
     if ($script:canRun) {
 
         # -- rule 4: the memory budget, before anything is started ----------
-        $runningByte = [long] 0
-        foreach ($vm in @(Hyper-V\Get-VM -Name 'HDT-*' -ErrorAction SilentlyContinue |
-                    Where-Object { $_.State -eq 'Running' })) {
-            $runningByte += [long] $vm.MemoryAssigned
-        }
-
-        if (($runningByte + 4294967296) -gt 12884901888) {
-            throw ("running HDT VMs already hold {0} bytes; starting a 4 GB test VM would exceed the 12 GB lab budget (PROJECT.md rule 4)." -f $runningByte)
-        }
+        #
+        # ONE PLACE, AND THIS ASKS IT. The total, the cap and the rule about
+        # which VMs count all live in Get-HDTLabMemoryBudget /
+        # Get-HDTLabMemoryUse. This file used to re-implement the running total
+        # inline, as four others did, which is how one number came to exist in
+        # six places - and why raising it from 12 GB to 32 GB meant finding all
+        # six. The budget also stopped counting the lab's own HDT-* servers,
+        # which held the whole of the old cap between them.
+        Assert-HDTLabMemoryBudget -MemoryByte 4294967296 -Name $script:vmName
 
         # -- THE SEQUENCE, SEEDED FROM THIS REPOSITORY ----------------------
         #

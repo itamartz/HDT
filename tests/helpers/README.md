@@ -871,7 +871,8 @@ create. Damaging one is worse than failing a test. The protected set is
 4. **A wildcard name is refused.** `HDT-*` is a legal Hyper-V filter and would
    remove every test VM at once.
 5. **`HDT Lab` switch only, Generation 2 only, files under `C:\HDTLab\vms`
-   only, 8 GB per VM and 12 GB across every running `HDT-*` VM.**
+   only, 8 GB per VM and 32 GB across every running `HDT-*` VM **this harness
+   created**.**
 6. **A delete may only touch `<vmRoot>\<Name>` and what is inside it.**
    `Assert-HDTLabVmPath` refuses the VM root itself, anything outside it, and
    anything in it belonging to another VM — including a VHDX sitting loose

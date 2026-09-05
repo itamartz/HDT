@@ -33,6 +33,9 @@ BeforeAll {
     # A VM row as Hyper-V\Get-VM hands one over. Notes is empty by default,
     # which is what every VM on this host that the harness did not create has.
     function New-HDTTestVmRow {
+        [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',
+            Justification = 'Builds a [pscustomobject] in a test; it changes no state and touches no VM.')]
+        [CmdletBinding()]
         param(
             [string] $Name,
             [string] $State = 'Running',
@@ -49,6 +52,9 @@ BeforeAll {
     }
 
     function New-HDTTestStampedVmRow {
+        [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',
+            Justification = 'Builds a [pscustomobject] in a test; it changes no state and touches no VM.')]
+        [CmdletBinding()]
         param(
             [string] $Name,
             [string] $State = 'Running',

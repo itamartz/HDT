@@ -829,8 +829,8 @@ be wrong:
   (DESIGN §9.3, note 5).
 
 **Run the two VMs in sequence, never concurrently.** `New-HDTLabVirtualMachine`
-enforces a combined 12 GB budget across running `HDT-*` VMs (CLAUDE.md, Hyper-V
-lab safety), so a criterion that starts the second machine while the first is
+enforces a combined 32 GB budget across running `HDT-*` VMs **it created**
+(CLAUDE.md, Hyper-V lab safety), so a criterion that starts the second machine while the first is
 still up fails on the budget rather than on the thing it is testing. Capture,
 stop the reference VM, then deploy the second.
 

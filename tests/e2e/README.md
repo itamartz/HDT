@@ -106,8 +106,11 @@ before any Hyper-V call**, by the helpers in `tests/helpers/HDTTestTools`:
    it runs before the first Hyper-V call in every VM helper.
 3. No pipeline is ever unfiltered.
 4. `HDT Lab` switch only, Generation 2 only, files under `C:\HDTLab\vms` only.
-5. Memory: 4 GB per test VM, and the total assigned to running `HDT-*` VMs is
-   checked against the 12 GB lab budget before one is started.
+5. Memory: 4 GB per test VM, and the total assigned to running VMs **this
+   harness stamped** is checked against the 32 GB lab budget by
+   `Assert-HDTLabMemoryBudget` before one is started. Infrastructure VMs on this
+   host — a WSUS server, a WDS server — match `HDT-*` but carry no stamp, so
+   they are neither counted nor removable through `Remove-HDTLabVirtualMachine`.
 6. Every VM **not** named `HDT-*` is enumerated **before** the run and asserted
    identical **after**, in an `AfterAll` that runs even when the test failed.
    The count is asserted separately, so an empty host reads as "there was

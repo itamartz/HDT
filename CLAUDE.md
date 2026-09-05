@@ -230,7 +230,11 @@ This host runs the user's **live lab**. Damaging it is worse than failing a test
   prefix, not a list of names: act only on VMs matching it, and leave every
   other VM on the host exactly as you found it.
 - HDT test VMs: named `HDT-*`, **Generation 2**, files in `C:\HDTLab\vms\`,
-  under 12 GB combined, and on **one of exactly two switches**:
+  under 32 GB combined **across the VMs this repository created** — the budget
+  counts only VMs `New-HDTLabVirtualMachine` stamped, so the lab's own WSUS and
+  WDS servers do not eat it, and `Remove-HDTLabVirtualMachine` refuses an
+  unstamped VM even when its name matches `HDT-*` — and on **one of exactly two
+  switches**:
   - **`HDT External`** — the normal one. The VM gets DHCP from the real LAN on
     `192.168.1.0/24` and can reach the host on that subnet, which is what a
     deployment over SMB needs. Read the host's address; don't assume it.
