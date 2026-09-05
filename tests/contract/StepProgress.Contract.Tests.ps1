@@ -108,6 +108,47 @@ $script:HDTQuietStep = [ordered] @{
     # window in which this step is working and silent for minutes. The step's
     # own retry: is the engine's, and the engine logs each attempt.
     'JoinDomain'         = "one in-process join call, bounded by the call itself; a slow one is a name lookup timing out, not work in progress."
+    # THE HARDEST ONE IN EITHER LIST, AND IT IS HERE FOR THE SECOND SHAPE
+    # RATHER THAN THE FIRST. A WindowsUpdate step is the longest thing in a
+    # sequence - one cumulative update is fifteen minutes and 14 GB - so
+    # "finishes in seconds" is emphatically not the reason.
+    #
+    # IT IS SOMEBODY ELSE'S PROGRAM, WHICH IS THE OTHER SHAPE THIS LIST TAKES.
+    # The Windows Update Agent installs the update; HDT asks it to and waits.
+    # And unlike dism, whose meter this repository reads off stdout, WUA offers
+    # no way for a PowerShell caller to watch: the only form that carries a
+    # percentage is IUpdateInstaller.BeginInstall with an
+    # IInstallationCompletedCallback, and PowerShell cannot implement a COM
+    # interface - so that call is unavailable to the adapter rather than merely
+    # unwritten.
+    #
+    # MEASURED, NOT ASSUMED, on this machine on 2026-09-06, with an EMPTY update
+    # collection so that nothing could install:
+    #
+    #   $installer.BeginInstall($null, $null, $null)
+    #     -> "Object reference not set to an instance of an object."
+    #        It rejects the null callback BEFORE it looks at the collection.
+    #   $installer.Install()            the same empty collection
+    #     -> "Value does not fall within the expected range."
+    #        It reaches the collection, which is as far as an empty one gets.
+    #
+    # So Install() is the only call there is, it blocks, and it says nothing
+    # while it runs. Reporting through it would mean a new output channel on
+    # IUpdateSessionService, which is InstallRoles' reason above arrived at from
+    # the other direction.
+    #
+    # THE STEP STILL WRITES A FRAME PER UPDATE, and that is not a contradiction
+    # of this entry. It resolves the whole ordered list before it starts, so it
+    # can say "pass 2: installing 1 of 3: KB5121003" and name what the bar is
+    # waiting on - which is worth having and costs nothing. What it cannot do is
+    # write a SECOND record while that update installs, and that is what this
+    # list is about: the fifteen minutes between the frame and the next one.
+    # Classifying it as reporting would put it in the drive-case set below,
+    # where ONE long unit of work must produce ten moving records, and the only
+    # way it could clear that floor is by being driven with ten fast updates -
+    # which is precisely the dishonesty that context was written to catch.
+    'WindowsUpdate'      = "the Windows Update Agent installs the update and HDT waits on a blocking Install(); WUA's only progress-bearing form needs a COM callback PowerShell cannot implement, so reporting DURING an install would mean a new output channel on IUpdateSessionService. The step still names which update of how many before each one."
+
     'NoOp'               = "does nothing, at length."
     'Restart'            = "it arms a reboot and returns; the machine is gone before there is anything to report."
     'SetVariable'        = "assigns a variable; effectively instant."

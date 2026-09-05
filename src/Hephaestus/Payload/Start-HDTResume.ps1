@@ -1,4 +1,4 @@
-<#
+﻿<#
     .SYNOPSIS
         The RunOnce payload: reconcile the boot, then resume the task sequence.
 
@@ -742,10 +742,32 @@ try {
     # FILES and reading the templates: nothing shipped uses JoinDomain either.
     $domain = New-HDTDomainService
 
+    # AND AN UpdateSession SERVICE, WHICH IS THE Feature GAP AGAIN AND THE ONE
+    # THAT WOULD HAVE COST THE MOST.
+    #
+    # WindowsUpdate is full-OS BY DEFINITION - the Windows Update Agent COM
+    # server does not exist in a WinPE image at all, which is why
+    # Import-HDTSequenceDocument refuses the step in a WinPE group - so THIS leg
+    # is the only leg that ever runs it. A payload without the service fails at
+    # GetRequired('UpdateSession') on a machine that has already been imaged,
+    # rebooted and logged on, at the step whose entire purpose is the reason
+    # somebody added it.
+    #
+    # BUILDING IT COSTS NOTHING AND TOUCHES NO MACHINE. The adapter's
+    # constructor creates no COM object; every method does. So the line is safe
+    # on a leg whose sequence has no WindowsUpdate step in it, which is the same
+    # argument the Disk block above makes.
+    #
+    # AND IT IS THE PUBLIC COMMAND, NOT A PRIVATE HELPER. A payload script
+    # imports the MANIFEST, so a line here naming something outside
+    # FunctionsToExport is a CommandNotFoundException on iron and nowhere else -
+    # which is what PayloadExportedCommand.Contract.Tests.ps1 refuses.
+    $updateSession = New-HDTUpdateSessionService
+
     $catalog = New-HDTServiceCatalog -FileSystem $fileSystem -Clock $clock -Registry $registry `
         -Lsa $lsa -Process $process -Power $power -ScriptInvoker $scriptInvoker -Cim $cim `
         -Environment $environment -Image $imageService -BitLocker $bitLocker `
-        -Disk $diskService -Feature $feature -Domain $domain `
+        -Disk $diskService -Feature $feature -Domain $domain -UpdateSession $updateSession `
         -Content $content -Progress $display.DisplayHost
 
     $context = New-HDTExecutionContext -RunId ([string] $state.runId) -Phase FullOS `

@@ -122,6 +122,23 @@ $script:HDTExpansionProbe = @(
     @{ Type = 'Sysprep'; Key = 'unattend'; Value = 'Sysprep\unattend.xml'; Phase = 'FullOS'; Extra = @{} }
     @{ Type = 'Tattoo'; Key = 'path'; Value = 'HKLM:\SOFTWARE\Contoso\Deployment'; Phase = 'FullOS'; Extra = @{} }
     @{ Type = 'Validate'; Key = 'minTpmVersion'; Value = '2.0'; Phase = 'WinPE'; Extra = @{} }
+
+    # THREE ROWS, NOT ONE, AND THE OTHER TWO ARE LISTS. categories: and exclude:
+    # are YAML sequences, and the flat string form is the one this probe drives -
+    # the same shape InstallRoles has for `features` and InstallApplications for
+    # `selection`. A list handled only in its flat form makes
+    # exclude: ['%HDTExcludePattern%'] search for an update whose title is a
+    # percent sign, so the element-by-element expansion is proved here rather
+    # than assumed.
+    #
+    # EACH ONE IS OBSERVABLE ON THE CONTROL RUN, which is what the row actually
+    # requires: `server` reaches the journal through SetServer, and `categories`
+    # and `exclude` reach the LOG through Select-HDTApplicableUpdate's reason
+    # strings - 'category SecurityUpdates', 'excluded by *Preview*' - which name
+    # the pattern that decided precisely so an administrator can act on them.
+    @{ Type = 'WindowsUpdate'; Key = 'server'; Value = 'http://wsus.contoso.local:8530'; Phase = 'FullOS'; Extra = @{} }
+    @{ Type = 'WindowsUpdate'; Key = 'categories'; Value = 'SecurityUpdates'; Phase = 'FullOS'; Extra = @{} }
+    @{ Type = 'WindowsUpdate'; Key = 'exclude'; Value = '*Preview*'; Phase = 'FullOS'; Extra = @{} }
 )
 
 # THE ONE TYPE WITH NOTHING TO EXPAND, written down rather than left out, so the
@@ -174,6 +191,26 @@ Describe 'step property variable expansion' {
 
             $row = @(Get-HDTStepType | Where-Object { $_.Type -eq $Type })[0]
 
+            # A TYPE WHOSE TEMPLATE IS NOT WRITTEN YET STILL HAS TO PROVE IT
+            # EXPANDS ITS OWN PROPERTIES. TemplateCommand is what makes a type
+            # CREATABLE and its absence is a real answer rather than an oversight
+            # (Get-HDTStepType): a vendor may ship the runner alone, and a type
+            # this repository is still building one for is the same shape. Giving
+            # it an empty starting bag costs the probe nothing - the row supplies
+            # every key it needs through Extra and Key - and refusing to run it
+            # would leave the type covered by the table and by no assertion,
+            # which is exactly what the coverage guard below exists to prevent.
+            if ($null -eq $row.TemplateCommand) {
+                return [pscustomobject] @{
+                    Index          = 1
+                    Name           = 'Expansion probe'
+                    Type           = $Type
+                    TimeoutMinutes = 0
+                    Log            = $null
+                    Property       = [System.Collections.Specialized.OrderedDictionary]::new([System.StringComparer]::OrdinalIgnoreCase)
+                }
+            }
+
             $text = New-Object -TypeName System.Collections.ArrayList
             [void] $text.Add('schemaVersion: 1')
             [void] $text.Add('id: PROBE')
@@ -215,7 +252,8 @@ Describe 'step property variable expansion' {
                 -Feature (New-HDTFakeFeatureService -Journal $journal -Feature @{ 'Web-Server' = @{ Installed = $false } }) `
                 -BitLocker (New-HDTFakeBitLockerService -Journal $journal) `
                 -Domain (New-HDTFakeDomainService -Journal $journal) `
-                -Content (New-HDTFakeContentProvider -Journal $journal)
+                -Content (New-HDTFakeContentProvider -Journal $journal) `
+                -UpdateSession (New-HDTFakeUpdateSessionService -Journal $journal)
 
             # Debug, because the CommandLine step keeps the full command line at
             # Debug on purpose (DESIGN 4.4.5) and that record is where an
