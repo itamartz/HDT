@@ -25,6 +25,33 @@
 $script:repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 Import-Module -Name (Join-Path -Path $script:repoRoot -ChildPath 'src/Hephaestus/Hephaestus.psd1') -Force -ErrorAction Stop
 
+# ONE TEST BELOW IS SKIPPED ON A GITHUB-HOSTED RUNNER ONLY, NEVER HERE.
+#
+# Renaming a row raises a real WPF LostFocus event whose handler writes the
+# document and then rebuilds the tree. On this machine, and every local run,
+# that always completes clean. On GitHub's Windows runner it has failed the
+# same way three scheduled Coverage runs running (2026-09-03 through
+# 2026-09-05, including a run against a commit that fixed an UNRELATED,
+# already-diagnosed EOL-dependent regex defect - so this is not that bug
+# recurring):
+#
+#   Exception calling "RaiseEvent": Cannot validate argument on parameter
+#   'Path'. The argument is null or empty.
+#
+# Traced as far as $rebuildTree in New-HDTConsoleView.ps1: $openShare already
+# filters blank HeaderRoot values before anything is handed a -Path, so the
+# empty value is arriving from a WPF dispatcher timing difference on that
+# runner's hardware/OS image, not from this file's own logic - and it will not
+# reproduce here to be iterated on. Skipped rather than deleted, with the
+# reason on record, per the user's decision on 2026-09-05. The write this
+# handler performs is unaffected either way: the document is saved BEFORE the
+# rebuild that throws, and the test asserting the write itself is not skipped.
+#
+# $env:, NOT A $script: VARIABLE. The It sits inside InModuleScope, and
+# InModuleScope's -Skip: read happens in the MODULE's script scope, not this
+# file's - Get-HDTSlowSuiteSkipViolation exists for exactly this class of
+# cross-scope trap. $env: is process-global, so there is no scope to cross.
+
 InModuleScope -ModuleName Hephaestus {
 
     BeforeAll {
@@ -323,7 +350,10 @@ InModuleScope -ModuleName Hephaestus {
             # A RENAME REBUILDS THE TREE, which re-reads every open share - so
             # this is also the only test that drives that path for an update, and
             # a share that would not reopen would surface here.
-            It 'does not throw out of the handler and onto a message box' {
+            #
+            # SKIPPED ON GITHUB'S RUNNER ONLY - see the file header for the
+            # three-day trail and why it is not the EOL regex defect.
+            It 'does not throw out of the handler and onto a message box' -Skip:([bool] $env:GITHUB_ACTIONS) {
                 $script:renameThrew | Should -BeNullOrEmpty
             }
 
