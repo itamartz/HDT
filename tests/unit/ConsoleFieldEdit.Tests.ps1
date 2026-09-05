@@ -135,6 +135,30 @@ InModuleScope -ModuleName Hephaestus {
 
             return $null
         }
+
+        # THE ELEMENT THE TEMPLATE NAMED, ASKED FOR BY THAT NAME. Neither walk
+        # above can find the help dot: it is a Border, and a TextBox's own
+        # control template puts a Border in the tree BREADTH-FIRST AHEAD of it,
+        # so a type walk returns the wrong control and every assertion about the
+        # dot would be about the box's chrome.
+        #
+        # A DataTemplate HAS ITS OWN NAME SCOPE and the item container is the
+        # ContentPresenter that applied it, which is exactly what
+        # DataTemplate.FindName takes - so this is the API for the job rather
+        # than a tree walk with a name test bolted on.
+        function Get-HDTTestTemplateNamed {
+            [CmdletBinding()]
+            [OutputType([object])]
+            param(
+                [Parameter(Mandatory = $true)] [object] $Container,
+                [Parameter(Mandatory = $true)] [string] $Name
+            )
+
+            if ($null -eq $Container) { return $null }
+            if ($null -eq $Container.ContentTemplate) { return $null }
+
+            return $Container.ContentTemplate.FindName($Name, $Container)
+        }
     }
 
     Describe 'a version typed into the details pane of a task sequence' {
@@ -518,6 +542,43 @@ InModuleScope -ModuleName Hephaestus {
 
             $script:mediaEnabledBox = Get-HDTTestTemplateControl -Root $script:mediaEnabledContainer `
                 -Kind ([System.Windows.Controls.TextBox])
+
+            # THE OUTPUT ROW AND THE THREE THAT MUST NOT GROW A BUTTON. The
+            # read-only ones are taken as a SET rather than one of them, because
+            # the browse button is collapsed by default and the failure being
+            # guarded against - a trigger bound to the wrong property - would
+            # show it on every row at once.
+            $script:mediaOutputContainer = & $script:mediaContainerFor 'Output'
+
+            $script:mediaOutputBox = Get-HDTTestTemplateControl -Root $script:mediaOutputContainer `
+                -Kind ([System.Windows.Controls.TextBox])
+
+            $script:mediaOutputButton = Get-HDTTestTemplateNamed -Container $script:mediaOutputContainer `
+                -Name 'HDTDetailBrowseButton'
+
+            $script:mediaOutputDot = Get-HDTTestTemplateNamed -Container $script:mediaOutputContainer `
+                -Name 'HDTDetailHelpDot'
+
+            $script:mediaQuietRow = @('Id', 'Last build', 'Document') | ForEach-Object {
+                [pscustomobject] @{
+                    Label  = $_
+                    Button = (Get-HDTTestTemplateNamed -Container (& $script:mediaContainerFor $_) `
+                            -Name 'HDTDetailBrowseButton')
+                    Dot    = (Get-HDTTestTemplateNamed -Container (& $script:mediaContainerFor $_) `
+                            -Name 'HDTDetailHelpDot')
+                }
+            }
+
+            $script:mediaDescriptionButton = Get-HDTTestTemplateNamed -Container $script:mediaDescriptionContainer `
+                -Name 'HDTDetailBrowseButton'
+
+            # THE DROP-DOWN'S OWN ARROW, which is a ToggleButton - the control
+            # whose Click bubbles up to the browse handler on every open.
+            $script:mediaEnabledToggle = Get-HDTTestTemplateControl -Root $script:mediaEnabledContainer `
+                -Kind ([System.Windows.Controls.Primitives.ToggleButton])
+
+            $script:mediaProfileToggle = Get-HDTTestTemplateControl -Root $script:mediaProfileContainer `
+                -Kind ([System.Windows.Controls.Primitives.ToggleButton])
         }
 
         # THE INDEX-TO-LABEL MAPPING, ASSERTED. Every Context below reaches its
@@ -796,6 +857,177 @@ InModuleScope -ModuleName Hephaestus {
             It 'writes nothing when SelectedItem is null - the -Picked guard' {
                 [System.Convert]::ToBase64String($script:nullPickAfter) |
                     Should -BeExactly ([System.Convert]::ToBase64String($script:nullPickBefore))
+            }
+        }
+
+        # THE DIALOG ITSELF IS NOT EXERCISED BY ANY TEST IN THIS FILE, AND THAT
+        # GAP IS ON RECORD RATHER THAN AN OVERSIGHT. SaveFileDialog.ShowDialog
+        # is modal and there is no desktop under Pester, so what these three
+        # Contexts prove is the WIRING - that the button is drawn on the right
+        # row and points at the right box - and the WRITE - that a path put into
+        # that box reaches media.yaml. 07-05-03's live probe is what proves the
+        # dialog opens, is filtered and cancels cleanly.
+        Context 'the Output row, drawn' {
+
+            It 'draws a Browse button on it' {
+                # VISIBILITY, NOT PRESENCE. HasBrowse SHOWS a button that is
+                # collapsed by default - it does not add one - so every row in
+                # this pane has one in its visual tree and only this row's can
+                # be clicked.
+                $script:mediaOutputButton | Should -Not -BeNullOrEmpty
+                [string] $script:mediaOutputButton.Visibility | Should -BeExactly 'Visible'
+            }
+
+            It 'points that button at the box on its own row, so a click knows which field it is filling' {
+                # ElementName WITHIN THE TEMPLATE'S OWN NAME SCOPE, which is why
+                # this resolves to the box beside it and not to some other row's.
+                # The alternative - walking up to the Grid and back down for a
+                # TextBox - finds the wrong control the day the template gains a
+                # second one.
+                $script:mediaOutputButton.Tag | Should -BeOfType ([System.Windows.Controls.TextBox])
+                [object]::ReferenceEquals($script:mediaOutputButton.Tag, $script:mediaOutputBox) |
+                    Should -BeTrue -Because 'the button must fill the box on its own row'
+
+                [string] $script:mediaOutputButton.DataContext.Property | Should -BeExactly 'output'
+                [string] $script:mediaOutputButton.DataContext.Browse | Should -BeExactly 'IsoFile'
+
+                # AND IT CARRIES THE NAME THE HANDLER GUARDS ON. x:Name in a
+                # DataTemplate sets the instance's Name too, which is how a
+                # click arriving by a routed event can say which control it came
+                # from - FindName cannot reach into a template's name scope.
+                [string] $script:mediaOutputButton.Name | Should -BeExactly 'HDTDetailBrowseButton'
+            }
+
+            It 'draws no Browse button on the description row' {
+                [string] $script:mediaDescriptionButton.Visibility | Should -BeExactly 'Collapsed'
+            }
+
+            It 'draws no Browse button on the read-only rows' {
+                foreach ($quiet in @($script:mediaQuietRow)) {
+                    [string] $quiet.Button.Visibility |
+                        Should -BeExactly 'Collapsed' -Because ('{0} picks nothing off a disk' -f $quiet.Label)
+                }
+            }
+
+            It 'still draws the help dot beside it, rather than losing it to the new column' {
+                # THE RE-PARENT, ASSERTED. The dot moved out of the Grid column
+                # and into a StackPanel to share it with the button, and a
+                # template trigger finds its TargetName wherever it sits - but a
+                # silently dead trigger looks exactly like a row that has no
+                # hint, so it is checked BOTH ways: shown where there is a hint,
+                # collapsed where there is not.
+                [string] $script:mediaOutputDot.Visibility | Should -BeExactly 'Visible'
+
+                foreach ($quiet in @($script:mediaQuietRow)) {
+                    [string] $quiet.Dot.Visibility |
+                        Should -BeExactly 'Collapsed' -Because ('{0} carries no hint' -f $quiet.Label)
+                }
+            }
+        }
+
+        # ButtonBase.Click IS A BUBBLING ROUTED EVENT AND A ComboBox's ARROW IS
+        # A ToggleButton, so 07-05-01's two lists raise the browse handler on
+        # every open. Without this Context, widening the handler's
+        # OriginalSource guard from Button to ButtonBase - which reads like
+        # being safe - would go green here and route a click on the Enabled list
+        # into $writeRow.
+        Context 'a click on a drop-down, which bubbles the same Click event' {
+
+            BeforeAll {
+                $script:bubbleBefore = [System.IO.File]::ReadAllBytes($script:mediaPath)
+                $script:bubbleOutputBefore = [string] $script:mediaOutputBox.Text
+                $script:bubbleThrew = ''
+
+                try {
+                    # WHAT ToggleButton.OnClick ITSELF RAISES. Driving the arrow
+                    # through UI Automation would not do it - a Toggle pattern
+                    # call does not raise Click - so the routed event is raised
+                    # from the control that raises it in the product.
+                    foreach ($arrow in @($script:mediaEnabledToggle, $script:mediaProfileToggle)) {
+                        $arrow.RaiseEvent((New-Object -TypeName System.Windows.RoutedEventArgs `
+                                    -ArgumentList ([System.Windows.Controls.Primitives.ButtonBase]::ClickEvent)))
+                    }
+
+                    $script:mediaWindow.Dispatcher.Invoke([action] {},
+                        [System.Windows.Threading.DispatcherPriority]::Background)
+                } catch {
+                    $script:bubbleThrew = [string] $_.Exception.Message
+                }
+
+                $script:bubbleAfter = [System.IO.File]::ReadAllBytes($script:mediaPath)
+            }
+
+            It 'is ignored - the enabled list opens and nothing is written' {
+                $script:bubbleThrew | Should -BeNullOrEmpty
+
+                [System.Convert]::ToBase64String($script:bubbleAfter) |
+                    Should -BeExactly ([System.Convert]::ToBase64String($script:bubbleBefore))
+            }
+
+            It 'is ignored on the selection profile list too' {
+                # BOTH ARROWS WERE CLICKED ABOVE, and this says so rather than
+                # leaving the second one covered by the first one's assertion.
+                $script:mediaProfileToggle | Should -Not -BeNullOrEmpty
+                $script:mediaEnabledToggle | Should -Not -BeNullOrEmpty
+
+                [string] $script:mediaProfileToggle.GetType().Name | Should -Not -BeExactly 'Button'
+            }
+
+            It 'leaves the Output box exactly as it was' {
+                [string] $script:mediaOutputBox.Text | Should -BeExactly $script:bubbleOutputBefore
+            }
+        }
+
+        # THE WRITE THE BUTTON ENDS IN, driven by putting a path into the box
+        # the way a pick puts one there. A SPACE IN THE PATH ON PURPOSE: it is
+        # what a picked path off a real disk looks like, and it is where a
+        # splice that quoted or split on whitespace would show.
+        Context 'a path put into the Output box the way a pick puts it there' {
+
+            BeforeAll {
+                $script:pickedPath = 'D:\Builds\field kit.iso'
+                $script:outputThrew = ''
+
+                $script:mediaOutputBox.Text = $script:pickedPath
+
+                $binding = $script:mediaOutputBox.GetBindingExpression(
+                    [System.Windows.Controls.TextBox]::TextProperty)
+
+                if ($null -ne $binding) { [void] $binding.UpdateSource() }
+
+                try {
+                    $script:mediaOutputBox.RaiseEvent((New-Object -TypeName System.Windows.RoutedEventArgs `
+                                -ArgumentList ([System.Windows.Controls.TextBox]::LostFocusEvent)))
+                } catch {
+                    $script:outputThrew = [string] $_.Exception.Message
+                }
+
+                $script:outputWritten = [System.IO.File]::ReadAllText($script:mediaPath)
+            }
+
+            It 'writes the picked path into media.yaml' {
+                $script:outputThrew | Should -BeNullOrEmpty
+
+                $script:outputWritten |
+                    Should -Match ('(?m)^output:\s*''?{0}''?\s*$' -f [regex]::Escape($script:pickedPath))
+            }
+
+            It 'is accepted by Assert-HDTMediaDocument' {
+                $document = ConvertFrom-HDTYaml -Yaml $script:outputWritten -Path $script:mediaPath
+
+                { Assert-HDTMediaDocument -Document $document -Path $script:mediaPath -Id 'HYDRA' } |
+                    Should -Not -Throw
+            }
+
+            It 'is read back by Get-HDTMedia as that path' {
+                $read = @(Get-HDTMedia -WorkspaceRoot $script:mediaRoot -Id 'HYDRA')[0]
+
+                [string] $read.OutputPath | Should -BeExactly $script:pickedPath
+            }
+
+            It 'leaves the comment at the top of media.yaml alone' {
+                $script:outputWritten | Should -Match '# HDT standalone media definition\.'
+                $script:outputWritten | Should -Match '(?m)^id:\s*HYDRA\s*$'
             }
         }
     }

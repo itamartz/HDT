@@ -741,15 +741,77 @@
                                          - which expands only inside a .cmd file
                                          - fails as a missing file rather than
                                          as the mistake it is. -->
-                                    <Border Grid.Column="2" x:Name="HDTDetailHelpDot"
-                                            Style="{StaticResource HDTHelpDot}">
-                                        <Border.ToolTip>
-                                            <ToolTip MaxWidth="380">
-                                                <TextBlock TextWrapping="Wrap" Text="{Binding Hint}" />
-                                            </ToolTip>
-                                        </Border.ToolTip>
-                                        <TextBlock Style="{StaticResource HDTHelpGlyph}" />
-                                    </Border>
+                                    <!-- THE BUTTON AND THE DOT SHARE THE THIRD
+                                         COLUMN, which is why the dot now sits
+                                         in a StackPanel rather than claiming
+                                         the column itself. A template trigger
+                                         finds its TargetName wherever it sits,
+                                         so the HasHint trigger below is
+                                         unaffected - and there is a test that
+                                         says so, because a silently dead
+                                         trigger looks exactly like a row that
+                                         has no hint.
+
+                                         Grid.Column CAME OFF THE Border with
+                                         the re-parent: a StackPanel is not a
+                                         Grid, and an attached property left on
+                                         a child reads as a second control
+                                         claiming the same column. -->
+                                    <StackPanel Grid.Column="2" Orientation="Horizontal"
+                                                VerticalAlignment="Top">
+
+                                        <!-- A PATH IS A THING TO POINT AT, NOT
+                                             A THING TO REMEMBER. The Output row
+                                             on a media item is an ISO path a
+                                             technician was expected to type;
+                                             what this opens is
+                                             Get-HDTConsoleFieldBrowse's
+                                             decision, read off the row's own
+                                             Browse kind, so no control here
+                                             knows what a media output is.
+
+                                             AN ELLIPSIS AND NOT THE WORD: a
+                                             control inside a DataTemplate is
+                                             not in the window's name scope, so
+                                             Set-HDTWindowText's FindName cannot
+                                             reach it and a literal word here
+                                             would be prose nothing can
+                                             translate - which the string-table
+                                             contract refuses, correctly. The
+                                             label column says Output and the
+                                             dot beside this carries the
+                                             sentence; the glyph is the Windows
+                                             convention and needs neither a
+                                             ToolTip nor an
+                                             AutomationProperties.Name, both of
+                                             which would be untranslatable prose
+                                             the contract's regex happens not to
+                                             catch.
+
+                                             COLLAPSED BY DEFAULT so every
+                                             ordinary row pays nothing for it,
+                                             the way HDTDetailChoice does.
+
+                                             Tag REACHES THE BOX BY ElementName,
+                                             within this template's own name
+                                             scope - so it resolves to the box
+                                             on THIS row and nothing else. -->
+                                        <Button x:Name="HDTDetailBrowseButton"
+                                                Visibility="Collapsed"
+                                                Content="&#x2026;"
+                                                Width="32" Height="26" Margin="8,2,0,0"
+                                                Tag="{Binding ElementName=HDTDetailBox}" />
+
+                                        <Border x:Name="HDTDetailHelpDot"
+                                                Style="{StaticResource HDTHelpDot}">
+                                            <Border.ToolTip>
+                                                <ToolTip MaxWidth="380">
+                                                    <TextBlock TextWrapping="Wrap" Text="{Binding Hint}" />
+                                                </ToolTip>
+                                            </Border.ToolTip>
+                                            <TextBlock Style="{StaticResource HDTHelpGlyph}" />
+                                        </Border>
+                                    </StackPanel>
                                 </Grid>
 
                                 <!-- WHITE MEANS TYPE HERE, and it is the only
@@ -788,6 +850,18 @@
                                         <Setter TargetName="HDTDetailBox" Property="Visibility"
                                                 Value="Collapsed" />
                                         <Setter TargetName="HDTDetailChoice" Property="Visibility"
+                                                Value="Visible" />
+                                    </DataTrigger>
+
+                                    <!-- SHOWN ONLY WHERE THE ROW ASKED FOR IT.
+                                         HasBrowse is the boolean half of
+                                         New-HDTConsoleField's Browse kind,
+                                         because a DataTrigger compares a value
+                                         and cannot ask whether a string is
+                                         empty without a converter this markup
+                                         has nowhere to load from. -->
+                                    <DataTrigger Binding="{Binding HasBrowse}" Value="True">
+                                        <Setter TargetName="HDTDetailBrowseButton" Property="Visibility"
                                                 Value="Visible" />
                                     </DataTrigger>
                                 </DataTemplate.Triggers>

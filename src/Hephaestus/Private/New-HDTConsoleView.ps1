@@ -1060,6 +1060,115 @@
                 if ($null -ne $applyState) { & $applyState }
             }.GetNewClosure())
 
+        # A PATH IS PICKED, NOT TYPED FROM MEMORY. The two gestures above cover
+        # a box and a list; this is the third, and it ends in the same $writeRow
+        # both of them use - so a browse writes through Set-HDTMedia exactly as
+        # a typed path does, and there is no second save path to keep in step.
+        #
+        # THE DIALOG IS Get-HDTConsoleFieldBrowse'S DECISION, NOT THIS BLOCK'S.
+        # Which control, what it is titled and what it filters on belong
+        # somewhere a test can read them - a modal dialog cannot be opened under
+        # Pester, so anything decided here would be decided where nothing checks
+        # it. What is left here is showing it and putting the answer back.
+        $detail.AddHandler([System.Windows.Controls.Primitives.ButtonBase]::ClickEvent,
+            [System.Windows.RoutedEventHandler] {
+                param([object] $raiser, [System.Windows.RoutedEventArgs] $clicked)
+
+                # ButtonBase.Click BUBBLES, AND THIS PANE HAS DROP-DOWNS IN IT.
+                # A ComboBox's arrow is a ToggleButton and ToggleButton.OnClick
+                # raises ButtonBase.ClickEvent, which is registered Bubble and
+                # which ComboBox does not mark handled - so every click on the
+                # Selection profile or Enabled list arrives here. A ToggleButton
+                # derives from ButtonBase and NOT from Button, so this cast
+                # comes back null and the click is dropped; the same is true of
+                # a ScrollBar's RepeatButtons.
+                #
+                # DO NOT WIDEN THIS TO ButtonBase to "be safe". That is the
+                # change that would route a click on the Enabled list into
+                # $writeRow. tests/unit/ConsoleFieldEdit.Tests.ps1 raises the
+                # real bubbling event off both arrows and asserts nothing is
+                # written.
+                $button = $clicked.OriginalSource -as [System.Windows.Controls.Button]
+                if ($null -eq $button) { return }
+
+                # THE BUTTON THIS HANDLER SERVES, NAMED. x:Name inside a
+                # DataTemplate sets the instance's Name as well as registering
+                # it in the template's name scope, so the click can say which
+                # control it came from even though FindName cannot reach one.
+                #
+                # THIS IS ALSO HOW THE ENGINE MENTIONS IT AT ALL.
+                # WinPeUiStack.Contract.Tests.ps1 refuses a named Button in any
+                # window that no .ps1 under src/ names - "a button no engine code
+                # names is one a technician can press and nothing happens" - and
+                # it is right to: every other button on these windows is reached
+                # by FindName, and this one is reached by a routed event, which
+                # is exactly the route that can silently serve nothing.
+                if ([string] $button.Name -ne 'HDTDetailBrowseButton') { return }
+
+                $row = $button.DataContext
+                if ($null -eq $row) { return }
+
+                # ASKED FOR, NOT ASSUMED - not every row in this pane comes from
+                # New-HDTConsoleField, and reading a property that is not there
+                # is a terminating error on the dispatcher, which takes the
+                # window down. Test-HDTConsoleRowCommit's own comment says the
+                # same thing for the same reason.
+                if (@($row.PSObject.Properties.Match('Browse')).Count -eq 0) { return }
+
+                $kind = [string] $row.Browse
+                if ([string]::IsNullOrEmpty($kind)) { return }
+
+                # ONLY THE BROWSE BUTTON CARRIES THE ElementName BINDING, so
+                # this is the second guard on a bubbled click and the one that
+                # says which box is being filled.
+                $box = $button.Tag -as [System.Windows.Controls.TextBox]
+                if ($null -eq $box) { return }
+
+                $ask = & $call 'Get-HDTConsoleFieldBrowse' -Kind $kind -Current ([string] $box.Text)
+
+                if ([string] $ask.Dialog -ne 'Save') { return }
+
+                # Microsoft.Win32.SaveFileDialog IS WPF, NOT WINDOWS FORMS -
+                # PresentationFramework, so it is clear of the WinPE UI stack
+                # contract, which bans System.Windows.Forms outright.
+                $picker = New-Object -TypeName Microsoft.Win32.SaveFileDialog
+                $picker.Title = [string] $ask.Title
+                $picker.Filter = [string] $ask.Filter
+                $picker.OverwritePrompt = $false
+
+                if (-not [string]::IsNullOrEmpty([string] $ask.Directory)) {
+                    $picker.InitialDirectory = [string] $ask.Directory
+                }
+
+                if (-not [string]::IsNullOrEmpty([string] $ask.FileName)) {
+                    $picker.FileName = [string] $ask.FileName
+                }
+
+                # CANCEL WRITES NOTHING, and that is the rule rather than a
+                # convenience: an Output left empty is New-HDTMedia's default to
+                # fill, and a picker that put a path in on the way out would turn
+                # a deliberate blank into a decision nobody made.
+                if ($picker.ShowDialog() -ne $true) { return }
+
+                $picked = [string] $picker.FileName
+                if ([string]::IsNullOrWhiteSpace($picked)) { return }
+
+                # THE CONTROL, THEN THE SOURCE. The row is a PSCustomObject and
+                # raises no PropertyChanged, and this TextBox updates its source
+                # on LostFocus - which a click on a button beside it does not
+                # cause. Writing $row.Value instead would leave the box showing
+                # the old path. It is the same reason the $revert blocks set
+                # $box.Text rather than $row.Value.
+                $box.Text = $picked
+
+                $binding = $box.GetBindingExpression([System.Windows.Controls.TextBox]::TextProperty)
+                if ($null -ne $binding) { [void] $binding.UpdateSource() }
+
+                if (-not (& $call 'Test-HDTConsoleRowCommit' -Row $row -Typed $picked)) { return }
+
+                & $writeRow $row $picked { param([string] $text) $box.Text = $text }.GetNewClosure()
+            }.GetNewClosure())
+
         if ($null -ne $apply) {
             $apply.Add_Click({
                     $chosen = $tree.SelectedItem
