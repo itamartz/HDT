@@ -18,14 +18,25 @@ function New-HDTLabVirtualMachine {
                       172.25.16.1/20 on this host: not the deployment subnet, and
                       a VM there cannot reach the share the way one on
                       'HDT External' can
-              rule 4  memory. All HDT VMs stay under 12 GB combined, so one test
-                      VM may not take more than 8 GB, and the total already
-                      assigned to running HDT-* VMs is checked before this one
-                      is created
+              rule 4  memory. The VMs THIS HARNESS CREATED stay under 32 GB
+                      combined, so one test VM may not take more than 8 GB, and
+                      the total already assigned is checked before this one is
+                      created. Both numbers come from Get-HDTLabMemoryBudget and
+                      appear nowhere else in the repository; the check itself is
+                      Assert-HDTLabMemoryBudget, which every caller shares
               rule 5  every VHD lives under C:\HDTLab\vms, not the host default
                       C:\HyperVVMs where the user's own VMs are
               rule 6  Generation 2 - UEFI and Secure Boot, which is what HDT
                       targets and what the -NoPromptForKey UEFI ISO needs
+
+            THE VM IS STAMPED THE MOMENT IT IS MADE, in its Notes field
+            (Get-HDTLabVmStamp). That marker is how the budget and the teardown
+            helper tell the VMs this repository built from the ones it did not:
+            this host runs HDT-* machines the harness never created, and
+            counting or removing one of those would be a defect in both
+            directions. The rule is expressed as "not stamped" and never as a
+            list of names - CLAUDE.md, because a name list rots, and this one
+            already did.
 
             EVERY HYPER-V COMMAND IS MODULE-QUALIFIED. SPIKES S8: PowerCLI is
             installed on this host and shadows Get-VM, so 'Hyper-V\Get-VM' is
@@ -122,8 +133,6 @@ function New-HDTLabVirtualMachine {
     $externalSwitch = 'HDT External'
     $allowedSwitch = @($labSwitch, $externalSwitch)
     $vmRoot = 'C:\HDTLab\vms'
-    $maximumVmByte = 8589934592     # 8 GB for one VM
-    $maximumLabByte = 12884901888   # 12 GB for all of them together
 
     # -- the guards, before any Hyper-V call -------------------------------
 
@@ -144,26 +153,17 @@ function New-HDTLabVirtualMachine {
         }
     }
 
-    if ($MemoryByte -gt $maximumVmByte) {
-        throw ("{0} bytes is more than one HDT test VM may take. The whole lab budget is 12 GB combined and the host's free memory moves with whatever else is running, so a single test VM is capped at 8 GB - 4 GB is the standard (PROJECT.md, 'Hyper-V lab safety rules', rule 4)." -f $MemoryByte)
-    }
-
-    # -- the memory budget, across every RUNNING HDT VM --------------------
+    # -- the memory budget, rule 4 -----------------------------------------
     #
-    # Name-filtered, never an unfiltered pipeline (rule 1).
-
-    $running = @(Hyper-V\Get-VM -Name 'HDT-*' -ErrorAction SilentlyContinue |
-            Where-Object { $_.State -eq 'Running' })
-
-    $assigned = [long] 0
-    foreach ($vm in $running) {
-        $assigned += [long] $vm.MemoryAssigned
-    }
-
-    if (($assigned + $MemoryByte) -gt $maximumLabByte) {
-        throw ("Starting '{0}' with {1} bytes would put the running HDT VMs over the 12 GB lab budget ({2} bytes already assigned to {3} running HDT VM(s)). Shut one down first (PROJECT.md, 'Hyper-V lab safety rules', rule 4)." -f
-            $Name, $MemoryByte, $assigned, $running.Count)
-    }
+    # ONE PLACE, AND THIS ASKS IT. The per-VM cap, the combined total and the
+    # rule about which VMs count all live behind Assert-HDTLabMemoryBudget. This
+    # function used to carry two byte literals and its own running total, as
+    # five e2e suites also did, which is how one number came to exist in six
+    # places and why raising it meant finding all six.
+    #
+    # It runs BEFORE ShouldProcess and before any Hyper-V call that creates
+    # anything: a budget checked afterwards is a budget already broken.
+    Assert-HDTLabMemoryBudget -MemoryByte $MemoryByte -Name $Name
 
     # -- create it ---------------------------------------------------------
 
@@ -179,7 +179,13 @@ function New-HDTLabVirtualMachine {
     $vm = Hyper-V\New-VM -Name $Name -MemoryStartupBytes $MemoryByte -Generation 2 `
         -SwitchName $SwitchName -Path $vmRoot -NoVHD
 
-    Hyper-V\Set-VM -Name $Name -ProcessorCount $ProcessorCount -AutomaticCheckpointsEnabled $false
+    # THE STAMP, WRITTEN AT CREATION. It tells a human reading Hyper-V Manager
+    # that this machine is disposable, and it tells the harness which VMs are
+    # its own - which is what the memory budget counts and what
+    # Remove-HDTLabVirtualMachine is willing to delete. Nothing else on this
+    # host carries it, so nothing else on this host is at risk from either.
+    Hyper-V\Set-VM -Name $Name -ProcessorCount $ProcessorCount -AutomaticCheckpointsEnabled $false `
+        -Notes (Get-HDTLabVmStamp)
     Hyper-V\Set-VMMemory -VMName $Name -DynamicMemoryEnabled $false
 
     foreach ($path in @($VhdPath)) {

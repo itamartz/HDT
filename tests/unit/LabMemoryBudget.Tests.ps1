@@ -95,8 +95,8 @@ Describe 'Get-HDTLabMemoryBudget' {
     }
 
     It 'reports the numbers as text a message can quote' {
-        # So a refusal says "32 GB" and not "34359738368 bytes" alone. A
-        # technician reads the first one.
+        # So a refusal says "32 GB" rather than a bare eleven-digit byte count.
+        # A technician reads the first one.
         (Get-HDTLabMemoryBudget).CombinedText | Should -BeExactly '32 GB'
         (Get-HDTLabMemoryBudget).PerVmText | Should -BeExactly '8 GB'
     }

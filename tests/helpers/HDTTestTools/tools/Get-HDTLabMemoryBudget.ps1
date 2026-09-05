@@ -55,8 +55,8 @@ function Get-HDTLabMemoryBudget {
     $ErrorActionPreference = 'Stop'
 
     return [pscustomobject] @{
-        CombinedByte = [long] 34359738368   # 32 GB, across every VM the harness created
-        PerVmByte    = [long] 8589934592    # 8 GB, the most any one test VM may take
+        CombinedByte = [long] 34359738368   # 32 GB of memory, across every VM the harness created
+        PerVmByte    = [long] 8589934592    # 8 GB, the most memory any one test VM may take
         CombinedText = '32 GB'
         PerVmText    = '8 GB'
     }

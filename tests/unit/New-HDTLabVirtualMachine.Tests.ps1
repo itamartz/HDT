@@ -193,11 +193,23 @@ Describe 'New-HDTLabVirtualMachine' {
                     -SwitchName 'HDT Lab' -VhdPath $script:legalVhd -Generation 1 } | Should -Throw '*Generation 2*'
         }
 
-        It 'refuses more memory than the lab budget allows' {
-            # PROJECT.md rule 4: all HDT VMs under 12 GB combined, on a host
-            # whose free memory moves with whatever else is running.
-            { New-HDTLabVirtualMachine -Name 'HDT-M3-Deploy' -MemoryByte 17179869184 -ProcessorCount 2 `
-                    -SwitchName 'HDT Lab' -VhdPath $script:legalVhd } | Should -Throw '*12*'
+        It 'refuses more memory than one test VM may take' {
+            # PROJECT.md rule 4, and it is Assert-HDTLabMemoryBudget's refusal
+            # now rather than one this helper writes itself - so the assertion
+            # is against THAT message. 16 GB is over the 8 GB per-VM cap, which
+            # is refused before the running total is even asked for, so this
+            # runs on a machine with no Hyper-V.
+            $refusal = { New-HDTLabVirtualMachine -Name 'HDT-M3-Deploy' -MemoryByte 17179869184 -ProcessorCount 2 `
+                    -SwitchName 'HDT Lab' -VhdPath $script:legalVhd }
+
+            $refusal | Should -Throw '*8 GB*'
+            $refusal | Should -Throw '*32 GB*'
+
+            # AND IT SAYS WHERE THE NUMBERS LIVE. The old refusal quoted a
+            # literal it carried itself, and the next person to raise the budget
+            # had six files to find. This one points at the only file that may
+            # carry either value.
+            $refusal | Should -Throw '*Get-HDTLabMemoryBudget.ps1*'
         }
 
         It 'names the lab safety rule it is enforcing' {
@@ -238,6 +250,57 @@ Describe 'New-HDTLabVirtualMachine' {
 
         It 'carries SupportsShouldProcess' {
             (Get-Command -Name 'New-HDTLabVirtualMachine').Parameters.ContainsKey('WhatIf') | Should -BeTrue
+        }
+    }
+
+    Context 'the memory budget' {
+
+        # ONE PLACE OF TRUTH (CLAUDE.md rule 8). This helper used to carry the
+        # per-VM cap, the combined budget and its own running total - and so did
+        # five e2e suites, which is how one number came to exist in six places.
+        # It asks now, and these assertions are what stop it going back.
+
+        It 'asks Assert-HDTLabMemoryBudget rather than totalling memory itself' {
+            $ast = & $script:parseTool 'New-HDTLabVirtualMachine'
+            $ast | Should -Not -BeNullOrEmpty
+
+            @(& $script:namedCall $ast 'Assert-HDTLabMemoryBudget').Count | Should -BeGreaterOrEqual 1
+
+            # MemoryAssigned is what the inline total summed. Its presence here
+            # is the old shape growing back.
+            $path = Join-Path -Path $script:toolRoot -ChildPath 'New-HDTLabVirtualMachine.ps1'
+            (Get-Content -LiteralPath $path -Raw) | Should -Not -Match 'MemoryAssigned'
+        }
+
+        It 'checks the budget before the first Hyper-V command' {
+            # A budget checked after New-VM is a budget that has already been
+            # broken.
+            $ast = & $script:parseTool 'New-HDTLabVirtualMachine'
+
+            $guard = @(& $script:namedCall $ast 'Assert-HDTLabMemoryBudget')
+            $guard.Count | Should -BeGreaterOrEqual 1
+
+            $firstHyperV = @(& $script:hyperVCall $ast | Sort-Object { $_.Extent.StartOffset })[0]
+
+            $guard[0].Extent.StartOffset | Should -BeLessThan $firstHyperV.Extent.StartOffset
+        }
+
+        It 'stamps the VM it creates, so the budget can tell its own VMs from the lab ones' {
+            # THE MARKER IS HOW MEMBERSHIP IS KNOWN WITHOUT A NAME LIST. It is
+            # written at creation, by the code that did the creating. Without
+            # this line every VM the harness makes is indistinguishable from the
+            # lab's own infrastructure - which means uncounted by the budget
+            # and, far worse, unremovable by the teardown helper.
+            $ast = & $script:parseTool 'New-HDTLabVirtualMachine'
+
+            $stamping = @(& $script:hyperVCall $ast |
+                    Where-Object { ([string] $_.GetCommandName()) -eq 'Hyper-V\Set-VM' } |
+                    Where-Object {
+                        ([string] $_.Extent.Text) -like '*-Notes*' -and
+                        ([string] $_.Extent.Text) -like '*Get-HDTLabVmStamp*'
+                    })
+
+            $stamping.Count | Should -BeGreaterOrEqual 1 -Because 'the VM must carry the stamp the budget and the teardown helper read'
         }
     }
 }
@@ -353,6 +416,69 @@ Describe 'Remove-HDTLabVirtualMachine' {
 
         It 'names the lab safety rule it is enforcing' {
             { Assert-HDTLabVmPath -Path 'C:\HDTLab\vms' -Name 'HDT-M3-Smoke' } | Should -Throw '*PROJECT.md*'
+        }
+    }
+
+    Context 'it refuses a VM it did not create' {
+
+        # HDT-* IS NOT THE SAME QUESTION AS "OURS" ANY MORE. The lab runs
+        # infrastructure whose names match the prefix and which this repository
+        # did not build, and Remove-HDTLabVirtualMachine is called from an
+        # AfterAll that runs on failure too - so the one thing it must never do
+        # is turn a server off because a test blew up. The name guard cannot
+        # tell the difference. The stamp can, and it is a record of what the
+        # harness DID rather than a list somebody has to maintain.
+
+        It 'calls Test-HDTLabVmStamped before the first destructive Hyper-V command' {
+            $ast = & $script:parseTool 'Remove-HDTLabVirtualMachine'
+            $ast | Should -Not -BeNullOrEmpty
+
+            $guard = @(& $script:namedCall $ast 'Test-HDTLabVmStamped')
+            $guard.Count | Should -BeGreaterOrEqual 1
+
+            $destructive = @(& $script:hyperVCall $ast |
+                    Where-Object { ([string] $_.GetCommandName()) -match '\\(Stop|Remove)-VM$' } |
+                    Sort-Object { $_.Extent.StartOffset })
+
+            $destructive.Count | Should -BeGreaterThan 0
+            $guard[0].Extent.StartOffset | Should -BeLessThan $destructive[0].Extent.StartOffset
+        }
+
+        It 'names the stamp in its refusal message' {
+            # The person reading the failure has to be able to tell a protected
+            # machine from a typo, so the message says what the VM is missing.
+            $ast = & $script:parseTool 'Remove-HDTLabVirtualMachine'
+
+            $thrown = @($ast.FindAll({
+                        param($node)
+                        $node -is [System.Management.Automation.Language.ThrowStatementAst]
+                    }, $true) |
+                    Where-Object { ([string] $_.Extent.Text) -like '*Get-HDTLabVmStamp*' })
+
+            $thrown.Count | Should -BeGreaterOrEqual 1
+        }
+
+        It 'refuses after looking the VM up and before turning it off' {
+            # The lookup has to come first - the Notes are on the VM - and the
+            # refusal has to come before Stop-VM, because a server turned off
+            # and then refused is a server that is off.
+            $ast = & $script:parseTool 'Remove-HDTLabVirtualMachine'
+
+            $guard = @(& $script:namedCall $ast 'Test-HDTLabVmStamped')[0]
+
+            $lookup = @(& $script:hyperVCall $ast |
+                    Where-Object { ([string] $_.GetCommandName()) -eq 'Hyper-V\Get-VM' } |
+                    Sort-Object { $_.Extent.StartOffset })[0]
+
+            $stop = @(& $script:hyperVCall $ast |
+                    Where-Object { ([string] $_.GetCommandName()) -eq 'Hyper-V\Stop-VM' } |
+                    Sort-Object { $_.Extent.StartOffset })[0]
+
+            $lookup | Should -Not -BeNullOrEmpty
+            $stop | Should -Not -BeNullOrEmpty
+
+            $guard.Extent.StartOffset | Should -BeGreaterThan $lookup.Extent.StartOffset
+            $guard.Extent.StartOffset | Should -BeLessThan $stop.Extent.StartOffset
         }
     }
 }
