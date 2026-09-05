@@ -1,0 +1,54 @@
+# EVERY KEY DESIGN 10.1 DOCUMENTS FOR THE WindowsUpdate STEP, IN ONE DOCUMENT.
+#
+# THE FIXTURE IS FOR THE SCHEMA, and it is the only surface that can judge it
+# here. tests/contract/SequenceSchema.Contract.Tests.ps1 picks up every
+# valid-*.yaml in this folder by wildcard and asserts both that the JSON Schema
+# accepts it and that Assert-HDTSequenceDocument agrees - which is how a new
+# step's keys get checked against the PUBLISHED contract rather than only
+# against the hand-written validator that runs in WinPE.
+#
+# THE SCHEMA'S step DEFINITION HAS NO additionalProperties: false, so these keys
+# validate without the schema being changed - a fact worth an assertion rather
+# than a reading, because CLAUDE.md names the validator and the schema as two
+# surfaces that have each silently hidden a new key.
+#
+# THE STEP IS IN A FullOS GROUP, WHICH IS NOT DECORATION. WUA does not exist in
+# WinPE, and Import-HDTSequenceDocument refuses this type in a WinPE group as of
+# plan 08-01-03 - so a fixture that put it anywhere else would be testing the
+# refusal instead of the shape.
+#
+# TWO INSTANCES, BRACKETING THE APPLICATION STEP, because that is the convention
+# DESIGN 10.1 documents and the shipped samples follow: the first pass patches
+# the base image so an installer meets a current machine, the second catches the
+# updatable components an install pulled in.
+schemaVersion: 1
+id: UPD-FIXTURE
+name: Windows Update, every documented key
+description: The WindowsUpdate step with server, categories, exclude and maxPasses.
+steps:
+  - group: State Restore
+    runIn: FullOS
+    steps:
+      - name: Windows Update (Pre-Application Installation)
+        type: WindowsUpdate
+        server: '%HDTWSUSServer%'
+        categories: [SecurityUpdates, CriticalUpdates, UpdateRollups]
+        maxPasses: 3
+        continueOnError: true
+
+      - name: Install Applications
+        type: InstallApplications
+        selection: '%HDTApplications%'
+
+      # The second instance carries exclude, so the fixture covers the key the
+      # template deliberately leaves out. A title with a wildcard and a bare KB
+      # number are the two forms Test-HDTUpdateExcluded accepts.
+      - name: Windows Update (Post-Application Installation)
+        type: WindowsUpdate
+        server: 'http://wsus.contoso.com:8530'
+        categories: [SecurityUpdates]
+        exclude:
+          - '*Preview*'
+          - KB5001234
+        maxPasses: 2
+        continueOnError: true

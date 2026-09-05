@@ -253,7 +253,7 @@ try {
 <li><a href="#rules-and-variables"><span class="nav-t">Rules &amp; variables</span><span class="nav-n">13</span></a></li>
 <li><a href="#machine-facts-and-network"><span class="nav-t">Machine facts, network &amp; host checks</span><span class="nav-n">12</span></a></li>
 <li><a href="#task-sequence-authoring"><span class="nav-t">Task sequence authoring</span><span class="nav-n">22</span></a></li>
-<li><a href="#step-types-and-templates"><span class="nav-t">Step types, templates &amp; descriptions</span><span class="nav-n">48</span></a></li>
+<li><a href="#step-types-and-templates"><span class="nav-t">Step types, templates &amp; descriptions</span><span class="nav-n">50</span></a></li>
 <li><a href="#step-implementations"><span class="nav-t">Step implementations</span><span class="nav-n">27</span></a></li>
 <li><a href="#operating-systems-and-drivers"><span class="nav-t">Operating systems, drivers, updates &amp; selection profiles</span><span class="nav-n">26</span></a></li>
 <li><a href="#applications"><span class="nav-t">Applications &amp; Windows features</span><span class="nav-n">7</span></a></li>
@@ -285,9 +285,9 @@ try {
       reports them, every parameter, the examples from its help, and the file it lives in.
       <em>How it works</em> opens the long-form design note the author wrote next to the code.</p>
       <div class="stats">
-        <div class="stat"><div class="n">305</div><div class="l">exported commands</div></div>
+        <div class="stat"><div class="n">307</div><div class="l">exported commands</div></div>
         <div class="stat"><div class="n">17</div><div class="l">groups</div></div>
-        <div class="stat"><div class="n">305</div><div class="l">carry examples</div></div>
+        <div class="stat"><div class="n">307</div><div class="l">carry examples</div></div>
         <div class="stat"><div class="n">88</div><div class="l">support -WhatIf</div></div>
       </div>
       <div class="legend">
@@ -1762,7 +1762,7 @@ Save-HDTSequenceDocument -Path &#x27;C:\HDTLab\Share\TaskSequences\DEMO-05\seque
 <footer class="src"><code>src/Hephaestus/Hephaestus.bundle.ps1</code></footer>
 </article>
 </div></section>
-    <section class="cat" id="step-types-and-templates" data-cat="step-types-and-templates"><header class="cat-head"><div class="cat-eyebrow">48 commands</div><h2>Step types, templates &amp; descriptions</h2><p class="cat-blurb">Discover the step types this engine can run, and get the YAML and the one-line description for each.</p></header><div class="cat-body">
+    <section class="cat" id="step-types-and-templates" data-cat="step-types-and-templates"><header class="cat-head"><div class="cat-eyebrow">50 commands</div><h2>Step types, templates &amp; descriptions</h2><p class="cat-blurb">Discover the step types this engine can run, and get the YAML and the one-line description for each.</p></header><div class="cat-body">
 <article class="fn" id="Get-HDTStepType" data-name="get-hdtsteptype" data-hay="get-hdtsteptype discovers every step type in the session, by convention. name">
 <header class="fn-head">
 <h3><a class="anchor" href="#Get-HDTStepType">Get-HDTStepType</a></h3>
@@ -2540,6 +2540,43 @@ $step = @($sequence.Step | Where-Object { $_.Type -eq &#x27;BootToWinPE&#x27; })
 Get-HDTBootToWinPEStepDescription -Step $step</pre><p>The one line the log and the progress display carry for this step.</p></div><div class="ex"><div class="ex-title">Example 2</div><pre class="code">Get-HDTStepDescription -Step $step</pre><p>The same line through the dispatcher, which is how the engine asks. It finds this function by name; a step type that declares none gets &#x27;&lt;Type&gt;: &lt;name&gt;&#x27; instead.</p></div></section>
 <details class="notes"><summary>How it works</summary><div class="prose"><p>The optional third of the step contract&#x27;s triple.</p>
 <p>THE THREE ACTIONS DO VERY DIFFERENT THINGS TO A MACHINE, and one line saying &quot;BootToWinPE&quot; for all of them would be the log entry that wastes an hour: staging copies half a gigabyte and changes nothing about how the machine boots, arming changes what the next boot is, and removing undoes both. So each says which it is, in the terms a technician reading a log at three in the morning needs - what the machine will do next, not which command was run.</p></div></details>
+<div class="extra"><div class="kv"><span class="k">Outputs</span><div class="v"><p>System.String</p></div></div></div>
+<footer class="src"><code>src/Hephaestus/Hephaestus.bundle.ps1</code></footer>
+</article>
+<article class="fn" id="Get-HDTWindowsUpdateStepTemplate" data-name="get-hdtwindowsupdatesteptemplate" data-hay="get-hdtwindowsupdatesteptemplate the yaml for a new windowsupdate step. name">
+<header class="fn-head">
+<h3><a class="anchor" href="#Get-HDTWindowsUpdateStepTemplate">Get-HDTWindowsUpdateStepTemplate</a></h3>
+<div class="tags"><span class="chip v-read">Get</span>
+</div></header>
+<p class="syn">The YAML for a new WindowsUpdate step.</p>
+<div class="sig-wrap"><pre class="sig">Get-HDTWindowsUpdateStepTemplate [[-Name] &lt;string&gt;] [&lt;CommonParameters&gt;]</pre></div>
+<section class="params"><h4>Parameters</h4><div class="table-wrap"><table><tr><td class="p-name"><code>-Name</code></td><td class="p-type"><code>String</code></td><td class="p-desc"><p>The step&#x27;s name. Defaults to the name this type is offered under.</p></td></tr></table></div></section>
+<section class="examples"><h4>Examples</h4><div class="ex"><div class="ex-title">Example 1</div><pre class="code">Get-HDTWindowsUpdateStepTemplate</pre><p>The YAML lines for a new WindowsUpdate step, named after the words the console offers it under.</p></div><div class="ex"><div class="ex-title">Example 2</div><pre class="code">$line = Get-HDTWindowsUpdateStepTemplate -Name &#x27;Windows Update (Post-Application)&#x27;
+$line -join [System.Environment]::NewLine</pre><p>The same lines under MDT&#x27;s own name for the second instance. They are lines, not a document: Add-HDTStep splices them into a sequence.yaml so the comments and the order of everything already in it survive.</p></div></section>
+<details class="notes"><summary>How it works</summary><div class="prose"><p>The optional fourth of the step contract: what a NEW step of this type looks like on disk. See Get-HDTNoOpStepTemplate for the shape all of them share.</p>
+<p>THE SERVER ARRIVES AS THE VARIABLE, NOT AS AN ADDRESS. Reading it from &#x27;%HDTWSUSServer%&#x27; is the form that works with a rule or a wizard answer without the author editing the sequence again - one sequence deploys from every site, and each site&#x27;s rules.yaml names its own WSUS. An author who wants one fixed server replaces the token with a URL.</p>
+<p>AN EMPTY HDTWSUSServer MEANS WINDOWS UPDATE, and that is DESIGN 10.1&#x27;s documented behaviour rather than a fallback the step fell into: with no server set the agent is left on its default service and patches from Microsoft. A share that has no WSUS gets working behaviour from this template unedited.</p>
+<p>runIn: FullOS IS WRITTEN OUT BECAUSE THE AGENT DOES NOT EXIST IN WinPE. Microsoft.Update.Session is not in the boot image at all, so a step that ran there would fail on the COM activation - and Import-HDTSequenceDocument now refuses this type in a WinPE group before a machine ever sees it (Test-HDTStepPhaseForbidden). The line says out loud what the importer would otherwise have to say in an error message.</p>
+<p>continueOnError: true IS DESIGN 10.1&#x27;S RECOMMENDED DEFAULT, and the reason is worth the line: Windows Update is the least predictable thing in a sequence. A server that is mid-sync, an update that was superseded this morning, a download that timed out - none of those are reasons to abandon a deployment that has already applied an image and joined a domain. An author who wants a failure to fail sets it false, and the E2E does exactly that.</p>
+<p>maxPasses: 3 IS WRITTEN OUT SO AN AUTHOR CAN SEE THAT THE STEP LOOPS. A template that omitted it would teach the single-pass mistake by silence: one search installs what is applicable today, and the servicing stack update it just installed makes a second set applicable that the machine will never be offered. Three passes is what MDT&#x27;s own two-instance convention converges on.</p></div></details>
+<div class="extra"><div class="kv"><span class="k">Outputs</span><div class="v"><p>System.String[] - the YAML lines, unindented.</p></div></div></div>
+<footer class="src"><code>src/Hephaestus/Hephaestus.bundle.ps1</code></footer>
+</article>
+<article class="fn" id="Get-HDTWindowsUpdateStepDescription" data-name="get-hdtwindowsupdatestepdescription" data-hay="get-hdtwindowsupdatestepdescription describes a windowsupdate step by the server it will patch from and how many passes it will make. step">
+<header class="fn-head">
+<h3><a class="anchor" href="#Get-HDTWindowsUpdateStepDescription">Get-HDTWindowsUpdateStepDescription</a></h3>
+<div class="tags"><span class="chip v-read">Get</span>
+</div></header>
+<p class="syn">Describes a WindowsUpdate step by the server it will patch from and how many passes it will make.</p>
+<div class="sig-wrap"><pre class="sig">Get-HDTWindowsUpdateStepDescription [-Step] &lt;Object&gt; [&lt;CommonParameters&gt;]</pre></div>
+<section class="params"><h4>Parameters</h4><div class="table-wrap"><table><tr><td class="p-name"><code>-Step</code><div class="p-flags"><span class="req">required</span></div></td><td class="p-type"><code>Object</code></td><td class="p-desc"><p>A flattened step from Import-HDTSequenceDocument.</p></td></tr></table></div></section>
+<section class="examples"><h4>Examples</h4><div class="ex"><div class="ex-title">Example 1</div><pre class="code">$sequence = Import-HDTSequenceDocument -Path &#x27;C:\HDTLab\Share\TaskSequences\UPD-WSUS\sequence.yaml&#x27;
+$step = @($sequence.Step | Where-Object { $_.Type -eq &#x27;WindowsUpdate&#x27; })[0]
+Get-HDTWindowsUpdateStepDescription -Step $step</pre><p>The one line the log and the progress display carry for this step.</p></div><div class="ex"><div class="ex-title">Example 2</div><pre class="code">Get-HDTStepDescription -Step $step</pre><p>The same line through the dispatcher, which is how the engine asks. It finds this function by name; a step type that declares none gets &#x27;&lt;Type&gt;: &lt;name&gt;&#x27; instead.</p></div></section>
+<details class="notes"><summary>How it works</summary><div class="prose"><p>The optional third of the step contract&#x27;s triple. This string goes to the progress display and to the master log at Info.</p>
+<p>A TOKEN IS REPORTED, NOT RESOLVED. The description is built from the step as authored, with no context to expand &#x27;%HDTWSUSServer%&#x27; against - so a server that is a variable is named as the variable it will read rather than as a guess at what that variable will hold. The step logs the server it actually used, and where the value came from, once it has one. (Get-HDTInstallApplicationsStepDescription says the same thing at length; this matches it.)</p>
+<p>NO SERVER READS AS &#x27;Windows Update&#x27;, WHICH IS WHAT WILL HAPPEN. DESIGN 10.1: an empty server leaves the agent on its default service and the machine patches from Microsoft. Saying &#x27;WindowsUpdate: &#x27; and then nothing would leave a technician reading the progress display unable to tell an unset variable from a step about to reach the internet.</p>
+<p>THE PASS COUNT IS IN THE LINE BECAUSE THE LOOP IS THE POINT OF THE STEP. A reader of the log who sees the step name three times needs the line to say that three was the limit, not to wonder whether something retried.</p></div></details>
 <div class="extra"><div class="kv"><span class="k">Outputs</span><div class="v"><p>System.String</p></div></div></div>
 <footer class="src"><code>src/Hephaestus/Hephaestus.bundle.ps1</code></footer>
 </article>

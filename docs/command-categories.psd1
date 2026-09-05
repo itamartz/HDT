@@ -158,6 +158,8 @@
                 'Get-HDTCaptureImageStepDescription'
                 'Get-HDTBootToWinPEStepTemplate'
                 'Get-HDTBootToWinPEStepDescription'
+                'Get-HDTWindowsUpdateStepTemplate'
+                'Get-HDTWindowsUpdateStepDescription'
             )
         }
         @{

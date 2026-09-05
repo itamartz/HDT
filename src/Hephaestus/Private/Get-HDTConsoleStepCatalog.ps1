@@ -108,6 +108,33 @@
         # MDT PUTS Tattoo IN State Restore AND CALLS IT Tattoo, so this does
         # too: an MDT administrator looking for it will look for that word.
         'Tattoo'        = @{ Text = 'Tattoo'; Category = 'General'; Order = 9 }
+
+        # MDT SHIPS THIS STEP TWICE AND HDT OFFERS IT ONCE. Workbench's General
+        # folder carries 'Windows Update (Pre-Application Installation)' and
+        # '(Post-Application Installation)', two menu entries for one script,
+        # and the only difference between them is WHERE in the sequence they
+        # sit. HDT expresses placement with the step's position in the tree, so
+        # a second entry would be a second name for one thing; the shipped
+        # samples show the convention instead, with MDT's own two names on the
+        # two instances.
+        #
+        # 'Windows Update' AND NOT 'Install Updates Offline'. MDT's step by that
+        # name is the OFFLINE one, which is HDT's ApplyUpdates - already on the
+        # Images shelf as 'Apply Windows Updates' (DESIGN 7.5). The two are
+        # separate steps doing separate jobs at separate times, and DESIGN
+        # separates their names twice for exactly this reason: one services a
+        # mounted image before first boot, this one runs the update agent on a
+        # machine that has already booted.
+        'WindowsUpdate' = @{ Text = 'Windows Update'; Category = 'General'; Order = 10 }
+
+        # NAMED 'Gather', WHICH IS MDT'S OWN WORD, and on a shelf rather than
+        # under Custom - where it had been sitting, named by its type, looking
+        # exactly like something a third party had dropped into Modules\. It was
+        # the only step type this repository ships that the table above had
+        # never been given a row for, and nothing noticed because the test that
+        # guarded the Custom shelf named three types by hand rather than walking
+        # the set.
+        'Gather'        = @{ Text = 'Gather'; Category = 'General'; Order = 11 }
         # TWO ENTRIES FOR ONE TYPE, AS MDT'S OWN SEQUENCE HAS. Its Standard
         # Client task sequence carries "Format and Partition Disk (BIOS)" and
         # "(UEFI)", each conditioned on the firmware, because the two disks are

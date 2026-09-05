@@ -264,6 +264,33 @@
             & $new 'values' 'Extra values' 'Table' '' 'Values of your own, stamped beside the standard ones. A name that collides with a standard stamp replaces it.'
         }
 
+        # ROW ORDER IS THE TEMPLATE'S KEY ORDER - server, categories, then the
+        # exclude list the template deliberately leaves out because most
+        # sequences want nothing excluded, then maxPasses.
+        #
+        # THE server DEFAULT IS THE WORDS, NOT THE VARIABLE. An empty server
+        # leaves the agent on its default service and the machine patches from
+        # Microsoft (DESIGN 10.1), so 'Windows Update' is what the step will
+        # actually do with an empty box - which is what a default is for. The
+        # template writes '%HDTWSUSServer%' into the file, and the file wins
+        # wherever it has a value.
+        #
+        # WHAT IS DELIBERATELY NOT IN THE HINTS, and it is a lot: that an
+        # unresolved %HDTWSUSServer% is treated as no server rather than as an
+        # address; that categories are matched against WUA's own classification
+        # titles so a value the drop-down does not offer will match nothing;
+        # that exclude is applied AFTER the search, so an excluded update is
+        # reported as excluded with its reason rather than never appearing. All
+        # three are true, none of them changes what a technician types into
+        # these four boxes, and four lines of explanation under one control is a
+        # screen explaining itself at the cost of the controls around it.
+        'WindowsUpdate' {
+            & $new 'server' 'Update server' 'Text' 'Windows Update' 'The WSUS server to patch from, as a URL - http://wsus:8530. Empty patches from Windows Update over the internet.'
+            & $new 'categories' 'Classifications' 'List' 'SecurityUpdates, CriticalUpdates, UpdateRollups' 'Which kinds of update to install. Empty installs every kind the server offers, drivers included.'
+            & $new 'exclude' 'Exclude' 'List' '' 'Titles with wildcards, or KB numbers. *Preview*, KB5001234.'
+            & $new 'maxPasses' 'Passes' 'Text' '3' 'How many times to search and install before stopping. One pass leaves a machine half-patched.'
+        }
+
         default { }
     }
 

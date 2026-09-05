@@ -1,4 +1,4 @@
-function Get-HDTStepPropertyChoice {
+﻿function Get-HDTStepPropertyChoice {
     <#
         .SYNOPSIS
             The values a step property will accept, for the keys that only
@@ -100,6 +100,30 @@ function Get-HDTStepPropertyChoice {
         # and neither can drift from the other.
         'BootToWinPE' = @{
             'action' = @('stage', 'arm', 'remove')
+        }
+
+        # WUA'S OWN UPDATE CLASSIFICATIONS, in the order a deployment wants
+        # them: the three the shipped template selects come first, because a
+        # sequence that patches a freshly imaged machine wants security fixes
+        # and nothing else, and every entry after them is a deliberate choice.
+        #
+        # Drivers IS ON THE LIST AND IS NOT SELECTED BY DEFAULT. A WSUS server
+        # that publishes driver updates will hand a deployment a driver it has
+        # never tested, over the top of the one the ApplyDrivers step injected
+        # on purpose. It is offered because a lab may want it; it is off because
+        # a fleet does not.
+        #
+        # THIS LIST IS ALSO THE STEP'S OWN VOCABULARY - the names are WUA's
+        # category titles, so a value from this drop-down matches what the agent
+        # reports and the step's own classification filter compares against.
+        # Spelling the set again in either place is two lists to drift apart,
+        # and the way that goes wrong is a drop-down offering a value that
+        # matches no update on the server.
+        'WindowsUpdate' = @{
+            'categories' = @(
+                'SecurityUpdates', 'CriticalUpdates', 'UpdateRollups', 'Updates',
+                'DefinitionUpdates', 'Drivers', 'FeaturePacks', 'ServicePacks', 'Tools'
+            )
         }
     }
 
