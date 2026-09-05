@@ -1,4 +1,4 @@
-﻿function Get-HDTConsoleMediaNode {
+function Get-HDTConsoleMediaNode {
     <#
         .SYNOPSIS
             The Media category and the rows beneath it, built on its own.
@@ -50,9 +50,9 @@
 
         .PARAMETER SelectionProfile
             The selection profiles this share offers, as Get-HDTSelectionProfile
-            reported them - the profile OBJECTS, not their ids; this file maps
-            .Id itself, in one place a test can read, rather than at a call site
-            where nothing checks it.
+            reported them - the profile OBJECTS, not their ids. This file reads
+            the Id off each one itself, in a single place a test can cover,
+            rather than at a call site where nothing checks it.
 
             A PARAMETER RATHER THAN A READ, and deliberately. The share node has
             already read selection-profiles.yaml for its own Selection Profiles

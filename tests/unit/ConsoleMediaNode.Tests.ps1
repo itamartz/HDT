@@ -1,4 +1,4 @@
-﻿# MEDIA ON SCREEN, WHICH IS THE HALF THE COMMANDS DID NOT COVER.
+# MEDIA ON SCREEN, WHICH IS THE HALF THE COMMANDS DID NOT COVER.
 #
 # Plans 07-01 and 07-02 built the document, the four commands and
 # Update-HDTMediaContent. A command an administrator can only reach from a
@@ -302,12 +302,12 @@ output: Media\WS2025-LAB\HDT-WS2025-LAB.iso
                 $offered = @($field.Choice)
                 @($offered | Where-Object { $_ -ceq 'everything' }).Count | Should -Be 1
 
-                foreach ($profile in @($script:model.SelectionProfile)) {
-                    if ([string] $profile.Name -ceq [string] $profile.Id) { continue }
+                foreach ($offering in @($script:model.SelectionProfile)) {
+                    if ([string] $offering.Name -ceq [string] $offering.Id) { continue }
 
-                    @($offered | Where-Object { $_ -ceq [string] $profile.Name }).Count |
+                    @($offered | Where-Object { $_ -ceq [string] $offering.Name }).Count |
                         Should -Be 0 -Because ("'{0}' is the display name; the document stores '{1}'" -f
-                            $profile.Name, $profile.Id)
+                            $offering.Name, $offering.Id)
                 }
             }
 

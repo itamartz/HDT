@@ -553,8 +553,8 @@ InModuleScope -ModuleName Hephaestus {
             It 'fills the profile list from the share and shows the media''s own profile selected' {
                 $offered = @(@($script:mediaProfileCombo.ItemsSource) | ForEach-Object { [string] $_ })
 
-                foreach ($profile in @($script:mediaProfile)) {
-                    $offered | Should -Contain ([string] $profile.Id)
+                foreach ($offering in @($script:mediaProfile)) {
+                    $offered | Should -Contain ([string] $offering.Id)
                 }
 
                 # THE DOCUMENT'S OWN, FIRST, because this share no longer offers
