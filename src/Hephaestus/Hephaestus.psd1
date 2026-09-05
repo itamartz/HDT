@@ -1,6 +1,6 @@
 ﻿@{
     RootModule           = 'Hephaestus.psm1'
-    ModuleVersion        = '0.20.0'
+    ModuleVersion        = '0.21.0'
     GUID                 = '9be61a01-0b74-4832-867d-f2b7cb51cf85'
     Author               = 'Itamartz'
     CompanyName          = 'Hephaestus Deployment Toolkit'
@@ -214,6 +214,7 @@
         'New-HDTExecutionContext',
         'New-HDTBitLockerService',
         'New-HDTFeatureService',
+        'New-HDTUpdateSessionService',
         'New-HDTFileSystem',
         'New-HDTImageService',
         'New-HDTLocalContentProvider',
@@ -357,8 +358,8 @@
         # against and bumping on that would move the number for a tree nobody
         # touched.
         HDT = @{
-            SourceHash = 'FF0BD7D724EE403A0198AF6AB66924816A9579FD3324DA1A2AF5554457716499'
-            LayoutHash = '8654CB586257389CECF29D9DFD1F9EA0DCEF37B4757D6D02CF7CFFF286690BC8'
+            SourceHash = 'DF1EE3D4580C3A43F100ED0D803EB46AC2F2548E3BDD694268079C77D4ACF8D0'
+            LayoutHash = 'B1035BEA7342700E69A8604CE52B17B329A86E49F42E51A827C9806D2E164791'
         }
     }
 }

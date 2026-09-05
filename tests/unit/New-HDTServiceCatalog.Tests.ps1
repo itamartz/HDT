@@ -57,6 +57,45 @@ Describe 'New-HDTServiceCatalog' {
         $catalog.Content | Should -BeNullOrEmpty
     }
 
+    It 'carries an UpdateSession slot' {
+        # DESIGN 10.1's WindowsUpdate step reaches the Windows Update Agent
+        # through this and never touches COM itself (CLAUDE.md rule 5), which is
+        # what lets the whole step run under Pester against a hand-written fake.
+        $catalog = New-HDTServiceCatalog -FileSystem $script:fileSystem -Clock $script:clock
+
+        @($catalog.PSObject.Properties.Name) | Should -Contain 'UpdateSession'
+    }
+
+    It 'defaults UpdateSession to null, like every other optional service' {
+        $catalog = New-HDTServiceCatalog -FileSystem $script:fileSystem -Clock $script:clock
+
+        $catalog.UpdateSession | Should -BeNullOrEmpty
+    }
+
+    It 'names UpdateSession in GetRequired''s list of services it does carry' {
+        # The list in the "not a service HDT carries" message is built from the
+        # note properties, so a slot that was added to the object but not to the
+        # message would be invisible to the administrator reading it.
+        $catalog = New-HDTServiceCatalog -FileSystem $script:fileSystem -Clock $script:clock
+
+        { $catalog.GetRequired('Teleporter', 'WindowsUpdate') } | Should -Throw -ExpectedMessage '*UpdateSession*'
+    }
+
+    It 'tells a step that asked for UpdateSession without one that the run was started without it' {
+        $catalog = New-HDTServiceCatalog -FileSystem $script:fileSystem -Clock $script:clock
+
+        { $catalog.GetRequired('UpdateSession', 'WindowsUpdate') } | Should -Throw -ExpectedMessage '*UpdateSession*'
+        { $catalog.GetRequired('UpdateSession', 'WindowsUpdate') } | Should -Throw -ExpectedMessage '*WindowsUpdate*'
+        { $catalog.GetRequired('UpdateSession', 'WindowsUpdate') } | Should -Throw -ExpectedMessage '*the run was started without one*'
+    }
+
+    It 'holds the update session service it was given' {
+        $wua = New-HDTFakeUpdateSessionService
+        $catalog = New-HDTServiceCatalog -FileSystem $script:fileSystem -Clock $script:clock -UpdateSession $wua
+
+        [object]::ReferenceEquals($catalog.GetRequired('UpdateSession', 'WindowsUpdate'), $wua) | Should -BeTrue
+    }
+
     It 'returns the content provider GetRequired was asked for' {
         $content = New-HDTFakeContentProvider -Root 'Z:\Deploy'
         $catalog = New-HDTServiceCatalog -FileSystem $script:fileSystem -Clock $script:clock -Content $content

@@ -24,6 +24,7 @@
               Image          IImageService
               Feature        IFeatureService
               BitLocker      IBitLockerService
+              UpdateSession  IUpdateSessionService
               Domain         IDomainService
               Content        IContentProvider
 
@@ -88,6 +89,12 @@
         .PARAMETER BitLocker
             An IBitLockerService, or nothing. EnableBitLocker asks for it by
             name.
+
+        .PARAMETER UpdateSession
+            An IUpdateSessionService, or nothing. WindowsUpdate asks for it by
+            name. It is the port for the Windows Update Agent COM API (DESIGN
+            10.1), which is why the step can be run end to end under Pester
+            without searching for, downloading or installing anything.
 
         .PARAMETER Domain
             An IDomainService, or nothing. JoinDomain asks for it by name. It is
@@ -175,6 +182,10 @@
 
         [Parameter()]
         [AllowNull()]
+        [object] $UpdateSession = $null,
+
+        [Parameter()]
+        [AllowNull()]
         [object] $Domain = $null,
 
         [Parameter()]
@@ -207,6 +218,7 @@
         Image         = $Image
         Feature       = $Feature
         BitLocker     = $BitLocker
+        UpdateSession = $UpdateSession
         Domain        = $Domain
         Content       = $Content
         Progress      = $Progress

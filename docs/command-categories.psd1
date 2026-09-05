@@ -405,6 +405,7 @@
                 'New-HDTBitLockerService'
                 'New-HDTDomainService'
                 'New-HDTFeatureService'
+                'New-HDTUpdateSessionService'
                 'New-HDTWdsService'
                 'New-HDTSmbService'
                 'New-HDTCimProvider'
