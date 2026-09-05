@@ -1,4 +1,4 @@
-﻿# TYPING INTO THE DETAILS PANE, THROUGH THE WINDOW THAT ACTUALLY WRITES IT.
+# TYPING INTO THE DETAILS PANE, THROUGH THE WINDOW THAT ACTUALLY WRITES IT.
 #
 # WHAT WENT WRONG. Adding a version to a task sequence raised a message box
 # saying Get-HDTHandlerCall was not recognized, and took the console down with
@@ -91,6 +91,41 @@ InModuleScope -ModuleName Hephaestus {
             while ($queue.Count -gt 0) {
                 $node = $queue.Dequeue()
                 if ($node -is [System.Windows.Controls.TextBox]) { return $node }
+
+                $count = [System.Windows.Media.VisualTreeHelper]::GetChildrenCount($node)
+                for ($i = 0; $i -lt $count; $i++) {
+                    $queue.Enqueue([System.Windows.Media.VisualTreeHelper]::GetChild($node, $i))
+                }
+            }
+
+            return $null
+        }
+
+        # THE SAME WALK, FOR ANY CONTROL. Two of a media row's fields are drawn
+        # as a ComboBox now, and Get-HDTTestTemplateBox cannot reach one - it is
+        # left as it is because three other Describes here use it.
+        #
+        # AND THE COLLAPSED BOX IS WHY THIS IS NEEDED RATHER THAN CONVENIENT.
+        # HDTDetailBox and HDTDetailChoice SHARE column 1; the HasChoice trigger
+        # collapses the box, it does not remove it. A collapsed TextBox is still
+        # in the visual tree, still breadth-first AHEAD of the ComboBox, and
+        # still raises a real routed LostFocus the pane writes on - so a test
+        # that kept taking the box would go on passing about a control no
+        # technician can touch.
+        function Get-HDTTestTemplateControl {
+            [CmdletBinding()]
+            [OutputType([object])]
+            param(
+                [Parameter(Mandatory = $true)] [object] $Root,
+                [Parameter(Mandatory = $true)] [type] $Kind
+            )
+
+            $queue = New-Object -TypeName System.Collections.Queue
+            $queue.Enqueue($Root)
+
+            while ($queue.Count -gt 0) {
+                $node = $queue.Dequeue()
+                if ($Kind.IsInstanceOfType($node)) { return $node }
 
                 $count = [System.Windows.Media.VisualTreeHelper]::GetChildrenCount($node)
                 for ($i = 0; $i -lt $count; $i++) {
@@ -399,20 +434,30 @@ InModuleScope -ModuleName Hephaestus {
                         'enabled: true'
                     ) -join [System.Environment]::NewLine))
 
-            # THE REAL ROW BUILDER, so the shape under test is the shape the
-            # console shows - Get-HDTConsoleMediaNode.ps1's own field list.
-            $field = @(
-                New-HDTConsoleField -Label 'Description' -Value '' -Property 'description'
-                New-HDTConsoleField -Label 'Enabled' -Value 'yes' -Property 'enabled'
-            )
+            # THE REAL ROW BUILDER, NOT TWO FIELDS HAND-WRITTEN HERE. Two of a
+            # media row's fields are lists now, and a hand-built row would pass
+            # whatever it declared - including a box, on a pane that draws a
+            # combo. This is Get-HDTConsoleMediaNode's own field list, from
+            # Get-HDTMedia's own output.
+            $script:mediaItem = @(Get-HDTMedia -WorkspaceRoot $script:mediaRoot)
 
-            $script:mediaNode = New-HDTConsoleNode -Depth 0 -Kind 'Media' -Status 'Ok' `
-                -Text 'Hydration - Windows 11 and Server 2025' -Name 'HYDRA' -Field $field `
-                -Command "Update-HDTMediaContent -WorkspaceRoot '$script:mediaRoot' -Id 'HYDRA'" `
-                -Subject ([pscustomobject] @{ Path = $script:mediaPath }) `
+            # THE PROFILES THIS SHARE ACTUALLY OFFERS, read the way the share
+            # node reads them. It matters that these are the REAL ones:
+            # Set-HDTMedia validates a pick against Get-HDTSelectionProfile, so
+            # a list invented here would let the test pass on a pick the command
+            # would refuse in the console. There is no selection-profiles.yaml
+            # on this share, so these are the built-in fallback - and
+            # 'hydration', which the document names, is NOT among them. That is
+            # the stale case, and it is what the refusal Context below drives.
+            $script:mediaProfile = @(Get-HDTSelectionProfile -Root $script:mediaRoot)
+
+            $script:mediaCategory = Get-HDTConsoleMediaNode -Media $script:mediaItem `
+                -Root $script:mediaRoot -SelectionProfile $script:mediaProfile `
                 -Header ([pscustomobject] @{
                         Title = 'HDT'; Root = $script:mediaRoot; DeployRoot = $script:mediaRoot
                     })
+
+            $script:mediaNode = @($script:mediaCategory.Children)[0]
 
             $script:mediaWindow = New-HDTConsoleView `
                 -ConsoleHost ([pscustomobject] @{
@@ -439,16 +484,91 @@ InModuleScope -ModuleName Hephaestus {
             $detail = $script:mediaWindow.FindName('HDTDetailList')
             $detail.UpdateLayout()
 
-            $script:mediaDescriptionBox = Get-HDTTestTemplateBox -Root $detail.ItemContainerGenerator.ContainerFromIndex(0)
-            $script:mediaEnabledBox = Get-HDTTestTemplateBox -Root $detail.ItemContainerGenerator.ContainerFromIndex(1)
+            # THE ROW CONTAINERS, BY THE LABEL THEY CARRY rather than by an
+            # index written down here: the field list is the row builder's, and
+            # a row added to it would silently shift every index below it.
+            $script:mediaLabel = @(@($script:mediaNode.Field) | ForEach-Object { [string] $_.Label })
+
+            $script:mediaContainerFor = {
+                param([string] $Label)
+                $at = [array]::IndexOf([string[]] $script:mediaLabel, $Label)
+                if ($at -lt 0) { return $null }
+                return $detail.ItemContainerGenerator.ContainerFromIndex($at)
+            }
+
+            $script:mediaDescriptionContainer = & $script:mediaContainerFor 'Description'
+            $script:mediaProfileContainer = & $script:mediaContainerFor 'Selection profile'
+            $script:mediaEnabledContainer = & $script:mediaContainerFor 'Enabled'
+
+            $script:mediaDescriptionBox = Get-HDTTestTemplateControl -Root $script:mediaDescriptionContainer `
+                -Kind ([System.Windows.Controls.TextBox])
+
+            $script:mediaProfileCombo = Get-HDTTestTemplateControl -Root $script:mediaProfileContainer `
+                -Kind ([System.Windows.Controls.ComboBox])
+
+            $script:mediaEnabledCombo = Get-HDTTestTemplateControl -Root $script:mediaEnabledContainer `
+                -Kind ([System.Windows.Controls.ComboBox])
+
+            # THE COLLAPSED BOXES BEHIND THE TWO LISTS, taken so the drawing
+            # assertions can read BOTH controls off the one container. Asserting
+            # only that a ComboBox exists in the subtree would pass on a row
+            # where the two were stacked in the same column.
+            $script:mediaProfileBox = Get-HDTTestTemplateControl -Root $script:mediaProfileContainer `
+                -Kind ([System.Windows.Controls.TextBox])
+
+            $script:mediaEnabledBox = Get-HDTTestTemplateControl -Root $script:mediaEnabledContainer `
+                -Kind ([System.Windows.Controls.TextBox])
         }
 
-        It 'draws a typeable box for both rows' {
+        # THE INDEX-TO-LABEL MAPPING, ASSERTED. Every Context below reaches its
+        # control through the label; this is the one place that proves a label
+        # names the row somebody thinks it does, so a reordered field list fails
+        # here loudly instead of testing the wrong row quietly.
+        It 'takes each control off the row its label names' {
             $script:mediaDescriptionBox.DataContext.Property | Should -BeExactly 'description'
-            $script:mediaEnabledBox.DataContext.Property | Should -BeExactly 'enabled'
+            $script:mediaProfileCombo.DataContext.Property | Should -BeExactly 'selectionProfile'
+            $script:mediaEnabledCombo.DataContext.Property | Should -BeExactly 'enabled'
+        }
 
-            $script:mediaDescriptionBox.IsReadOnly | Should -BeFalse
-            $script:mediaEnabledBox.IsReadOnly | Should -BeFalse
+        Context 'the pane as it is drawn' {
+
+            # VISIBILITY, NOT PRESENCE - see Get-HDTTestTemplateControl. Both
+            # controls are in the tree on every row; which one a technician can
+            # reach is the whole question.
+            It 'draws the selection profile as a list, not a box' {
+                [string] $script:mediaProfileCombo.Visibility | Should -BeExactly 'Visible'
+                [string] $script:mediaProfileBox.Visibility | Should -BeExactly 'Collapsed'
+            }
+
+            It 'draws enabled as a list, not a box' {
+                [string] $script:mediaEnabledCombo.Visibility | Should -BeExactly 'Visible'
+                [string] $script:mediaEnabledBox.Visibility | Should -BeExactly 'Collapsed'
+            }
+
+            It 'draws the description as a box, because a description is not a closed set' {
+                [string] $script:mediaDescriptionBox.Visibility | Should -BeExactly 'Visible'
+                $script:mediaDescriptionBox.IsReadOnly | Should -BeFalse
+            }
+
+            It 'fills the profile list from the share and shows the media''s own profile selected' {
+                $offered = @(@($script:mediaProfileCombo.ItemsSource) | ForEach-Object { [string] $_ })
+
+                foreach ($profile in @($script:mediaProfile)) {
+                    $offered | Should -Contain ([string] $profile.Id)
+                }
+
+                # THE DOCUMENT'S OWN, FIRST, because this share no longer offers
+                # it. An empty combo here would read as "no profile set".
+                [string] @($offered)[0] | Should -BeExactly 'hydration'
+                [string] $script:mediaProfileCombo.SelectedItem | Should -BeExactly 'hydration'
+            }
+
+            It 'offers exactly true and false on the enabled list' {
+                @(@($script:mediaEnabledCombo.ItemsSource) | ForEach-Object { [string] $_ }) |
+                    Should -Be @('true', 'false')
+
+                [string] $script:mediaEnabledCombo.SelectedItem | Should -BeExactly 'true'
+            }
         }
 
         Context 'the description, typed and focus moved off it' {
@@ -482,62 +602,200 @@ InModuleScope -ModuleName Hephaestus {
             }
         }
 
-        Context 'enabled, typed as no and focus moved off it' {
+        # THE PICK, ALL THE WAY TO DISK AND BACK. This replaces
+        # 'enabled, typed as no and focus moved off it', which drove the TEXT
+        # box - collapsed under the list since the row became a Choice, and so
+        # green about a control nobody can reach. Strictly stronger: that one
+        # stopped at a regex on the file, this one hands the file to
+        # Assert-HDTMediaDocument and reads it back through Get-HDTMedia.
+        Context 'false picked from the enabled list' {
 
             BeforeAll {
-                $script:mediaEnabledThrew = ''
-                $script:mediaEnabledBox.Text = 'no'
+                $script:enabledPickThrew = ''
 
+                # SETTING SelectedItem IS THE PICK. Selector raises a real
+                # bubbling SelectionChanged from it, which is the routed event
+                # the pane's handler is registered for - calling the handler
+                # directly would prove nothing about the wiring.
                 try {
-                    $script:mediaEnabledBox.RaiseEvent((New-Object -TypeName System.Windows.RoutedEventArgs `
-                                -ArgumentList ([System.Windows.Controls.TextBox]::LostFocusEvent)))
+                    $script:mediaEnabledCombo.SelectedItem = 'false'
+
+                    $script:mediaWindow.Dispatcher.Invoke([action] {},
+                        [System.Windows.Threading.DispatcherPriority]::Background)
                 } catch {
-                    $script:mediaEnabledThrew = [string] $_.Exception.Message
+                    $script:enabledPickThrew = [string] $_.Exception.Message
                 }
 
-                $script:mediaEnabledWritten = [System.IO.File]::ReadAllText($script:mediaPath)
+                $script:enabledPickWritten = [System.IO.File]::ReadAllText($script:mediaPath)
             }
 
-            # THE ONE ROW Get-HDTConsoleMediaEdit PARSES RATHER THAN PASSES
-            # THROUGH. A typo in that branch - or in the closure reaching it -
-            # is what this proves absent, the same way the description context
-            # above proves it for the plain-string branch.
             It 'does not throw out of the handler and onto a message box' {
-                $script:mediaEnabledThrew | Should -BeNullOrEmpty
+                $script:enabledPickThrew | Should -BeNullOrEmpty
             }
 
-            It 'writes enabled: false, because Set-HDTMedia takes it as [bool]' {
-                $script:mediaEnabledWritten | Should -Match 'enabled:\s*false'
+            It 'writes a bare enabled: false into media.yaml, not a quoted string' {
+                # A QUOTED BOOLEAN IS A STRING, and a string is not a tick box -
+                # Assert-HDTMediaDocument refuses one, so the pane picking a
+                # word that arrived quoted would write a file the share cannot
+                # read back.
+                $script:enabledPickWritten | Should -Match '(?m)^enabled:\s*false\s*$'
+            }
+
+            It 'is accepted by Assert-HDTMediaDocument' {
+                # THE SAME READER Get-HDTMedia USES, so this is not asserting
+                # against a second parser that might be kinder than the real one.
+                $document = ConvertFrom-HDTYaml -Yaml $script:enabledPickWritten -Path $script:mediaPath
+
+                { Assert-HDTMediaDocument -Document $document -Path $script:mediaPath -Id 'HYDRA' } |
+                    Should -Not -Throw
+            }
+
+            It 'is read back by Get-HDTMedia as a real [bool] that is false' {
+                $read = @(Get-HDTMedia -WorkspaceRoot $script:mediaRoot -Id 'HYDRA')[0]
+
+                $read.Enabled | Should -BeOfType ([bool])
+                $read.Enabled | Should -BeFalse
+            }
+
+            It 'leaves the comment at the top of media.yaml alone' {
+                $script:enabledPickWritten | Should -Match '# HDT standalone media definition\.'
+            }
+
+            It 'leaves every other key alone' {
+                $script:enabledPickWritten | Should -Match '(?m)^id:\s*HYDRA\s*$'
+                $script:enabledPickWritten | Should -Match '(?m)^selectionProfile:\s*hydration\s*$'
+                $script:enabledPickWritten | Should -Match 'output:.*HDT_HYDRA\.iso'
+                $script:enabledPickWritten | Should -Match 'name:\s*Hydration'
             }
         }
 
-        Context 'enabled, typed as a word that is not yes or no' {
+        Context 'a selection profile picked from the list' {
 
             BeforeAll {
-                $script:mediaBadEnabledThrew = ''
-                $script:mediaEnabledBox.Text = 'maybe'
+                # ONE THE SHARE ACTUALLY OFFERS, which is also one Set-HDTMedia
+                # will accept - the list and the command read the same source.
+                $script:profilePicked = [string] @($script:mediaProfile)[0].Id
+                $script:profilePickThrew = ''
+
+                # IT MUST DIFFER FROM Original, or Test-HDTConsoleRowCommit
+                # refuses the pick and this Context passes by never committing.
+                $script:profilePicked | Should -Not -BeExactly ([string] $script:mediaProfileCombo.DataContext.Original)
 
                 try {
-                    $script:mediaEnabledBox.RaiseEvent((New-Object -TypeName System.Windows.RoutedEventArgs `
-                                -ArgumentList ([System.Windows.Controls.TextBox]::LostFocusEvent)))
+                    $script:mediaProfileCombo.SelectedItem = $script:profilePicked
+
+                    $script:mediaWindow.Dispatcher.Invoke([action] {},
+                        [System.Windows.Threading.DispatcherPriority]::Background)
                 } catch {
-                    $script:mediaBadEnabledThrew = [string] $_.Exception.Message
+                    $script:profilePickThrew = [string] $_.Exception.Message
                 }
+
+                $script:profilePickWritten = [System.IO.File]::ReadAllText($script:mediaPath)
             }
 
-            # A REFUSAL PUTS THE BOX BACK, as everywhere else on this pane - it
-            # does not throw out of the handler and onto a message box, and the
-            # footer names what was wrong rather than the document.
+            It 'does not throw out of the handler' {
+                $script:profilePickThrew | Should -BeNullOrEmpty
+            }
+
+            # NO ANGLE BRACKETS IN THE NAME. Pester expands <id> as a data
+            # placeholder and this It has no -ForEach to fill it, so the name
+            # alone threw 'the variable $id cannot be retrieved'.
+            It 'writes the picked profile id into media.yaml, as a bare unquoted value' {
+                $script:profilePickWritten |
+                    Should -Match ('(?m)^selectionProfile:\s*{0}\s*$' -f [regex]::Escape($script:profilePicked))
+            }
+
+            It 'is read back by Get-HDTMedia as that profile' {
+                $read = @(Get-HDTMedia -WorkspaceRoot $script:mediaRoot -Id 'HYDRA')[0]
+
+                [string] $read.SelectionProfile | Should -BeExactly $script:profilePicked
+            }
+
+            It 'leaves the comment and the other keys alone' {
+                $script:profilePickWritten | Should -Match '# HDT standalone media definition\.'
+                $script:profilePickWritten | Should -Match '(?m)^id:\s*HYDRA\s*$'
+                $script:profilePickWritten | Should -Match '(?m)^enabled:\s*false\s*$'
+                $script:profilePickWritten | Should -Match 'output:.*HDT_HYDRA\.iso'
+            }
+        }
+
+        # THE PANE'S REFUSAL PATH, which no closed list can otherwise produce
+        # any more: 'maybe' cannot be picked off a list of true and false, so
+        # the Context that typed it is gone. This is what replaces it, and it is
+        # the only refusal left - the stale profile the row shows FIRST is on
+        # the list precisely because the document names it, and Set-HDTMedia
+        # validates against the share and refuses it.
+        Context 'a profile the share no longer offers, picked' {
+
+            BeforeAll {
+                $script:staleBefore = [System.IO.File]::ReadAllBytes($script:mediaPath)
+                $script:staleThrew = ''
+
+                'hydration' | Should -Not -BeExactly ([string] $script:mediaProfileCombo.DataContext.Original)
+
+                try {
+                    $script:mediaProfileCombo.SelectedItem = 'hydration'
+
+                    $script:mediaWindow.Dispatcher.Invoke([action] {},
+                        [System.Windows.Threading.DispatcherPriority]::Background)
+                } catch {
+                    $script:staleThrew = [string] $_.Exception.Message
+                }
+
+                $script:staleAfter = [System.IO.File]::ReadAllBytes($script:mediaPath)
+            }
+
             It 'does not throw out of the handler and onto a message box' {
-                $script:mediaBadEnabledThrew | Should -BeNullOrEmpty
+                $script:staleThrew | Should -BeNullOrEmpty
             }
 
-            It 'puts the box back to what it was, rather than leaving a word the document never saw' {
-                [string] $script:mediaEnabledBox.Text | Should -BeExactly 'no'
+            It 'writes nothing to media.yaml - the file is unchanged byte for byte' {
+                [System.Convert]::ToBase64String($script:staleAfter) |
+                    Should -BeExactly ([System.Convert]::ToBase64String($script:staleBefore))
             }
 
-            It 'does not write "maybe" or anything else new to media.yaml' {
-                [System.IO.File]::ReadAllText($script:mediaPath) | Should -Not -Match 'maybe'
+            It 'puts the control back to the profile the document actually names' {
+                [string] $script:mediaProfileCombo.SelectedItem | Should -BeExactly $script:profilePicked
+            }
+
+            It 'says what was wrong in the footer, rather than in a message box' {
+                [string] $script:mediaWindow.FindName('HDTCommandText').Text |
+                    Should -BeLike '*hydration*'
+
+                [string] $script:mediaWindow.FindName('HDTCommandText').Text |
+                    Should -BeLike '*no selection profile*'
+            }
+        }
+
+        # REBUILDING THE PANE RAISES SelectionChanged WITH NOTHING SELECTED,
+        # before the binding has settled - and writing that would clear the key
+        # on every click of the tree. -Picked is the guard, and this is the only
+        # test that drives it through a real window.
+        Context 'the pane rebuilt, which raises SelectionChanged with nothing selected' {
+
+            BeforeAll {
+                $script:nullPickBefore = [System.IO.File]::ReadAllBytes($script:mediaPath)
+                $script:nullPickThrew = ''
+
+                try {
+                    $script:mediaProfileCombo.SelectedItem = $null
+
+                    $script:mediaWindow.Dispatcher.Invoke([action] {},
+                        [System.Windows.Threading.DispatcherPriority]::Background)
+                } catch {
+                    $script:nullPickThrew = [string] $_.Exception.Message
+                }
+
+                $script:nullPickAfter = [System.IO.File]::ReadAllBytes($script:mediaPath)
+            }
+
+            It 'does not throw out of the handler' {
+                $script:nullPickThrew | Should -BeNullOrEmpty
+            }
+
+            It 'writes nothing when SelectedItem is null - the -Picked guard' {
+                [System.Convert]::ToBase64String($script:nullPickAfter) |
+                    Should -BeExactly ([System.Convert]::ToBase64String($script:nullPickBefore))
             }
         }
     }
