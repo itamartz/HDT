@@ -614,4 +614,150 @@ Describe 'Console surface contract' {
 
         $silent.Count | Should -Be 0 -Because $because
     }
+
+    # BROWSE IS A SHARED SURFACE, SO IT IS TESTED AGAINST THE SET AND NEVER
+    # AGAINST THE ONE FIELD THAT USES IT TODAY - the same argument the
+    # *CommandText sweep above makes, and for the same reason it was needed:
+    # a rule that names the instance somebody remembered proves nothing about
+    # the next one. A browse is four pieces that must all agree - a kind on the
+    # row, a dialog for that kind, a trigger that draws the button, a handler
+    # that reads the kind back - and any three of them ship a button that picks
+    # a file and throws it away, or no button at all. Neither failure is visible
+    # from inside the file that caused it.
+    #
+    # NOT ONE OF THESE NAMES IsoFile, Output OR Media. The kinds are read off
+    # New-HDTConsoleField's own ValidateSet and off the call sites' own
+    # arguments, so a kind added tomorrow is swept tomorrow.
+
+    It 'gives every field that declares a Browse kind a dialog to open, and a key to write' {
+        $files = @(Get-ChildItem -Path (Join-Path -Path $script:repoRoot -ChildPath 'src/Hephaestus') `
+                -Filter '*.ps1' -Recurse |
+                Where-Object { $_.Name -ne 'Hephaestus.bundle.ps1' })
+
+        $declared = @()
+        $offence = @()
+
+        foreach ($file in $files) {
+            $tokens = $null
+            $errors = $null
+            $ast = [System.Management.Automation.Language.Parser]::ParseFile($file.FullName, [ref] $tokens, [ref] $errors)
+            if (@($errors).Count -gt 0) { continue }
+
+            $calls = @($ast.FindAll({
+                        param($n)
+                        $n -is [System.Management.Automation.Language.CommandAst] -and
+                        [string] $n.GetCommandName() -eq 'New-HDTConsoleField'
+                    }, $true))
+
+            foreach ($call in $calls) {
+                $element = @($call.CommandElements)
+
+                $browseAt = -1
+                $namesProperty = $false
+
+                for ($i = 0; $i -lt $element.Count; $i++) {
+                    if ($element[$i] -isnot [System.Management.Automation.Language.CommandParameterAst]) { continue }
+
+                    $parameter = [string] $element[$i].ParameterName
+
+                    if ($parameter -eq 'Browse') { $browseAt = $i }
+                    if ($parameter -eq 'Property') { $namesProperty = $true }
+                }
+
+                if ($browseAt -lt 0) { continue }
+
+                $where = '{0}:{1}' -f $file.Name, $call.Extent.StartLineNumber
+
+                # A PICKER WITH NOWHERE TO PUT THE ANSWER. New-HDTConsoleField
+                # throws on this at run time; here it is caught without anybody
+                # having to draw the row first.
+                if (-not $namesProperty) {
+                    $offence += ('{0} declares a Browse and names no -Property' -f $where)
+                    continue
+                }
+
+                # THE ARGUMENT, WHICH MAY BE -Browse:'x' OR -Browse 'x'.
+                $argument = $element[$browseAt].Argument
+                if ($null -eq $argument -and ($browseAt + 1) -lt $element.Count) {
+                    $argument = $element[$browseAt + 1]
+                }
+
+                # A BARE LITERAL, NEVER A VARIABLE. A sweep cannot follow one,
+                # and a browse kind computed at run time is a decision hidden
+                # from this test - which is the whole point of the kind being a
+                # closed set rather than a switch.
+                if ($argument -isnot [System.Management.Automation.Language.StringConstantExpressionAst]) {
+                    $offence += ('{0} declares a Browse that is not a bare string literal' -f $where)
+                    continue
+                }
+
+                $declared += [string] $argument.Value
+            }
+        }
+
+        $offence.Count | Should -Be 0 -Because ('a declared browse must have a key to write and a kind a test can read. {0}' -f
+            (@($offence) -join '; '))
+
+        @($declared).Count | Should -BeGreaterThan 0 -Because 'a sweep that found no browsing field would pass without looking at anything'
+
+        Import-Module -Name $script:manifestPath -Force -ErrorAction Stop
+        $kind = @($declared)
+
+        InModuleScope Hephaestus -Parameters @{ Kind = $kind } {
+            param($Kind)
+
+            foreach ($one in @($Kind)) {
+                { Get-HDTConsoleFieldBrowse -Kind $one -Current '' } |
+                    Should -Not -Throw -Because ("a field declares the browse kind {0}, so a dialog has to be decided for it" -f $one)
+            }
+        }
+    }
+
+    It 'answers every Browse kind the field builder will accept' {
+        Import-Module -Name $script:manifestPath -Force -ErrorAction Stop
+
+        InModuleScope Hephaestus {
+            $validate = @((Get-Command -Name New-HDTConsoleField).Parameters['Browse'].Attributes |
+                    Where-Object { $_ -is [System.Management.Automation.ValidateSetAttribute] })
+
+            $validate.Count | Should -Be 1 -Because (
+                'the browse kinds are a closed set declared on the parameter, which is what makes a sweep of them possible at all - a switch would give this nothing to enumerate')
+
+            $kind = @($validate[0].ValidValues)
+            $kind.Count | Should -BeGreaterThan 0
+
+            foreach ($one in $kind) {
+                $answer = Get-HDTConsoleFieldBrowse -Kind $one -Current ''
+
+                [string] $answer.Dialog | Should -Not -BeNullOrEmpty -Because ('{0} must open something' -f $one)
+                [string] $answer.Title | Should -Not -BeNullOrEmpty -Because ('{0} must say what it is picking' -f $one)
+                [string] $answer.Filter | Should -Not -BeNullOrEmpty -Because ('{0} must say what it accepts' -f $one)
+            }
+        }
+    }
+
+    It 'draws the browse button and the trigger that shows it' {
+        $markup = [System.IO.File]::ReadAllText(
+            (Join-Path -Path $script:repoRoot -ChildPath 'src/Hephaestus/UI/Console/HDTConsole.xaml'))
+
+        # THE THREE PIECES THAT MAKE A DECLARED BROWSE ACTUALLY DRAW AND
+        # ACTUALLY FIND ITS BOX. A kind on the row with no button beside it is a
+        # feature nobody can reach; a button with no ElementName binding is one
+        # that fills whichever box it happens to walk to.
+        $markup | Should -Match 'x:Name="HDTDetailBrowseButton"'
+        $markup | Should -Match '(?s)<DataTrigger[^>]*Binding="\{Binding HasBrowse\}"'
+        $markup | Should -Match 'ElementName=HDTDetailBox'
+    }
+
+    It 'wires a click on it, in the pane that holds it' {
+        $view = [System.IO.File]::ReadAllText(
+            (Join-Path -Path $script:repoRoot -ChildPath 'src/Hephaestus/Private/New-HDTConsoleView.ps1'))
+
+        # A ROUTED HANDLER, AND THE MAPPER REACHED THROUGH THE DOOR. Click is
+        # declared on ButtonBase, so Button::ClickEvent will not resolve - and
+        # a private name written straight into a closure resolves in the global
+        # scope, which is the defect the whole $call door exists for.
+        $view | Should -Match 'ButtonBase\]::ClickEvent'
+        $view | Should -Match "\`$call 'Get-HDTConsoleFieldBrowse'"
+    }
 }
