@@ -191,6 +191,7 @@
                 'New-HDTStepResult'
                 'Invoke-HDTApplyDriversStep'
                 'Invoke-HDTApplyUpdatesStep'
+                'Invoke-HDTWindowsUpdateStep'
             )
         }
         @{

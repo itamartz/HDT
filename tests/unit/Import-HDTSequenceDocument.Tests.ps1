@@ -406,33 +406,65 @@ steps:
 
     Context 'unknown step types' {
 
-        # THE UNIMPLEMENTED TYPE IS FOUND, NOT NAMED, AND THAT IS A REPAIR.
-        # This test used to name JoinDomain as its example of a type the engine
-        # does not implement - which was true when it was written and stopped
-        # being true the day the JoinDomain step shipped, at which point the
-        # test failed for the best possible reason and said nothing useful
-        # about why. WindowsUpdate would rot the same way when it lands.
+        # THE EXAMPLE IS A THIRD PARTY'S, AND THAT IS THE THIRD REPAIR.
         #
-        # So the example is DERIVED from the fixture: whichever of its types has
-        # no Invoke-HDT<Type>Step is the one this property is about, and the
-        # assertion above it fails with a sentence rather than a puzzle if the
-        # fixture ever runs out of them.
+        # It first NAMED JoinDomain as a type the engine does not implement,
+        # which was true when it was written and stopped being true the day the
+        # JoinDomain step shipped. It was then changed to DERIVE the example
+        # from valid-design-example.yaml - whichever of its types had no
+        # Invoke-HDT<Type>Step - and its own comment predicted what happened
+        # next: "WindowsUpdate would rot the same way when it lands." It landed,
+        # it was the last unimplemented type that fixture named, and the derived
+        # form ran out of examples exactly as it said it would.
+        #
+        # DERIVING FROM A FIXTURE OF HDT'S OWN TYPES WAS ALWAYS BORROWED TIME,
+        # because this repository's whole direction is to implement every one of
+        # them. The fixture cannot be given a spare either: it IS DESIGN 3.3's
+        # worked example, character for character, and eight other tests count
+        # its steps.
+        #
+        # So the example is a type that will never be built here, because it is
+        # somebody else's: Contoso ships Invoke-HDTContosoBiosStep in its
+        # workspace's Modules\ folder. That is not a workaround, it is the
+        # property stated properly - "a sequence referencing a type this engine
+        # does not implement still imports, because a workspace's Modules\ may
+        # carry it and the authoring machine may not" (Import-HDTSequenceDocument's
+        # own help). A vendor's type is the case that sentence is about, and it
+        # cannot rot.
         It 'imports a sequence whose type this engine does not implement' {
             # The pluggability property: authoring does not require the step type
             # to be installed on the machine doing the authoring, and an unknown
             # type fails the STEP at execution, not the whole document at import.
-            $document = & $script:import 'valid-design-example.yaml'
+            $yaml = @'
+schemaVersion: 1
+id: CONTOSO
+name: A sequence carrying a third party's step type
+steps:
+  - name: Set the firmware
+    type: ContosoBios
+    profile: Latitude-5540
+  - name: Apply OS
+    type: ApplyImage
+    os: Win11-24H2-Ent
+'@
 
-            $unimplemented = @(@($document.Step | ForEach-Object { [string] $_.Type }) |
-                    Sort-Object -Unique |
-                    Where-Object { $null -eq (Get-Command -Name ('Invoke-HDT{0}Step' -f $_) -ErrorAction SilentlyContinue) })
+            $fs = New-HDTFakeFileSystem -File @{ $script:sequencePath = $yaml }
+            $document = Import-HDTSequenceDocument -Path $script:sequencePath -FileSystem $fs
 
-            @($unimplemented).Count | Should -BeGreaterThan 0 -Because (
-                'this fixture must declare at least one step type the engine does not implement, ' +
-                'or the property has nothing to be true of. Every type it names is now built - add one that is not.')
+            # The premise, asserted rather than assumed: if HDT ever did ship a
+            # ContosoBios step, this test would be proving nothing and would say
+            # so here instead of passing.
+            Get-Command -Name 'Invoke-HDTContosoBiosStep' -ErrorAction SilentlyContinue |
+                Should -BeNullOrEmpty -Because (
+                    'this test needs a type the engine does not implement, and it picked one no engine ' +
+                    'release will ever carry because it belongs to somebody else')
 
-            # And the document carried it through the import intact.
-            @($document.Step | ForEach-Object { [string] $_.Type }) | Should -Contain $unimplemented[0]
+            @($document.Step).Count | Should -Be 2
+
+            # And the document carried it through the import intact, properties
+            # and all - the type was never resolved, so nothing was dropped.
+            $document.Step[0].Type | Should -BeExactly 'ContosoBios'
+            [string] $document.Step[0].Property['profile'] | Should -BeExactly 'Latitude-5540'
         }
     }
 

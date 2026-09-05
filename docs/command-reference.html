@@ -254,7 +254,7 @@ try {
 <li><a href="#machine-facts-and-network"><span class="nav-t">Machine facts, network &amp; host checks</span><span class="nav-n">12</span></a></li>
 <li><a href="#task-sequence-authoring"><span class="nav-t">Task sequence authoring</span><span class="nav-n">22</span></a></li>
 <li><a href="#step-types-and-templates"><span class="nav-t">Step types, templates &amp; descriptions</span><span class="nav-n">48</span></a></li>
-<li><a href="#step-implementations"><span class="nav-t">Step implementations</span><span class="nav-n">26</span></a></li>
+<li><a href="#step-implementations"><span class="nav-t">Step implementations</span><span class="nav-n">27</span></a></li>
 <li><a href="#operating-systems-and-drivers"><span class="nav-t">Operating systems, drivers, updates &amp; selection profiles</span><span class="nav-n">26</span></a></li>
 <li><a href="#applications"><span class="nav-t">Applications &amp; Windows features</span><span class="nav-n">7</span></a></li>
 <li><a href="#disks-and-imaging"><span class="nav-t">Disks &amp; imaging</span><span class="nav-n">7</span></a></li>
@@ -285,9 +285,9 @@ try {
       reports them, every parameter, the examples from its help, and the file it lives in.
       <em>How it works</em> opens the long-form design note the author wrote next to the code.</p>
       <div class="stats">
-        <div class="stat"><div class="n">304</div><div class="l">exported commands</div></div>
+        <div class="stat"><div class="n">305</div><div class="l">exported commands</div></div>
         <div class="stat"><div class="n">17</div><div class="l">groups</div></div>
-        <div class="stat"><div class="n">304</div><div class="l">carry examples</div></div>
+        <div class="stat"><div class="n">305</div><div class="l">carry examples</div></div>
         <div class="stat"><div class="n">88</div><div class="l">support -WhatIf</div></div>
       </div>
       <div class="legend">
@@ -2544,7 +2544,7 @@ Get-HDTBootToWinPEStepDescription -Step $step</pre><p>The one line the log and t
 <footer class="src"><code>src/Hephaestus/Hephaestus.bundle.ps1</code></footer>
 </article>
 </div></section>
-    <section class="cat" id="step-implementations" data-cat="step-implementations"><header class="cat-head"><div class="cat-eyebrow">26 commands</div><h2>Step implementations</h2><p class="cat-blurb">The step types themselves: what each one does to a machine when the engine dispatches it.</p></header><div class="cat-body">
+    <section class="cat" id="step-implementations" data-cat="step-implementations"><header class="cat-head"><div class="cat-eyebrow">27 commands</div><h2>Step implementations</h2><p class="cat-blurb">The step types themselves: what each one does to a machine when the engine dispatches it.</p></header><div class="cat-body">
 <article class="fn" id="Invoke-HDTStep" data-name="invoke-hdtstep" data-hay="invoke-hdtstep dispatches one step to the invoke-hdt&lt;type&gt;step function that implements it. step context steptype">
 <header class="fn-head">
 <h3><a class="anchor" href="#Invoke-HDTStep">Invoke-HDTStep</a></h3>
@@ -3501,6 +3501,62 @@ $result.Data[&#x27;notApplicable&#x27;]</pre><p>How many landed and how many did
 <p>THE ORDER IS ALWAYS THE RESOLVED ORDER, never the author&#x27;s. The list says WHICH updates, and Get-HDTUpdateApplyOrder says in what order - servicing stack first, then by the build each one produces. An author&#x27;s list order must not be able to produce a broken image, and a cumulative update bundles its own SSU anyway, so there is nothing to gain by honouring it.</p>
 <p>NOT APPLICABLE IS NOT A FAILURE, and this is where the step parts company with a naive reading of DISM&#x27;s exit codes. 0x800F081E means the package does not apply to this image, which is the ORDINARY result of importing a broad set and letting a sequence pick from it. MDT swallows every error here - ZTIPatches logs a non-zero DISM return and still returns Success - and this step keeps the half of that which is right (apply everything, never stop at the first problem) and rejects the half which is not (report success regardless). A package that failed for any other reason fails the step, AFTER every other package has been tried.</p></div></details>
 <div class="extra"><div class="kv"><span class="k">Outputs</span><div class="v"><p>A New-HDTStepResult. Data carries release, named, target, considered, applied, alreadyPresent, notApplicable and failed.</p></div></div></div>
+<footer class="src"><code>src/Hephaestus/Hephaestus.bundle.ps1</code></footer>
+</article>
+<article class="fn" id="Invoke-HDTWindowsUpdateStep" data-name="invoke-hdtwindowsupdatestep" data-hay="invoke-hdtwindowsupdatestep patches the running operating system online, in as many passes as it takes. step context">
+<header class="fn-head">
+<h3><a class="anchor" href="#Invoke-HDTWindowsUpdateStep">Invoke-HDTWindowsUpdateStep</a></h3>
+<div class="tags"><span class="chip v-act">Invoke</span>
+</div></header>
+<p class="syn">Patches the running operating system online, in as many passes as it takes.</p>
+<div class="sig-wrap"><pre class="sig">Invoke-HDTWindowsUpdateStep [-Step] &lt;Object&gt; [-Context] &lt;Object&gt; [&lt;CommonParameters&gt;]</pre></div>
+<section class="params"><h4>Parameters</h4><div class="table-wrap"><table><tr><td class="p-name"><code>-Step</code><div class="p-flags"><span class="req">required</span></div></td><td class="p-type"><code>Object</code></td><td class="p-desc"><p>A flattened step from Import-HDTSequenceDocument.</p></td></tr><tr><td class="p-name"><code>-Context</code><div class="p-flags"><span class="req">required</span></div></td><td class="p-type"><code>Object</code></td><td class="p-desc"><p>A New-HDTExecutionContext context. Its Service catalog must carry an UpdateSession service, which Start-HDTResume builds for the full-OS leg.</p></td></tr></table></div></section>
+<section class="examples"><h4>Examples</h4><div class="ex"><div class="ex-title">Example 1</div><pre class="code">$clock = New-HDTClock
+$service = New-HDTServiceCatalog -FileSystem (New-HDTFileSystem) -Clock $clock `
+    -UpdateSession (New-HDTUpdateSessionService)
+$log = New-HDTLogContext -RunId &#x27;run-0001&#x27; -Phase FullOS -LogPath &#x27;C:\HDT\Logs&#x27; -Clock $clock
+$context = New-HDTExecutionContext -RunId &#x27;run-0001&#x27; -Phase FullOS `
+    -WorkspaceRoot &#x27;C:\HDTLab\Share&#x27; -Variable ([ordered] @{}) -Service $service -Log $log
+$sequence = Import-HDTSequenceDocument -Path &#x27;C:\HDTLab\Share\TaskSequences\STD-CLIENT\sequence.yaml&#x27;
+$step = @($sequence.Step | Where-Object { $_.Type -eq &#x27;WindowsUpdate&#x27; })[0]
+Invoke-HDTWindowsUpdateStep -Step $step -Context $context</pre><p>One step out of a real sequence. Building the context is what the engine does before the first step; a step cannot be run without one.</p></div><div class="ex"><div class="ex-title">Example 2</div><pre class="code">$result = Invoke-HDTWindowsUpdateStep -Step $step -Context $context
+$result.Data.installed</pre><p>The KB numbers this run has installed, across every leg - not only the ones this leg put on.</p></div></section>
+<details class="notes"><summary>How it works</summary><div class="prose"><p>DESIGN 10.1, wrapping the Windows Update Agent behind IUpdateSessionService so the whole step runs under Pester with no agent, no server and no update installed.</p>
+<pre class="block">  - name: Windows Update
+    type: WindowsUpdate
+    server: &quot;%HDTWSUSServer%&quot;
+    categories: [SecurityUpdates, CriticalUpdates, UpdateRollups]
+    exclude: [&quot;*Preview*&quot;, &quot;KB5001234&quot;]
+    maxPasses: 3
+    continueOnError: true</pre>
+<p>MULTIPLE PASSES ARE THE POINT, AND A SINGLE-PASS STEP IS THE CLASSIC MISTAKE. Installing one update supersedes or reveals another - a servicing stack update makes the cumulative one applicable, a cumulative update reveals the .NET one behind it - so the step searches, installs, restarts if it has to, and SEARCHES AGAIN, until a pass finds nothing applicable or maxPasses is reached. A step that searched once would leave machines half-patched and report success, which is what makes it the mistake that survives: nothing about the deployment looks wrong. PSD&#x27;s own PSDWindowsUpdate.ps1 is single-pass; it was read for the COM mechanism and not for the shape.</p>
+<p>IT IS FULL-OS ONLY, BY DEFINITION. The Windows Update Agent COM server is not present in a WinPE image at all, so Import-HDTSequenceDocument refuses this type in a WinPE group at authoring time (Get-HDTFullOsOnlyStepType). Offline .msu injection while WinPE is running is a different step: ApplyUpdates, DESIGN 7.5.</p>
+<p>THE PASS COUNTER IS CHECKPOINTED, NOT HELD IN A LOCAL. Installing updates asks for a restart, and a restart ends this leg. Two variables survive it in state.json:</p>
+<pre class="block">  _HDTWindowsUpdatePass       passes COMPLETED by this run
+  _HDTWindowsUpdateInstalled  the KB numbers put on, across every leg</pre>
+<p>Without the first, the step restarts at pass one on every leg and maxPasses bounds nothing at all - a machine could loop through the reboot ceremony indefinitely while every individual leg looked correct. maxPasses bounds the STEP, across legs, and that is what the checkpoint buys. Invoke-HDTInstallApplicationsStep checkpoints _HDTApplicationInstalled for the same reason and in the same way.</p>
+<p>AND -Reenter IS NOT OPTIONAL ON THE REBOOT. The loop records a plain RebootRequested step as Completed and advances stepIndex past it - right for a Restart step, and wrong here, because every remaining pass would be silently skipped while the run reported success. New-HDTStepResult -Reenter makes the loop record the step Pending instead, so the next leg runs it again and it resumes from the checkpoint.</p>
+<p>IT ASKS THE MACHINE AS WELL AS THE INSTALL RESULT. An install result says &quot;THIS BATCH asked for a restart&quot;; GetRebootRequired() reads ISystemInformation and says &quot;there is a restart pending from anything at all&quot;. A servicing stack update that goes in first frequently leaves the second kind without setting the first, and the next search then returns stale results - so both are checked, and either one ends the leg.</p>
+<p>A FAILED UPDATE DOES NOT STOP THE PASS. It is recorded, with its result code and its HResult, and the step goes on to the next one. The step fails only when EVERY update in a pass failed, because at that point another pass would do exactly the same thing. continueOnError then decides whether that failure scraps the build, and DESIGN 10.1 recommends true: &quot;Windows Update is the least predictable thing in a sequence, and a failed optional update should not scrap an otherwise good build.&quot;</p>
+<p>REACHING maxPasses WITH WORK OUTSTANDING IS A WARNING, NOT A FAILURE. The machine is more patched than it was. It is logged loudly, at Info and naming what is still applicable, so an administrator sees the bound was hit here rather than discovering it from a patch report a month later.</p>
+<pre class="block">WHAT IT REPORTS, AND THE ONE THING IT CANNOT. The step resolves the
+whole ordered list before it installs anything, so it writes a
+step.progress frame naming which update of how many, in which pass,
+before each install. It cannot report DURING an install, and that is
+a fact about the agent rather than an omission: the only WUA form
+that carries a percentage is IUpdateInstaller.BeginInstall with an
+IInstallationCompletedCallback, a COM interface PowerShell cannot
+implement. Measured on this machine, BeginInstall($null, $null,
+$null) fails with &quot;Object reference not set to an instance of an
+object&quot; BEFORE it looks at the update collection, while Install() on
+the same empty collection reaches the collection and reports &quot;Value
+does not fall within the expected range&quot;. So Install() is the only
+call available, it blocks, and it says nothing - which is why the
+frame written before it is the last thing the screen gets until it
+returns, and why StepProgress.Contract classifies this step the way
+it classifies InstallRoles.</pre>
+<p>THE LOG EVENT IS update.apply, ONE RECORD PER UPDATE. Read its comment in Write-HDTLog.ps1: twenty outcomes an administrator has to be able to filter, and a single summary line at the end of the step answers none of them. native.exec is for a process a step shelled out to, and this step shells out to nothing - using it would put a COM call into the stream a technician filters for command lines.</p></div></details>
+<div class="extra"><div class="kv"><span class="k">Outputs</span><div class="v"><p>A New-HDTStepResult. Data carries pass, maxPasses, server, searched, applicable, installed, installedThisPass, skippedExcluded, skippedCategory, failed, rebootRequired and elapsedSecond.</p></div></div></div>
 <footer class="src"><code>src/Hephaestus/Hephaestus.bundle.ps1</code></footer>
 </article>
 </div></section>
