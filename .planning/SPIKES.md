@@ -3433,3 +3433,51 @@ in Windows Setup and at the firmware screen alike, sends no keystrokes, and
 needs nothing installed in the guest.
 
 `ffmpeg -framerate 15 -i ref-%04d.png out.mp4` turns a reel into a film.
+
+### S24 — a VM holding the ISO in its DVD drive fails every future boot image build ✅ FIXED
+
+Date: 2026-09-06, rebuilding the share's boot image so it would carry the
+`WindowsUpdate` step (engine 0.14.0 on the share, 0.22.1 in the repository).
+
+`Update-HDTBootImage` ran all seventeen steps, wrote `HDTPE_x64.wim.new` and
+`HDTPE_x64.iso.new`, and then failed on the swap:
+
+```
+C:\HDTLab\Share\Boot\HDTPE_x64.iso: the boot image was built but
+'...HDTPE_x64.iso' could not be replaced: ... Cannot create a file when that
+file already exists. The build itself succeeded and is complete in
+'...HDTPE_x64.iso.new' - the usual cause is that the file is open somewhere,
+and in a lab that is a virtual machine holding the ISO in its DVD drive.
+```
+
+**The message was exactly right, and the holder was `HDT-WSUS-01`** — deployed
+by HDT on 2026-09-02 (`run-20260902-203748`) with the boot ISO attached, and
+nothing ever ejected it. It had been running from its own disk for a day; the
+DVD was simply never detached, and an attached ISO is an open file handle on
+the host whether the guest is reading it or not.
+
+**So every boot image build on this share would have failed the same way**,
+indefinitely, for as long as any deployed lab VM kept the ISO mounted. This is
+not a defect in `Update-HDTBootImage` — the build succeeded, staged its output
+and explained the failure precisely enough to fix in one step, which is the
+behaviour that rule wants.
+
+**`Set-VMDvdDrive -Path $null` does NOT eject.** It returns without error and
+the path is unchanged. The form that works names the controller explicitly and
+passes an empty string:
+
+```powershell
+$d = Get-VMDvdDrive -VMName 'HDT-WSUS-01'
+Set-VMDvdDrive -VMName 'HDT-WSUS-01' `
+    -ControllerNumber $d.ControllerNumber -ControllerLocation $d.ControllerLocation `
+    -Path ''
+```
+
+Ejecting is safe on a running guest that booted from disk: the VM stayed
+`Running` and its uptime was unbroken across the operation (1.04:48 either
+side).
+
+**The lesson for the teardown, not just for this build:** a deployment leaves
+the ISO attached, so the last step of finishing with a lab VM is to eject it —
+otherwise the next person to rebuild a boot image gets a failure whose cause is
+a machine they are not thinking about and may not own.
