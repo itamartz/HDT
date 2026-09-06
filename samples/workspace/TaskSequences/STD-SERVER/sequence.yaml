@@ -1,4 +1,4 @@
-# A Windows Server 2025 build, and the sample that exercises everything phase 07
+﻿# A Windows Server 2025 build, and the sample that exercises everything phase 07
 # added: InstallApplications, InstallRoles and EnableBitLocker.
 #
 # ROADMAP M6 asked for "at least one server task sequence in samples/". This is
@@ -81,10 +81,39 @@ steps:
       - name: Restart After Roles
         type: Restart
 
+      # AFTER THE RESTART, AND THAT IS DELIBERATE. A role install that asked for
+      # a reboot has to land before the update agent runs: WUA refuses to
+      # install while a restart is pending on some servicing paths, and where it
+      # does not, the first search runs against a component store that is
+      # half-way through a transaction and returns stale results. The step would
+      # report "nothing applicable" on a server that needs eleven updates.
+      #
+      # TWICE, AND THE ORDER IS THE POINT (DESIGN 10.1) - the first pass patches
+      # the base image so an installer meets a current machine, the second
+      # catches the updatable components an install pulled in. The names are
+      # MDT's own for its two instances of this step.
+      - name: Windows Update (Pre-Application Installation)
+        type: WindowsUpdate
+        runIn: FullOS
+        server: "%HDTWSUSServer%"
+        categories: [SecurityUpdates, CriticalUpdates, UpdateRollups]
+        maxPasses: 3
+        continueOnError: true
+        timeoutMinutes: 180
+
       - name: Install Applications
         type: InstallApplications
         selection: "%HDTApplications%"
         timeoutMinutes: 120
+
+      - name: Windows Update (Post-Application Installation)
+        type: WindowsUpdate
+        runIn: FullOS
+        server: "%HDTWSUSServer%"
+        categories: [SecurityUpdates, CriticalUpdates, UpdateRollups]
+        maxPasses: 3
+        continueOnError: true
+        timeoutMinutes: 180
 
       - name: Corporate Baseline
         type: PowerShell

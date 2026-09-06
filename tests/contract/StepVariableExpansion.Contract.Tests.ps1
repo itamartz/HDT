@@ -136,9 +136,23 @@ $script:HDTExpansionProbe = @(
     # and `exclude` reach the LOG through Select-HDTApplicableUpdate's reason
     # strings - 'category SecurityUpdates', 'excluded by *Preview*' - which name
     # the pattern that decided precisely so an administrator can act on them.
+    #
+    # THE TWO LIST ROWS CARRY A SERVER IN Extra, AND THAT IS NOT PADDING. The
+    # starting bag is the type's own TEMPLATE, and the template writes
+    # server: '%HDTWSUSServer%' - which the step correctly REFUSES when nothing
+    # resolved it, because writing a token into the WUServer policy takes a
+    # machine off Windows Update without putting it onto anything. So without
+    # this the categories and exclude runs both die at the server check, before
+    # the property under test is ever read, and match each other perfectly while
+    # proving nothing. It is the same shape as ApplyImage's target row carrying
+    # os, and JoinDomain's ou row carrying domain.
     @{ Type = 'WindowsUpdate'; Key = 'server'; Value = 'http://wsus.contoso.local:8530'; Phase = 'FullOS'; Extra = @{} }
-    @{ Type = 'WindowsUpdate'; Key = 'categories'; Value = 'SecurityUpdates'; Phase = 'FullOS'; Extra = @{} }
-    @{ Type = 'WindowsUpdate'; Key = 'exclude'; Value = '*Preview*'; Phase = 'FullOS'; Extra = @{} }
+    @{ Type = 'WindowsUpdate'; Key = 'categories'; Value = 'SecurityUpdates'; Phase = 'FullOS'
+        Extra = @{ server = 'http://wsus.contoso.local:8530' }
+    }
+    @{ Type = 'WindowsUpdate'; Key = 'exclude'; Value = '*Preview*'; Phase = 'FullOS'
+        Extra = @{ server = 'http://wsus.contoso.local:8530' }
+    }
 )
 
 # THE ONE TYPE WITH NOTHING TO EXPAND, written down rather than left out, so the

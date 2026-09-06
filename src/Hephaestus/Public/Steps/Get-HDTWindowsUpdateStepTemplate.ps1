@@ -15,11 +15,22 @@
             its own WSUS. An author who wants one fixed server replaces the
             token with a URL.
 
-            AN EMPTY HDTWSUSServer MEANS WINDOWS UPDATE, and that is DESIGN
-            10.1's documented behaviour rather than a fallback the step fell
-            into: with no server set the agent is left on its default service
-            and patches from Microsoft. A share that has no WSUS gets working
-            behaviour from this template unedited.
+            AND THE VARIABLE HAS TO BE SET, OR THE STEP REFUSES. This is the
+            one thing about the template worth reading twice.
+            Expand-HDTVariableToken leaves a token nothing supplied LITERAL, so
+            a share that never set HDTWSUSServer reaches the step with the text
+            '%HDTWSUSServer%' - and Invoke-HDTWindowsUpdateStep refuses it,
+            naming the variable and saying what to do, rather than writing a
+            token into the WUServer policy value. That would take the machine
+            off Windows Update without putting it onto anything, which is the
+            worst of the three outcomes and the hardest to see.
+
+            SO A SHARE WITH NO WSUS DELETES THE server LINE. An ABSENT server
+            key leaves the agent on its default service and the machine patches
+            from Microsoft - DESIGN 10.1's documented behaviour, and what the
+            step's own refusal message tells you. An absent key and an unset
+            variable are not the same thing, and the difference is the whole
+            reason the refusal exists.
 
             runIn: FullOS IS WRITTEN OUT BECAUSE THE AGENT DOES NOT EXIST IN
             WinPE. Microsoft.Update.Session is not in the boot image at all, so

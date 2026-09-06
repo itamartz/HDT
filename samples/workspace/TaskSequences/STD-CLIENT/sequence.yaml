@@ -1,12 +1,15 @@
-# DESIGN 4.1's sequence, as an administrator would actually write it.
+﻿# DESIGN 4.1's sequence, as an administrator would actually write it.
 #
-# TWO OF THESE STEP TYPES STILL DO NOT EXIST, and one has moved to v2.
-# ApplyDrivers and JoinDomain are not built; WindowsUpdate was scheduled out of
-# v1 on 2026-08-16 and is commented out below rather than left to fail forever.
-# InstallApplications IS now real (07-02). That the unbuilt ones remain is
-# deliberate: this file imports and schema-validates TODAY, and
-# `Test-HDTTaskSequence` reports each missing type as an Error finding - which is
-# the authoring lint doing exactly what it exists to do.
+# EVERY STEP TYPE IN THIS FILE IS BUILT. That was not true when it was written:
+# ApplyDrivers, JoinDomain and WindowsUpdate were all unbuilt then. WindowsUpdate
+# was deferred out of v1 on 2026-08-16 and built on 2026-09-06, once a real WSUS
+# server existed in the lab; until then it sat commented out here rather than
+# left to fail forever. It now runs TWICE - see the State Restore group.
+#
+# ONE STEP IS STILL COMMENTED OUT AND THAT IS NOT ABOUT WHETHER IT EXISTS.
+# JoinDomain is built and runnable; it needs a reachable domain controller,
+# which HDT's isolated test switch deliberately does not have (PROJECT.md), so
+# the sample ships as a workgroup build and that step is the line you uncomment.
 #
 # Validate, DiskPartition, ApplyImage, ApplyUnattend and ConfigureBoot ARE now
 # runnable, alongside Restart, PowerShell, CommandLine, SetVariable and NoOp.
@@ -90,18 +93,42 @@ steps:
       #     delaySeconds: 30
       #     backoff: exponential
 
+      # TWICE, AND THE ORDER IS THE POINT (DESIGN 10.1). The first pass patches
+      # the base image so an installer meets a current machine; the second
+      # catches the updatable components an install pulled in - .NET, the VC
+      # runtimes, a driver an application shipped. Two passes both after the
+      # applications would be two of the second one.
+      #
+      # THE NAMES ARE MDT'S OWN for its two instances of this step. Workbench's
+      # Client task sequence carries "Windows Update (Pre-Application
+      # Installation)" and "(Post-Application Installation)", and an
+      # administrator arriving from there is looking for those words.
+      #
+      # continueOnError: true because Windows Update is the least predictable
+      # thing in a sequence - a server mid-sync, an update superseded this
+      # morning, a download that timed out. None of those is a reason to abandon
+      # a deployment that has already imaged and configured the machine.
+      - name: Windows Update (Pre-Application Installation)
+        type: WindowsUpdate
+        runIn: FullOS
+        server: "%HDTWSUSServer%"
+        categories: [SecurityUpdates, CriticalUpdates, UpdateRollups]
+        maxPasses: 3
+        continueOnError: true
+        timeoutMinutes: 120
+
       - name: Install Applications
         type: InstallApplications
         selection: "%HDTApplications%"
 
-      # Windows Update is v2 (DESIGN 10.1, deferred 2026-08-16). Until then a
-      # machine leaves the bench with exactly the patches its source image
-      # carried. Uncomment when the step type ships.
-      #
-      # - name: Windows Update
-      #   type: WindowsUpdate
-      #   continueOnError: true
-      #   timeoutMinutes: 120
+      - name: Windows Update (Post-Application Installation)
+        type: WindowsUpdate
+        runIn: FullOS
+        server: "%HDTWSUSServer%"
+        categories: [SecurityUpdates, CriticalUpdates, UpdateRollups]
+        maxPasses: 3
+        continueOnError: true
+        timeoutMinutes: 120
 
       - name: Corporate Baseline
         type: PowerShell

@@ -329,8 +329,53 @@ steps:
           count: 2
           delaySeconds: 30
 
+      # WINDOWS UPDATE, TWICE, AND BOTH DISABLED - WHICH IS WHAT MDT DOES.
+      # Templates\Client.xml ships <step name="Windows Update (Pre-Application
+      # Installation)" disable="true" continueOnError="true"> and the same for
+      # the Post one, bracketing Install Applications. This is that, read off
+      # the file rather than remembered.
+      #
+      # DISABLED IS THE LOAD-BEARING PART. A template that patched by default
+      # would send every new workspace's first deployment to Windows Update over
+      # the internet, unasked, on a bench where somebody was expecting the
+      # image's own patch level - and it would do it before anybody had told HDT
+      # which WSUS server this site has.
+      #
+      # TURNING IT ON IS TWO THINGS: delete the `disabled: true` line from each,
+      # and set HDTWSUSServer in rules.yaml or on the wizard. BOTH, not one -
+      # the step refuses an unresolved '%HDTWSUSServer%' rather than writing a
+      # token into the WUServer policy, which would take the machine off Windows
+      # Update without putting it onto anything.
+      #
+      # A SITE WITH NO WSUS DELETES THE server LINE INSTEAD. An absent key leaves
+      # the agent on its default service and the machine patches from Microsoft,
+      # which is DESIGN 10.1's documented behaviour. An absent key and an unset
+      # variable are not the same thing.
+      #
+      # AND THE ORDER IS THE POINT. The first pass patches the base image so an
+      # installer meets a current machine; the second catches the updatable
+      # components an install pulled in - .NET, the VC runtimes, a driver an
+      # application shipped.
+      - name: Windows Update (Pre-Application Installation)
+        type: WindowsUpdate
+        disabled: true
+        runIn: FullOS
+        server: '%HDTWSUSServer%'
+        categories: [SecurityUpdates, CriticalUpdates, UpdateRollups]
+        maxPasses: 3
+        continueOnError: true
+
       - name: Install Applications
         type: InstallApplications
+
+      - name: Windows Update (Post-Application Installation)
+        type: WindowsUpdate
+        disabled: true
+        runIn: FullOS
+        server: '%HDTWSUSServer%'
+        categories: [SecurityUpdates, CriticalUpdates, UpdateRollups]
+        maxPasses: 3
+        continueOnError: true
 
       # ENCRYPTION LAST, AND ONLY IF ASKED FOR. The wizard's BitLocker page
       # sets these three; an unticked box leaves HDTEnableBitLocker false, the

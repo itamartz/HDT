@@ -54,10 +54,12 @@ They are simply not in v1:
   sysprep and capture its own, and it does not project a workspace onto a USB
   stick. `New-HDTBootIso` still ships in v1 — a bootable WinPE ISO is not the
   same thing as offline media carrying the OS and applications.
-- **§10.1 Windows Update.** No `WindowsUpdate` step. A machine HDT builds leaves
-  the bench with exactly the patches its source image carried; currency after
-  that is whatever Windows Update does on its own schedule. The other two
-  full-OS steps, §10.2 `InstallRoles` and §10.3 `EnableBitLocker`, **are** in v1.
+- ~~**§10.1 Windows Update.**~~ **Built on 2026-09-06.** The entry is kept
+  rather than deleted, because what it cost while it was true is the reason the
+  step exists: a machine HDT built left the bench with exactly the patches its
+  source image carried, and currency after that was whatever Windows Update did
+  on its own schedule. The other two full-OS steps, §10.2 `InstallRoles` and
+  §10.3 `EnableBitLocker`, were in v1 throughout.
 
 ### Non-goals (v1)
 
@@ -464,8 +466,12 @@ file that imports and validates today.
 
 `ApplyUpdates` and `WindowsUpdate` are different steps and the names are close
 enough to be worth separating here too: `ApplyUpdates` injects imported `.msu`
-packages into the applied volume offline, in WinPE (§7.5); `WindowsUpdate` is
-the online full-OS step against WSUS, and is deferred to v2 (§10.1).
+packages into the applied volume offline, in WinPE (§7.5); `WindowsUpdate` runs
+the update agent online, in the full OS, against WSUS or Windows Update
+(§10.1). They are complementary rather than alternatives - §7.5 gets a machine
+to the last cumulative update somebody downloaded, §10.1 gets it to whatever
+came out this morning - and the console names them apart too: "Apply Windows
+Updates" on the Images shelf, "Windows Update" on General.
 
 `BootToWinPE` is the FullOS -> WinPE transport, and it exists because one
 firmware-order switch cannot serve two restarts that want opposite things. A
@@ -2771,7 +2777,7 @@ another tool.
 Three steps that run after the image is applied and the machine has rebooted
 into Windows. All are `runIn: FullOS`.
 
-### 10.1 Windows Update  ·  **DEFERRED TO v2**
+### 10.1 Windows Update  ·  **BUILT 2026-09-06**
 
 > **Not the same thing as §7.5, and the names are close enough to be worth
 > separating.** This section is the ONLINE step: full-OS, after the machine
@@ -2786,10 +2792,13 @@ into Windows. All are `runIn: FullOS`.
 > to the last cumulative update somebody downloaded, §10.1 would get it to
 > whatever came out this morning.
 
-> **v2, not cut.** Scheduled out of v1 on 2026-08-16 at the user's direction.
-> The section is kept in full so v2 starts from a written plan rather than a
-> memory, and the step type is additive — bringing it back adds files rather
-> than changing them. What deferring it costs is in §1's deferred list.
+> **Deferred out of v1 on 2026-08-16 and built on 2026-09-06**, once a real
+> WSUS server existed in the lab. The section was kept in full through the
+> deferral precisely so that building it started from a written plan rather
+> than a memory, and the step type being additive meant it added files rather
+> than changing them — which is what happened: a service, a step, three
+> authoring commands and a row in four tables, and nothing that already ran had
+> to change.
 
 **Decision: online updating during deployment**, against WSUS or Windows Update
 — MDT's `ZTIWindowsUpdate` model. Machines leave the bench current without HDT

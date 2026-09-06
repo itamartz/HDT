@@ -32,6 +32,27 @@
 #
 # What is asserted here is what none of those cover.
 
+# THE SAMPLE LIST LIVES AT FILE SCOPE, NOT IN A BeforeAll, AND THAT IS NOT A
+# STYLE CHOICE. -ForEach is read while Pester is DISCOVERING; a BeforeAll runs
+# later, so a list built there is $null at the moment the cases would be
+# generated and Pester quietly generates NONE - and a Describe with no cases is
+# reported as a pass. That is how six assertions in this file came back green by
+# not existing, in a run that said 37 tests where 43 were written.
+#
+# DESIGN 10.1: "Placement: conventionally run twice - once before applications,
+# once after - since app installs can pull in updatable components. The sample
+# sequences do this." The Describe below is that sentence made checkable, and it
+# walks BOTH samples rather than the one that was edited first.
+# AND IT IS READ OFF THE DISK, NOT WRITTEN OUT. The STD-* samples are the two
+# this repository offers as "how you would really write one" - DEMO-* are
+# mechanism demonstrations for one feature each - so a third STD- sample added
+# later is walked on the day it appears rather than quietly exempted. The guard
+# below reads the same folder a second time and says how many it found, so an
+# empty list fails loudly instead of generating no cases at all.
+$script:HDTSample = @(Get-ChildItem -LiteralPath (Join-Path -Path (Split-Path -Parent (Split-Path -Parent $PSScriptRoot)) -ChildPath 'samples/workspace/TaskSequences') -Directory |
+        Where-Object { $_.Name -like 'STD-*' } |
+        ForEach-Object { @{ Name = $_.Name; Path = (Join-Path -Path $_.FullName -ChildPath 'sequence.yaml') } })
+
 BeforeAll {
     $script:repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
     Import-Module -Name (Join-Path -Path $script:repoRoot -ChildPath 'src/Hephaestus/Hephaestus.psd1') -Force -ErrorAction Stop
@@ -243,6 +264,25 @@ Describe 'Get-HDTWindowsUpdateStepTemplate' {
     It 'defaults to the name the console offers it under' {
         $script:line[0] | Should -BeExactly '- name: Windows Update'
     }
+
+    It 'writes a server key the step will refuse until the variable is set' {
+        # THE TEMPLATE AND THE STEP HAVE TO AGREE ABOUT THIS, and for a while
+        # the help above said they did not: it claimed an unset HDTWSUSServer
+        # "means Windows Update", which is what an ABSENT server key does.
+        # An UNSET VARIABLE leaves the token literal and the step refuses it,
+        # deliberately - writing '%HDTWSUSServer%' into the WUServer policy
+        # takes a machine off Windows Update without putting it onto anything.
+        #
+        # This pins the pair so the prose cannot drift from the code again: the
+        # template writes the token, the step names the token in its refusal,
+        # and the refusal says the two ways out.
+        $refusal = (Get-Command -Name 'Invoke-HDTWindowsUpdateStep').ScriptBlock.ToString()
+
+        $refusal | Should -Match 'variable token nothing resolved'
+        $refusal | Should -Match 'remove the server key'
+
+        @($script:line | Where-Object { $_ -match '^\s*server:' }).Count | Should -Be 1
+    }
 }
 
 Describe 'Get-HDTWindowsUpdateStepDescription' {
@@ -383,5 +423,177 @@ Describe 'The document surfaces accept every key DESIGN 10.1 documents' {
         Test-Path -LiteralPath $fixture | Should -BeTrue
 
         { Import-HDTSequenceDocument -Path $fixture } | Should -Not -Throw
+    }
+}
+
+
+Describe 'The sample sequences show the convention' {
+
+    It 'generated a case for each sample this repository ships' {
+        # THE GUARD ON THE -ForEach BELOW, AND IT READS THE FOLDER AGAIN RATHER
+        # THAN THE LIST. An empty -ForEach makes Pester generate no cases at
+        # all, and a Describe with no cases is reported as a pass - which is
+        # exactly what happened while that list was built in a BeforeAll: six
+        # assertions came back green by not existing, in a run that said 37
+        # tests where 43 were written.
+        #
+        # It cannot be asserted against $script:HDTSample itself: a variable set
+        # at file scope is in hand while Pester DISCOVERS and is $null in a test
+        # BODY, and @($null).Count is 1 - so the obvious version of this guard
+        # passes for the wrong reason on an empty list and fails for the wrong
+        # reason on a full one.
+        $sequence = @(Get-ChildItem -LiteralPath (Join-Path -Path $script:repoRoot -ChildPath 'samples/workspace/TaskSequences') -Directory |
+                Where-Object { $_.Name -like 'STD-*' })
+
+        @($sequence).Count | Should -Be 2 -Because 'the cases below are generated from this same folder, so a count that moved means either a new sample nobody walked or a list that came back empty'
+
+        foreach ($one in $sequence) {
+            Test-Path -LiteralPath (Join-Path -Path $one.FullName -ChildPath 'sequence.yaml') |
+                Should -BeTrue -Because ('{0} is a sample folder with no sequence.yaml in it' -f $one.Name)
+        }
+    }
+
+    It 'imports <Name> without error' -ForEach $script:HDTSample {
+        { Import-HDTSequenceDocument -Path $Path } | Should -Not -Throw
+    }
+
+    It 'runs Windows Update twice in <Name>' -ForEach $script:HDTSample {
+        $step = @((Import-HDTSequenceDocument -Path $Path).Step | Where-Object { $_.Type -eq 'WindowsUpdate' })
+
+        @($step).Count | Should -Be 2
+    }
+
+    It 'brackets the applications step with them in <Name>' -ForEach $script:HDTSample {
+        # THE ORDER IS THE POINT, not the count. The first pass patches the base
+        # image so an installer meets a current machine; the second catches the
+        # updatable components an install pulled in - .NET, the VC runtimes, a
+        # driver an application shipped. Two passes both AFTER the applications
+        # would be two of the second one.
+        $step = @((Import-HDTSequenceDocument -Path $Path).Step)
+
+        $update = @($step | Where-Object { $_.Type -eq 'WindowsUpdate' } | ForEach-Object { [int] $_.Index })
+        $application = @($step | Where-Object { $_.Type -eq 'InstallApplications' } | ForEach-Object { [int] $_.Index })
+
+        @($application).Count | Should -Be 1
+        @($update | Where-Object { $_ -lt $application[0] }).Count | Should -Be 1
+        @($update | Where-Object { $_ -gt $application[0] }).Count | Should -Be 1
+    }
+
+    It 'runs every instance in the full OS in <Name>' -ForEach $script:HDTSample {
+        # WUA does not exist in WinPE. Import-HDTSequenceDocument refuses the
+        # type in a WinPE group, so a sample that got this wrong would fail the
+        # import assertion above - this says which of the two things broke.
+        $step = @((Import-HDTSequenceDocument -Path $Path).Step | Where-Object { $_.Type -eq 'WindowsUpdate' })
+
+        @($step | ForEach-Object { [string] $_.RunIn } | Sort-Object -Unique) | Should -Be @('FullOS')
+    }
+
+    It 'names them as MDT names its own two instances, in <Name>' -ForEach $script:HDTSample {
+        # An administrator arriving from Workbench is looking for these words.
+        # Read from MDT's own Templates\Client.xml on this host rather than
+        # remembered: <step name="Windows Update (Pre-Application Installation)"
+        # disable="true" continueOnError="true">, and the same for the Post one.
+        $name = @((Import-HDTSequenceDocument -Path $Path).Step |
+                Where-Object { $_.Type -eq 'WindowsUpdate' } | ForEach-Object { [string] $_.Name })
+
+        $name | Should -Be @('Windows Update (Pre-Application Installation)', 'Windows Update (Post-Application Installation)')
+    }
+
+    It 'leaves no commented-out WindowsUpdate step behind in <Name>' -ForEach $script:HDTSample {
+        # STD-CLIENT carried the step commented out with a note saying it was
+        # v2. A comment that is now wrong is worse than no comment: it is the
+        # file telling an administrator the feature does not exist.
+        $commented = @(Get-Content -LiteralPath $Path | Where-Object { $_ -match '^\s*#.*type:\s*WindowsUpdate' })
+
+        $commented -join ' | ' | Should -BeNullOrEmpty
+    }
+}
+
+Describe 'The shipped client template, which is the file every new workspace is seeded from' {
+
+    BeforeAll {
+        # CLAUDE.md's own table, first row: "client.yaml authored partitions
+        # with no drive letter and could not partition a disk. Templates were
+        # parsed and schema-checked; nothing ever PLANNED one." The samples are
+        # not a substitute for it - a technician who runs New-HDTWorkspace gets
+        # client.yaml, not STD-CLIENT.
+        $script:templatePath = Join-Path -Path $script:repoRoot -ChildPath 'src/Hephaestus/Templates/client.yaml'
+        $script:template = Import-HDTSequenceDocument -Path $script:templatePath
+    }
+
+    It 'still imports' {
+        { Import-HDTSequenceDocument -Path $script:templatePath } | Should -Not -Throw
+    }
+
+    It 'ships both Windows Update steps' {
+        @($script:template.Step | Where-Object { $_.Type -eq 'WindowsUpdate' }).Count | Should -Be 2
+    }
+
+    It 'ships them disabled, as MDT''s Client.xml does' {
+        # CHECKED RATHER THAN REMEMBERED: MDT's own Templates\Client.xml on this
+        # host ships both with disable="true". MEMORY, "HDT is a homage to MDT":
+        # when MDT and a fresh idea disagree about behaviour, build MDT's.
+        #
+        # And the reason stands on its own. A template that patched by default
+        # would send every new workspace's first deployment to Windows Update
+        # over the internet, unasked, on a bench where somebody was expecting
+        # the image's own patch level.
+        $step = @($script:template.Step | Where-Object { $_.Type -eq 'WindowsUpdate' })
+
+        @($step | ForEach-Object { [bool] $_.Disabled }) | Should -Be @($true, $true)
+    }
+
+    It 'brackets Install Applications with them' {
+        $step = @($script:template.Step)
+
+        $update = @($step | Where-Object { $_.Type -eq 'WindowsUpdate' } | ForEach-Object { [int] $_.Index })
+        $application = @($step | Where-Object { $_.Type -eq 'InstallApplications' } | ForEach-Object { [int] $_.Index })
+
+        @($application).Count | Should -Be 1
+        @($update | Where-Object { $_ -lt $application[0] }).Count | Should -Be 1
+        @($update | Where-Object { $_ -gt $application[0] }).Count | Should -Be 1
+    }
+
+    It 'points them at the HDTWSUSServer variable rather than at a server' {
+        $step = @($script:template.Step | Where-Object { $_.Type -eq 'WindowsUpdate' })
+
+        @($step | ForEach-Object { [string] $_.Property['server'] } | Sort-Object -Unique) |
+            Should -Be @('%HDTWSUSServer%')
+    }
+}
+
+Describe 'No document still calls the step deferred' {
+
+    # THE DEFERRAL HISTORY IS KEPT, NOT DELETED - a line saying it was deferred
+    # on one date and BUILT on another is the record this repository wants. What
+    # must not survive is a line still telling a reader, in the present tense,
+    # that the step does not exist.
+    It 'says nothing in <Name> about WindowsUpdate being deferred or unbuilt' -ForEach @(
+        @{ Name = 'docs/DESIGN.md' }
+        @{ Name = 'docs/ROADMAP.md' }
+        @{ Name = 'samples/workspace/TaskSequences/STD-CLIENT/sequence.yaml' }
+        @{ Name = 'samples/workspace/TaskSequences/STD-SERVER/sequence.yaml' }
+        @{ Name = 'src/Hephaestus/Templates/client.yaml' }
+    ) {
+        $repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
+        $line = @(Get-Content -LiteralPath (Join-Path -Path $repoRoot -ChildPath $Name))
+
+        # BOTH SPELLINGS OF THE NAME. The type is 'WindowsUpdate' and the
+        # section heading is '10.1 Windows Update', and the heading is where the
+        # DEFERRED TO v2 marker lived - so a filter on the type name alone would
+        # have read straight past it.
+        # THE HISTORY MAY STAY, AND ON THE SAME LINE IT MUST SAY SO. A sentence
+        # recording that the step was deferred on one date and BUILT on another
+        # is the record this repository wants - the deferral is why the section
+        # reads the way it does. What must not survive is a line that stops at
+        # the deferral, because a reader who lands on that line alone is being
+        # told, in the present tense, that the feature does not exist.
+        $stale = @($line | Where-Object {
+                $_ -match '(?i)(WindowsUpdate|10\.1 Windows Update)' -and
+                $_ -match '(?i)(deferred to v2|is v2\b|scheduled out|not built|does not exist|when the step type ships|no .WindowsUpdate. step)' -and
+                $_ -notmatch '(?i)(built on|built in|came back|~~)'
+            })
+
+        $stale -join ' | ' | Should -BeNullOrEmpty -Because 'the step is built, and a document saying otherwise is the repository telling an administrator a feature is missing'
     }
 }

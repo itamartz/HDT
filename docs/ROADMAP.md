@@ -1,4 +1,4 @@
-# HDT Roadmap
+﻿# HDT Roadmap
 
 Companion to [DESIGN.md](DESIGN.md). Milestones are ordered by **dependency and
 risk**, not by feature appeal — the parts most likely to invalidate the design
@@ -634,22 +634,56 @@ records, which say which `.inf` answered which id and at what rank.
   is, an unattended domain join needs `HDTDomainAdminPassword` set in the leg
   that runs the step.
 - Server task sequence in `samples/`.
-- **`WindowsUpdate` is deferred to v2** — see below.
+- ~~**`WindowsUpdate` is deferred to v2**~~ — **built on 2026-09-06**; see below.
 
-### Deferred out of M6 to v2
+### Deferred out of M6 on 2026-08-16, built on 2026-09-06
 
 **`WindowsUpdate`** (DESIGN §10.1): WUA COM API, WSUS target, category and
-exclusion filters, multi-pass loop with reboots. **Scheduled out of v1 at the
-user's direction on 2026-08-16; the design section stays in full.**
+exclusion filters, multi-pass loop with reboots. Scheduled out of v1 at the
+user's direction on 2026-08-16 and built in phase 08 once a real WSUS server
+existed in the lab (`HDT-WSUS-01`).
 
-What deferring it costs, stated so it is not discovered later: **a machine HDT
-builds leaves the bench with exactly the patches its source image carried.**
-There is no in-sequence patching, so currency is whatever the media has plus
-whatever Windows Update does on its own schedule after the technician hands the
-machine over. The sample sequences do not run it, and DESIGN §10.1's "run it
-twice, once before applications and once after" describes v2. Nothing in v1 is
-built in a way that assumes the step is absent: it is a step type like any other,
-and adding it later adds files rather than changing them.
+**What deferring it cost is kept here rather than deleted**, because it is the
+whole argument for the step: while it was true, a machine HDT built left the
+bench with exactly the patches its source image carried. There was no
+in-sequence patching, so currency was whatever the media had plus whatever
+Windows Update did on its own schedule after the technician handed the machine
+over. The sample sequences did not run it, and DESIGN §10.1's "run it twice,
+once before applications and once after" described something that did not exist.
+
+The last sentence of that paragraph turned out to be the accurate one: nothing
+in v1 was built in a way that assumed the step was absent, and adding it added
+files rather than changing them. `Start-HDTResume` gained one service, the
+sequence importer gained a refusal that walks a set rather than naming a type,
+and no step that already ran was touched.
+
+**Tests first, as they were actually written** (phase 08-01, four plans):
+
+- `IUpdateSessionService` asserted over a hand-written fake and the real
+  `Microsoft.Update.Session` adapter by ONE contract file, with the real row
+  skipped at discovery on a WUA-presence predicate — so the shape is proven
+  identical on a machine that has an update agent and on one that does not.
+- The **authoring-time refusal**: a full-OS-only step in a WinPE group is
+  rejected by `Import-HDTSequenceDocument`'s FLATTENER, not its validator,
+  because only the flattener knows a step's INHERITED `runIn`. The importer
+  carries no `'WindowsUpdate'` literal and a test asserts that.
+- The four filters as **pure decision helpers** — KB extraction, exclusion
+  matching, classification selection, result-code naming — each returning a
+  REASON for every row, so the log can answer "why did this machine not get
+  that patch".
+- The **multi-pass loop**: a checkpointed pass counter, so `maxPasses` bounds
+  the step across reboot legs rather than being reset by the resume; both
+  reboot questions asked (`RebootRequired` on the session, `RebootRequired` on
+  the install result); and `-Reenter` on the resume, so pass two is pass two.
+- **Every authoring surface, proven against the SET**: a template, a
+  description, a console catalog row, four properties rows reading their closed
+  set from `Get-HDTStepPropertyChoice`, both manifest exports, the schema
+  fixture, and the step contract's list. The set walk found a second defect
+  while it was there — `Gather` had been offered under Custom since it
+  shipped.
+- The **E2E**: a VM deployed by HDT, patched against `HDT-WSUS-01` whose 599
+  synced updates are staged down to exactly two approved, and asked what build
+  it came back on.
 
 **No Windows Server VM in the E2E matrix** either. `InstallRoles` still ships and
 still gets a server sample sequence; only the Hyper-V leg is scheduled out.
