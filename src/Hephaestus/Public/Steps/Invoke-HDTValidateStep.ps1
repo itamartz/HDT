@@ -14,6 +14,20 @@ function Invoke-HDTValidateStep {
                 requireUefi: true                    # optional
                 diskNumber: 0                        # optional
                 requireVariable: [HDTComputerName]   # optional
+                imageVersion: '10.0.26100'           # optional, REFRESH only
+                imageSizeMB: 5200                    # optional, REFRESH only
+                allowOtherPartition: false           # optional, REFRESH only
+
+            THREE OF THEM RUN ONLY ON A REFRESH, and they are MDT's
+            ZTIValidate.wsf guards under HDT's own names: the downgrade refusal
+            (:138-146), the partition-match refusal (:151-154) and the free-space
+            refusal (:231-256). On a NEWCOMPUTER run every one is reported
+            'skipped' with the reason, because a bare-metal deployment
+            repartitions the disk - the volume they measure does not survive to
+            be measured - and it lays Windows onto a machine that may carry none.
+            MDT draws the line in the same place and skips the same three. The
+            block near the end of this function says what each refuses and why it
+            has to refuse HERE rather than later.
 
             IT RUNS Select-HDTTargetDisk WITH THE ARGUMENTS DiskPartition WILL
             USE, and that is the reason the step exists. A deployment that is
@@ -99,7 +113,10 @@ function Invoke-HDTValidateStep {
 
         .PARAMETER Context
             A New-HDTExecutionContext context. Its Service catalog must carry a
-            Disk service.
+            Disk service, and an Environment service on a REFRESH run - that is
+            where SystemDrive is read from, which is how the partition-match
+            guard knows which volume the machine is running from without touching
+            hardware.
 
         .OUTPUTS
             A New-HDTStepResult. Data carries check - one structured row per
@@ -191,6 +208,13 @@ function Invoke-HDTValidateStep {
         $requireUefi = Get-HDTStepProperty -Step $Step -Name 'requireUefi' -Default $false -Context $Context -Expand -As Bool
         $requireVariable = Get-HDTStepProperty -Step $Step -Name 'requireVariable'
         $minimumTpmVersion = Get-HDTStepProperty -Step $Step -Name 'minTpmVersion' -Context $Context -Expand
+
+        # THE THREE A REFRESH RUNS. See the block near the end of this function
+        # for what each one refuses and why it has to refuse here.
+        $imageVersion = Get-HDTStepProperty -Step $Step -Name 'imageVersion' -Context $Context -Expand
+        $imageSizeMb = Get-HDTStepProperty -Step $Step -Name 'imageSizeMB' -Context $Context -Expand -As Long
+        $allowOtherPartition = Get-HDTStepProperty -Step $Step -Name 'allowOtherPartition' -Default $false `
+            -Context $Context -Expand -As Bool
     } catch {
         $message = [string] $_.Exception.Message
 
@@ -350,6 +374,56 @@ function Invoke-HDTValidateStep {
         & $addCheck 'required variables' 'requireVariable' 'none declared' 'not declared' 'skipped' ''
     }
 
+    # -- what kind of run this is, and it decides the whole disk block -------
+    #
+    # READ BEFORE THE DISKS RATHER THAN BESIDE THE THREE REFRESH GUARDS FURTHER
+    # DOWN, because the disk-size check is the FIRST thing that has to know.
+    $deploymentType = ([string] (& $lookup 'HDTDeploymentType')).Trim()
+    $isRefresh = ($deploymentType -eq 'REFRESH')
+
+    $deploymentTypeText = $deploymentType
+    if ([string]::IsNullOrWhiteSpace($deploymentTypeText)) { $deploymentTypeText = 'not recorded' }
+
+    # A REFRESH DOES NOT CHOOSE A DISK, AND ASKING IT TO REFUSED EVERY REFRESH
+    # THERE HAS EVER BEEN.
+    #
+    # Get-HDTTargetDiskAssessment's first rule is absolute and not overridable:
+    # "disk N is the disk this machine booted from". That is exactly right for a
+    # bare-metal run, where the boot disk is the WinPE stick somebody plugged in
+    # and putting Windows on it is never the intent - and exactly backwards for a
+    # Refresh, where the disk this machine booted from IS the one being replaced.
+    # A Refresh reuses the partition table Windows was already booting from; it
+    # has no DiskPartition step and nothing to select a disk FOR.
+    #
+    # SO THE ROWS ARE REPORTED SKIPPED WITH THE REASON rather than passed
+    # quietly, which is the mirror image of what the three Refresh-only guards
+    # below do on a NEWCOMPUTER run - and for the mirror-image cause. A check
+    # absent from the log and a check that passed look identical a week later, on
+    # a machine nobody can touch.
+    #
+    # minDiskGB IS ONE OF THOSE ROWS, and it is here rather than left to pass
+    # because it is the same question in a different sentence: it is the SIZE
+    # FLOOR the disk choice applies, so on a run that chooses no disk it is a
+    # bound on nothing. Left live it refuses a Refresh of a machine whose disk is
+    # smaller than a floor that was never going to select anything - a refusal
+    # about a disk the run was never going to use. refresh.yaml omits the key and
+    # says why, which protects the template and nobody else: the console's
+    # Validate page offers every check on every sequence, so an administrator can
+    # tick "Ensure minimum disk size" onto a Refresh in two clicks and the ENGINE
+    # is what has to be right about it.
+    #
+    # WHICH RUN EACH CHECK BELONGS TO IS THE Scope COLUMN on
+    # Get-HDTValidateCheckDefinition - 'NEWCOMPUTER' for these two, 'REFRESH' for
+    # the three guards below - so the table that declares the checks is the table
+    # that says who runs them, and the two cannot disagree.
+    #
+    # WHAT GOVERNS A REFRESH'S TARGET INSTEAD IS ALREADY IN THIS STEP: the
+    # partition-match guard, which refuses any volume that is not the one this
+    # machine is running from unless allowOtherPartition says the difference is
+    # deliberate, and the free-space guard, which measures the volume being
+    # replaced. The target is not chosen here; it is CHECKED there.
+    $notATargetChoice = ('this run is a REFRESH, which reuses the disk this machine was already booting from rather than choosing one. The volume it replaces is checked by the Refresh partition-match and free-space guards instead.')
+
     # -- the disks --------------------------------------------------------
 
     # THE 60 GB FLOOR IS IN FORCE WHETHER OR NOT THE SEQUENCE ASKED FOR IT,
@@ -386,7 +460,11 @@ function Invoke-HDTValidateStep {
     $largestText = 'no disk'
     if ($diskRow.Count -gt 0) { $largestText = 'largest is {0}' -f (& $sizeText $largest) }
 
-    if ($sizeIsDeclared) {
+    if ($isRefresh) {
+        # SKIPPED WITH THE REASON, LIKE ITS NEIGHBOURS. See the block above for
+        # why a size floor on the disk CHOICE is a bound on nothing here.
+        & $addCheck 'disk size' 'minDiskGB' $largestText 'not applicable' 'skipped' $notATargetChoice
+    } elseif ($sizeIsDeclared) {
         $bigEnough = @($diskRow | Where-Object { [long] $_.SizeBytes -ge $minimumSizeByte })
 
         $sizeReason = ''
@@ -406,6 +484,26 @@ function Invoke-HDTValidateStep {
         & $addCheck 'disk size' 'minDiskGB' $largestText ('minimum {0}' -f $minimumText) $sizeResult $sizeReason
     } else {
         & $addCheck 'disk size' 'minDiskGB' $largestText ('minimum {0} (default)' -f $minimumText) 'skipped' ''
+    }
+
+    # THE PER-DISK ROWS AND THE TARGET-DISK ROW, on the same terms as the
+    # disk-size row above. $isRefresh, $deploymentTypeText and $notATargetChoice
+    # are derived ahead of the disk block, because that block is now the first
+    # thing that has to know.
+    if ($isRefresh) {
+        foreach ($row in @($diskRow)) {
+            $descriptor = @(
+                (& $sizeText ([long] $row.SizeBytes))
+                ([string] $row.BusType).Trim()
+                ([string] $row.PartitionStyle).Trim()
+            )
+
+            & $addCheck ('disk {0}' -f [int] $row.Number) '' `
+                (($descriptor | Where-Object { $_.Length -gt 0 }) -join ', ') `
+                'not applicable' 'skipped' $notATargetChoice
+        }
+
+        & $addCheck 'target disk' 'diskNumber' 'not applicable' 'not applicable' 'skipped' $notATargetChoice
     }
 
     # The same call DiskPartition will make, with the same guards, so a machine
@@ -452,31 +550,44 @@ function Invoke-HDTValidateStep {
         AllowExistingData  = $true
     }
 
-    $assessment = @(Get-HDTTargetDiskAssessment @assessmentArgument)
+    # ON A REFRESH THE WHOLE EVALUATION IS SKIPPED, rows and all - the block
+    # above has already reported why. Running it and discarding the answer would
+    # still put "disk 0 is the disk this machine booted from" into the log of a
+    # run for which that is not an exclusion but the target.
+    $assessment = @()
+    if (-not $isRefresh) {
+        $assessment = @(Get-HDTTargetDiskAssessment @assessmentArgument)
+    }
 
     $selected = $null
     $selectWarning = $null
 
-    try {
-        # THE WARNING IS CAPTURED, NOT DISCARDED. Select-HDTTargetDisk warns when
-        # naming a disk overrode a rule that would have excluded it - "disk 1 is
-        # a USB disk, and was used anyway because the sequence named it" - and
-        # this step used to swallow it whole with -WarningAction alone. An
-        # overridden safety rule is the definition of worth recording.
-        $target = Select-HDTTargetDisk @selectArgument -WarningVariable selectWarning -WarningAction SilentlyContinue
-        $selected = [int] $target.Number
-        $data['diskNumber'] = $selected
-    } catch {
-        $errorId = ([string] $_.FullyQualifiedErrorId).Split(',')[0]
-        $data['errorId'] = $errorId
+    # ON A REFRESH THERE IS NOTHING TO SELECT AND NOTHING TO REFUSE. The block
+    # above has already reported the rows as skipped, and the Refresh
+    # partition-match guard further down is what checks this run's target.
+    if (-not $isRefresh) {
+        try {
+            # THE WARNING IS CAPTURED, NOT DISCARDED. Select-HDTTargetDisk warns
+            # when naming a disk overrode a rule that would have excluded it -
+            # "disk 1 is a USB disk, and was used anyway because the sequence
+            # named it" - and this step used to swallow it whole with
+            # -WarningAction alone. An overridden safety rule is the definition
+            # of worth recording.
+            $target = Select-HDTTargetDisk @selectArgument -WarningVariable selectWarning -WarningAction SilentlyContinue
+            $selected = [int] $target.Number
+            $data['diskNumber'] = $selected
+        } catch {
+            $errorId = ([string] $_.FullyQualifiedErrorId).Split(',')[0]
+            $data['errorId'] = $errorId
 
-        [void] $failure.Add([string] $_.Exception.Message)
-    }
+            [void] $failure.Add([string] $_.Exception.Message)
+        }
 
-    foreach ($record in @($selectWarning)) {
-        if ($null -eq $record) { continue }
+        foreach ($record in @($selectWarning)) {
+            if ($null -eq $record) { continue }
 
-        [void] $advisory.Add([string] $record)
+            [void] $advisory.Add([string] $record)
+        }
     }
 
     # -- one row per disk, and the rule that excluded each ------------------
@@ -527,11 +638,16 @@ function Invoke-HDTValidateStep {
         $targetThreshold = 'disk {0}, named by the sequence' -f [int] $diskNumber
     }
 
-    if ($null -ne $selected) {
-        & $addCheck 'target disk' 'diskNumber' ('disk {0}' -f $selected) $targetThreshold 'pass' ''
-    } else {
-        & $addCheck 'target disk' 'diskNumber' 'none' $targetThreshold 'fail' `
-            'no disk on this machine could be chosen as the deployment target'
+    # THE REFRESH ROW WAS ALREADY WRITTEN, further up and as a skip. Writing a
+    # second one here would put two verdicts for one check into the log, and the
+    # later of them would say 'fail' about a choice this run never made.
+    if (-not $isRefresh) {
+        if ($null -ne $selected) {
+            & $addCheck 'target disk' 'diskNumber' ('disk {0}' -f $selected) $targetThreshold 'pass' ''
+        } else {
+            & $addCheck 'target disk' 'diskNumber' 'none' $targetThreshold 'fail' `
+                'no disk on this machine could be chosen as the deployment target'
+        }
     }
 
     # -- headroom, which is a warning and never a refusal -------------------
@@ -554,6 +670,284 @@ function Invoke-HDTValidateStep {
                         $selected, $minimumText, (& $sizeText $headroom)))
             }
         }
+    }
+
+    # -- the three guards a Refresh runs, and a NEWCOMPUTER never does -------
+    #
+    # MDT'S ZTIValidate REFRESH CHECKS, UNDER HDT'S OWN NAMES: the downgrade
+    # refusal (:138-146, 9808), the partition-match refusal (:151-154, 9809) and
+    # the free-space refusal (:231-256, 9807). All three are REFRESH-only there
+    # and all three are REFRESH-only here.
+    #
+    # THEY ARE IN THE PRE-FLIGHT BECAUSE THE PRE-FLIGHT IS WHAT RUNS FIRST, and
+    # every one of them is worthless a moment later. A Refresh empties the OS
+    # volume before it applies the image (CleanVolume), so a machine that cannot
+    # fit the image, or is about to be rolled back to an older Windows, or is
+    # about to have its image written to a volume it is not booting from, has to
+    # be told while its installation is still there. That is the same argument
+    # this step already makes for the target-disk check, and it is why these are
+    # three more checks here rather than a step type of their own - a guard in a
+    # step an author can leave out of a sequence is a guard that is not there.
+    #
+    # WHY NONE OF THEM MAY FIRE ON A NEWCOMPUTER RUN, which MDT states as
+    # `Case "NEWCOMPUTER"` doing nothing but logging "Assuming that the drive has
+    # enough disk space (once cleaned)": a bare-metal run REPARTITIONS the disk,
+    # so the volume the free-space check measures does not survive to be
+    # measured and the partition it is asked to match is about to stop existing;
+    # and it lays Windows onto a machine that may carry no Windows at all, so
+    # there is no current version for an image to be older than.
+    #
+    # THE SCOPE COMES OUT OF Get-HDTValidateCheckDefinition rather than being
+    # decided here, so the table that declares the checks is also the table that
+    # says which run they belong to, and the two cannot disagree.
+
+    # DERIVED FURTHER UP NOW, because the target-disk block above needs it too.
+    # Left here as a comment rather than deleted, so a reader looking for where
+    # the Refresh guards get their answer finds the trail.
+
+    # THE MDT CITATION STAYS IN THE COMMENT ABOVE AND OUT OF THIS SENTENCE. The
+    # no-MDT contract scans strings and not comments, which is exactly the right
+    # line: a comment is where this code came from, a string is something HDT
+    # SAYS - and an administrator reading a Refresh log does not need the name of
+    # a script from the product this one replaces.
+    $notARefresh = ('this run is a {0} deployment and this check belongs to a REFRESH. A NEWCOMPUTER run repartitions the disk, so the volume this measures does not survive to be measured, and it lays Windows onto a machine that may carry none at all.' -f
+        $deploymentTypeText)
+
+    # -- which volume, and which volume this machine is running from ---------
+    #
+    # BOTH GUARDS RESOLVE THE TARGET ONCE, HERE, so the partition check and the
+    # free-space check cannot end up talking about different volumes.
+    #
+    # A REFRESH HAS NO DiskPartition STEP - M9 keeps it out deliberately, because
+    # repartitioning would destroy the staged WinPE the second leg boots from -
+    # so nothing has published HDTOSVolume by the time this runs. MDT has the
+    # same gap and fills it the same way: GetOSDDestinationDrive pins the
+    # destination to SystemDrive for a Refresh (ZTIUtility.vbs:3586-3593). So an
+    # unset HDTOSVolume is not a refusal; it is the ordinary case, and it
+    # resolves to the volume the engine is running from.
+    #
+    # SystemDrive COMES OFF IEnvironmentProvider, never off $env:. That is the
+    # same read Assert-HDTCleanVolumeTarget makes for the same fact, so the
+    # pre-flight and the step that empties the volume cannot disagree about which
+    # volume this machine is on - and it is why all of this is provable against
+    # a hand-written fake with no machine attached.
+
+    $runningLetter = ''
+    $targetLetter = ''
+    $targetRefusal = ''
+
+    if ($isRefresh) {
+        try {
+            $environmentService = $Context.Service.GetRequired('Environment', 'Validate')
+            $runningLetter = ([string] $environmentService.GetVariable('SystemDrive')).Trim().TrimEnd('\', '/').TrimEnd(':')
+        } catch {
+            $runningLetter = ''
+            $targetRefusal = [string] $_.Exception.Message
+        }
+
+        $named = ([string] (& $lookup 'HDTOSVolume')).Trim().TrimEnd('\', '/').TrimEnd(':')
+
+        $targetLetter = $named
+        if ($targetLetter.Length -eq 0) { $targetLetter = $runningLetter }
+    }
+
+    $targetText = 'not resolved'
+    if ($targetLetter -match '^[A-Za-z]$') { $targetText = '{0}:\' -f $targetLetter.ToUpperInvariant() }
+
+    $runningText = 'not reported'
+    if ($runningLetter -match '^[A-Za-z]$') { $runningText = '{0}:\' -f $runningLetter.ToUpperInvariant() }
+
+    # -- the downgrade refusal (ZTIValidate.wsf:138-146, MDT 9808) -----------
+    #
+    # HDT COMPARES THE BUILD AND MDT DOES NOT, AND THAT IS A DELIBERATE
+    # DIVERGENCE FROM A CHECK THAT NO LONGER WORKS. ZTIValidate runs
+    # GetMajorMinorVersion over both sides and compares major and minor only -
+    # and every Windows since Windows 10 reports 10.0, Windows 11 included. So
+    # MDT's downgrade refusal cannot fire on any supported operating system and
+    # has not been able to since 2015. The build is the only component that
+    # moves, so the build is what this compares.
+
+    $currentVersionText = ([string] (& $lookup 'HDTOSCurrentVersion')).Trim()
+    $imageVersionText = ([string] $imageVersion).Trim()
+
+    $observedVersion = $imageVersionText
+    if ($observedVersion.Length -eq 0) { $observedVersion = 'not declared' }
+
+    $versionThreshold = 'not declared'
+    if ($currentVersionText.Length -gt 0) {
+        $versionThreshold = 'not older than {0}, which is on the machine now' -f $currentVersionText
+    }
+
+    if (-not $isRefresh) {
+        & $addCheck 'Refresh downgrade' 'imageVersion' $observedVersion $versionThreshold 'skipped' $notARefresh
+    } elseif ($imageVersionText.Length -eq 0) {
+        # MDT'S OWN BEHAVIOUR, AND ITS OWN WORDS: "ImageBuild could not be
+        # determined, assuming ConfigMgr deployment", and it carries on. A
+        # sequence that has not said what it is applying cannot be told that the
+        # answer is wrong, and refusing here would refuse every sequence that
+        # simply does not declare it.
+        & $addCheck 'Refresh downgrade' 'imageVersion' 'not declared' $versionThreshold 'skipped' `
+            'this sequence does not declare imageVersion, so there is nothing to compare the running Windows against. Declare the version this sequence applies - 10.0.26100, say - to have a Refresh onto an older build refused.'
+    } else {
+        $versionReason = ''
+        $versionResult = 'pass'
+        $onMachine = $null
+        $inImage = $null
+
+        if ($currentVersionText.Length -eq 0) {
+            $versionResult = 'fail'
+            $versionReason = 'this machine did not report which Windows it is running, so a Refresh onto {0} cannot be shown not to be a downgrade. HDTOSCurrentVersion is gathered from Win32_OperatingSystem before the sequence begins; run the Gather step ahead of this one, or deploy this machine as a NEWCOMPUTER run, which does not ask the question.' -f $imageVersionText
+        } elseif (-not [version]::TryParse($currentVersionText, [ref] $onMachine)) {
+            $versionResult = 'fail'
+            $versionReason = "HDTOSCurrentVersion is '{0}', which is not a version number, so it cannot be compared with the image's {1}." -f $currentVersionText, $imageVersionText
+        } elseif (-not [version]::TryParse($imageVersionText, [ref] $inImage)) {
+            $versionResult = 'fail'
+            $versionReason = "imageVersion is '{0}', which is not a version number. Declare the version the image carries, such as 10.0.26100." -f $imageVersionText
+        } elseif ($inImage -lt $onMachine) {
+            $versionResult = 'fail'
+            $versionReason = 'this machine is running Windows {0} and this sequence applies {1}, which is older. A Refresh cannot roll an installation back to an earlier build of Windows - Setup refuses the downgrade, and the machine has already had its volume emptied by the time it does. Point the sequence at an image of {0} or later, or deploy this machine as a NEWCOMPUTER run from boot media or PXE, which replaces the installation outright.' -f
+            $currentVersionText, $imageVersionText
+        }
+
+        if ($versionResult -eq 'fail') { [void] $failure.Add($versionReason) }
+
+        & $addCheck 'Refresh downgrade' 'imageVersion' $observedVersion $versionThreshold $versionResult $versionReason
+    }
+
+    # -- the partition-match refusal (ZTIValidate.wsf:151-154, MDT 9809) -----
+    #
+    # A REFRESH REPLACES THE INSTALLATION IT STARTED FROM. Applying the image to
+    # a different volume leaves the machine still booting the old Windows with a
+    # second, unreferenced installation beside it - which looks like a deployment
+    # that worked until somebody reboots.
+    #
+    # THE OVERRIDE IS A DECLARATION ON THE STEP, NOT A MAGIC STRING IN A
+    # VARIABLE. MDT spells it DestinationOSRefresh=OKTOUSEOTHERDISKANDPARTITION;
+    # that literal is an MDT artefact and PROJECT rule 4 keeps it out. The
+    # CAPABILITY is real, so it survives as `allowOtherPartition: true` on the
+    # step that enforces it - the same shape as DiskPartition's `wipe: true`,
+    # where a step that may do something irreversible has to say so out loud. It
+    # still expands a %Variable%, so a site that wants the decision made
+    # per-machine by a rule can still have that.
+    #
+    # AND AN OVERRIDDEN SAFETY RULE IS NEVER SILENT. Select-HDTTargetDisk warns
+    # when naming a disk overrode a rule that would have excluded it; this warns
+    # for the same reason and in the same place.
+
+    $partitionThreshold = 'the volume this machine is running from'
+    if ($runningText -ne 'not reported') {
+        $partitionThreshold = 'the volume this machine is running from ({0})' -f $runningText
+    }
+
+    if (-not $isRefresh) {
+        & $addCheck 'Refresh target volume' 'allowOtherPartition' 'not applicable' $partitionThreshold 'skipped' $notARefresh
+    } else {
+        $partitionReason = ''
+        $partitionResult = 'pass'
+
+        if ($targetRefusal.Length -gt 0) {
+            $partitionResult = 'fail'
+            $partitionReason = 'this run cannot say which volume it is running from, so it cannot say that {0} is the installation being replaced: {1}' -f $targetText, $targetRefusal
+        } elseif ($runningLetter -notmatch '^[A-Za-z]$') {
+            $partitionResult = 'fail'
+            $partitionReason = "this run cannot say which volume it is running from - SystemDrive reported '{0}' - so a Refresh cannot establish that it is replacing the installation it started from." -f $runningText
+        } elseif ($targetLetter -notmatch '^[A-Za-z]$') {
+            $partitionResult = 'fail'
+            $partitionReason = "HDTOSVolume is '{0}', which is not a drive letter, so there is no volume for this Refresh to replace." -f (& $lookup 'HDTOSVolume')
+        } elseif ($targetLetter -ne $runningLetter) {
+            # -eq on strings is case-insensitive in PowerShell, which is the
+            # comparison a drive letter wants: 'c' and 'C' are one volume.
+            if ($allowOtherPartition) {
+                $partitionResult = 'warn'
+                $partitionReason = 'this Refresh applies to {0} and this machine is running from {1}. The sequence declares allowOtherPartition, so it proceeds - the machine will be left booting the installation on {1} unless something else changes the boot entry.' -f $targetText, $runningText
+
+                [void] $advisory.Add($partitionReason)
+            } else {
+                $partitionResult = 'fail'
+                $partitionReason = 'this Refresh would apply the image to {0}, and this machine is running Windows from {1}. A Refresh replaces the installation it started from; applying to another volume leaves the machine still booting {1}, with a second unreferenced Windows beside it. Deploy this machine as a NEWCOMPUTER run, which owns the whole disk - or set allowOtherPartition: true on this Validate step if writing to {0} is deliberate.' -f
+                $targetText, $runningText
+            }
+        }
+
+        if ($partitionResult -eq 'fail') { [void] $failure.Add($partitionReason) }
+
+        & $addCheck 'Refresh target volume' 'allowOtherPartition' $targetText $partitionThreshold $partitionResult $partitionReason
+    }
+
+    # -- the free-space refusal (ZTIValidate.wsf:231-256, MDT 9807) ----------
+    #
+    # MDT'S ARITHMETIC, KEPT: the image, plus 150 MB for WinPE and its logs, plus
+    # 3 GB for Windows Setup. The same two constants are already in this step's
+    # headroom advisory above, which is where they came from.
+    #
+    # IT MEASURES THE SIZE OF THE VOLUME AND NOT THE SPACE FREE ON IT, and that
+    # looks like a bug until you read MDT's own comment: "assuming most of the
+    # drive will be cleaned off before calling setup". In HDT that assumption is
+    # not an assumption but a step - CleanVolume empties the OS volume
+    # immediately before the image is applied - so free space is the wrong
+    # measure twice over. A check against it would refuse every machine that is
+    # full, which is very nearly the definition of a machine somebody wants to
+    # refresh.
+    #
+    # MDT SUBTRACTS 1 MB AS A ROUNDING GUARD and this does not: it divides
+    # integers and floors, so the answer is already the number of whole
+    # megabytes the volume holds.
+
+    $winPeReserveMb = [long] 150
+    $setupReserveMb = [long] 3072
+
+    $declaredImageMb = [long] 0
+    if ($null -ne $imageSizeMb -and $imageSizeMb -gt 0) { $declaredImageMb = [long] $imageSizeMb }
+
+    $neededMb = $declaredImageMb + $winPeReserveMb + $setupReserveMb
+
+    # THE BREAKDOWN IS IN THE THRESHOLD, not only in the refusal. A reader who
+    # sees "at least 8422 MB" and nothing else cannot tell which of the three
+    # terms to change, and the whole point of this step's enumeration is that the
+    # bound is knowable without failing it.
+    $spaceThreshold = 'at least {0} MB on the target volume: image {1} MB, plus {2} MB for WinPE and logs, plus {3} MB for Setup' -f
+    $neededMb, $declaredImageMb, $winPeReserveMb, $setupReserveMb
+    if (-not $isRefresh) {
+        & $addCheck 'Refresh free space' 'imageSizeMB' 'not applicable' $spaceThreshold 'skipped' $notARefresh
+    } else {
+        $spaceReason = ''
+        $spaceResult = 'pass'
+        $spaceObserved = 'not measured'
+
+        $targetVolume = @($volumeRow | Where-Object {
+                ([string] $_.DriveLetter).Trim().TrimEnd('\', '/').TrimEnd(':') -eq $targetLetter
+            })
+
+        if ($targetLetter -notmatch '^[A-Za-z]$') {
+            $spaceResult = 'fail'
+            $spaceReason = 'this Refresh has no target volume to measure, so it cannot be shown to have room for the image, WinPE and Setup.'
+        } elseif ($targetVolume.Count -eq 0) {
+            # A VOLUME THAT IS NOT THERE MEASURES AS NOTHING, and a check that
+            # measured nothing and passed would be the whole guard defeated by a
+            # drive letter that had moved.
+            $spaceResult = 'fail'
+            $present = 'none'
+            if (@($volumeRow).Count -gt 0) {
+                $present = (@($volumeRow | ForEach-Object { [string] $_.DriveLetter } |
+                            Where-Object { -not [string]::IsNullOrWhiteSpace($_) }) -join ', ')
+            }
+
+            $spaceReason = '{0} is not a volume on this machine, so the {1} MB this Refresh needs cannot be shown to be there. The lettered volumes this machine reports are: {2}.' -f
+            $targetText, $neededMb, $present
+        } else {
+            $totalMb = [long] [math]::Floor([double] ([long] $targetVolume[0].SizeBytes) / 1048576)
+            $spaceObserved = '{0} MB on {1}' -f $totalMb, $targetText
+
+            if ($totalMb -le $neededMb) {
+                $spaceResult = 'fail'
+                $spaceReason = 'insufficient space on {0} for a Refresh: the volume holds {1} MB and {2} MB is required. An additional {3} MB is needed. The requirement is the image ({4} MB), plus {5} MB for WinPE and its logs, plus {6} MB for Windows Setup. This is the SIZE of the volume and not the space free on it - a Refresh empties the volume before applying the image, so what is on it now does not matter. Make the volume larger, apply a smaller image, or deploy this machine as a NEWCOMPUTER run, which repartitions the disk.' -f
+                $targetText, $totalMb, $neededMb, ($neededMb - $totalMb), $declaredImageMb, $winPeReserveMb, $setupReserveMb
+            }
+        }
+
+        if ($spaceResult -eq 'fail') { [void] $failure.Add($spaceReason) }
+
+        & $addCheck 'Refresh free space' 'imageSizeMB' $spaceObserved $spaceThreshold $spaceResult $spaceReason
     }
 
     # -- the enumeration, one Debug line per row ----------------------------
