@@ -3481,3 +3481,71 @@ side).
 the ISO attached, so the last step of finishing with a lab VM is to eject it —
 otherwise the next person to rebuild a boot image gets a failure whose cause is
 a machine they are not thinking about and may not own.
+
+### S25 — an autologon armed before a Windows Update restart does not survive it ⚠ OPEN
+
+Date: 2026-09-06, two runs of `WSUS-UPDATE` on `HDT-M8-Wsus` against
+`HDT-WSUS-01` (`run-20260906-071705` and `run-20260906-082420`), found by the
+new `tests/e2e/WindowsUpdate.E2E.Tests.ps1`.
+
+**The first run found a different defect and it is fixed** (`d3bb29d`): a
+re-entrant LAST step armed no autologon at all, because the engine asked "does
+any step AFTER this one run in the full OS?" and over an empty set that is
+vacuously false. The e2e reproduced it verbatim on a boot image built before the
+fix, which is the evidence that its assertions are real rather than vacuous.
+
+**The second run, with the fix in the image, got further and stopped somewhere
+else.** The step armed the logon and wrote the resume entry:
+
+```
+Autologon armed for Administrator for 1 more leg(s)      file="WindowsUpdate"
+registry value 'HDTResume' under ...\RunOnce was written
+Run run-20260906-082420 ended RebootPending: 9 completed, 0 failed, 2 skipped
+```
+
+and then the machine came back and **sat at the logon screen for 39 minutes**.
+Asked over PowerShell Direct:
+
+```
+BUILD             26100.9168        <- the updates DID install
+RunOnce.HDTResume True              <- never consumed, so the engine never ran
+AutoAdminLogon    0                 <- cleared
+AutoLogonCount    (absent)          <- cleared
+DefaultPassword   (absent)          <- cleared
+DefaultUserName   Administrator     <- still set
+LastBootUpTime    08:50:55          <- restart was requested at 08:45:24
+```
+
+**What is certain:** the values the engine wrote at 08:45 were gone by the time
+anybody could log on at 08:50, `HDTResume` was never executed, and pass 2 never
+ran. The patching itself succeeded - this is a resume failure, not an update
+failure.
+
+**What is NOT yet established, and must not be guessed at in a fix:** WHY they
+were gone. Two candidates, and the evidence here does not separate them:
+
+1. **An intermediate boot consumed the single-use logon.** Winlogon deletes
+   `AutoAdminLogon`, `AutoLogonCount` and `DefaultPassword` once the count
+   reaches zero, and a cumulative update's finalisation phase can restart the
+   machine on its own. A logon that fired while the update was still finalising
+   would consume the arming without Explorer ever reaching RunOnce.
+2. **The update's finalisation reset the Winlogon values.** A cumulative update
+   services the SOFTWARE hive offline, and the pre-logon finalisation phase is
+   entitled to restore component defaults.
+
+The System log showed kernel boot events only at 08:50:25-08:50:55, which
+argues against (1) - but those are all after the update phase, and an
+intermediate restart during finalisation need not appear the way an ordinary
+boot does. **Settle this before changing the arming**, because the two causes
+have different fixes: (1) wants a larger `AutoLogonCount`, (2) wants the arming
+re-applied after the update rather than before it.
+
+**Why this matters beyond this step.** Every re-entrant step that restarts is
+exposed to it, but `WindowsUpdate` is the one that restarts THROUGH a servicing
+operation, and it is the only step whose restart is performed by something other
+than HDT. `Restart` steps are unaffected: nothing services the machine between
+the request and the boot.
+
+**The lab evidence is gone by design** - `Remove-HDTLabVirtualMachine` took
+`HDT-M8-Wsus` when the run was abandoned - but the two run logs survive under
+`Share\Logs\HDT-M8-WSUS01\`.

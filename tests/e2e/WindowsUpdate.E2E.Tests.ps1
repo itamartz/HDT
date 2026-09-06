@@ -297,6 +297,16 @@ variables:
         # image over SMB is minutes; downloading and installing a cumulative
         # update of the size WSUS holds for a whole product is most of an hour
         # on its own, and it happens twice over if a second pass finds anything.
+        # THE MOMENT BEFORE THE MACHINE STARTS, AND THE EVIDENCE MUST BE NEWER
+        # THAN IT. Share\Logs\<name>\ accumulates a directory per run and keeps
+        # them; picking "the newest" is right only in a lab where the previous
+        # run cleaned up after itself. An aborted run leaves its directory
+        # behind, and a run that never boots at all leaves none - at which point
+        # "the newest" is somebody else's evidence and every assertion below
+        # reads it as though it were this run's. That is the shape of a FALSE
+        # PASS, so the cutoff is recorded rather than trusted.
+        $script:startedUtc = (Get-Date).ToUniversalTime().AddSeconds(-30)
+
         $runStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
 
         Hyper-V\Start-VM -Name $script:vmName
@@ -316,8 +326,18 @@ variables:
         # -- the evidence, off the share ------------------------------------
         $logRoot = Join-Path -Path $script:shareRoot -ChildPath ('Logs\{0}' -f $script:computerName)
 
+        # NEWER THAN THE START, NOT MERELY NEWEST. See $script:startedUtc above:
+        # a leftover directory from an aborted run is otherwise indistinguishable
+        # from this run's, and reading one would make every assertion below a
+        # statement about a machine that is not the one under test.
         $runDir = @(Get-ChildItem -LiteralPath $logRoot -Directory -ErrorAction SilentlyContinue |
+                Where-Object { $_.LastWriteTime.ToUniversalTime() -ge $script:startedUtc } |
                 Sort-Object LastWriteTime -Descending)
+
+        if ($runDir.Count -eq 0) {
+            Write-Warning ("no run directory under {0} is newer than this run's start ({1:u}); the machine wrote no log, so the assertions below have nothing of THIS run to read." -f
+                $logRoot, $script:startedUtc)
+        }
 
         if ($runDir.Count -ge 1) {
             $script:runFolder = [string] $runDir[0].FullName
