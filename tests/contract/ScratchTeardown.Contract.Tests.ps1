@@ -48,6 +48,7 @@ BeforeAll {
         'C:\HDTLab\scratch\e2e-refdeploy'        # M7 captured-image deployment: HDT.jsonl, DEPLOYED-MARKER.txt, refdeploy-*.png
         'C:\HDTLab\scratch\e2e-refapp'           # M7 application round trip, leg 1: HDT.jsonl and refapp-*.png
         'C:\HDTLab\scratch\e2e-refdep'           # M7 application round trip, leg 2: HDT.jsonl and refdep-*.png
+        'C:\HDTLab\scratch\e2e-wsusupdate'       # WSUS patching: HDT.jsonl and wsus-*.png
     )
 }
 

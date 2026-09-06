@@ -1085,12 +1085,36 @@
                     $password = $recovered
                 }
 
-                $remainingLeg = 1
-                for ($ahead = $index + 1; $ahead -le $stepList.Count; $ahead++) {
-                    if ([string] $stepList[$ahead - 1].Type -eq 'Restart') {
-                        $remainingLeg++
-                    }
-                }
+                # HEADROOM, NOT A SCHEDULE, AND THE UNATTEND HAS ALWAYS AGREED.
+                #
+                # This used to be exactly the legs still ahead - one, plus a
+                # Restart step for each one left. The arithmetic was right and
+                # it was safe only while HDT CONTROLS EVERY BOOT, which stopped
+                # being true the moment a step restarted the machine THROUGH a
+                # servicing operation.
+                #
+                # SPIKES S25, on a real machine: the WindowsUpdate step armed
+                # one leg, the cumulative update installed, the machine
+                # restarted - and by the time anyone could log on the arming was
+                # gone. AutoAdminLogon 0, DefaultPassword absent,
+                # RunOnce\HDTResume never consumed, updates installed, sequence
+                # unfinished, machine sitting at the logon screen. Whether the
+                # update's finalisation spent the single logon or reset the
+                # values outright, a count of 1 could not survive it.
+                #
+                # 999 IS unattend.xml's OWN NUMBER. <LogonCount>999</LogonCount>
+                # arms the FIRST logon of every machine HDT deploys, for exactly
+                # this reason; the engine arming a tight count for every leg
+                # AFTER it was the inconsistency, not the fix.
+                # Invoke-HDTTaskSequence.Reboot.Tests.ps1 reads the number out of
+                # the template and asserts this matches, so the two cannot drift.
+                #
+                # AND THE COUNT WAS NEVER WHAT ENDS AUTOLOGON. Clear-HDTAutoLogon
+                # in the finally, plus the boot-time reconcile, is what ends it
+                # (DESIGN 4.5.4). The count is the backstop for a run that dies
+                # without reaching either - and a backstop that fires while the
+                # sequence is still running is not a backstop, it is this defect.
+                $remainingLeg = 999
 
                 $armArgument = @{
                     Registry     = $Context.Service.GetRequired('Registry', 'Restart')

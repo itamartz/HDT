@@ -3482,7 +3482,7 @@ the ISO attached, so the last step of finishing with a lab VM is to eject it —
 otherwise the next person to rebuild a boot image gets a failure whose cause is
 a machine they are not thinking about and may not own.
 
-### S25 — an autologon armed before a Windows Update restart does not survive it ⚠ OPEN
+### S25 — an autologon armed before a Windows Update restart does not survive it ✅ FIXED
 
 Date: 2026-09-06, two runs of `WSUS-UPDATE` on `HDT-M8-Wsus` against
 `HDT-WSUS-01` (`run-20260906-071705` and `run-20260906-082420`), found by the
@@ -3536,9 +3536,33 @@ were gone. Two candidates, and the evidence here does not separate them:
 The System log showed kernel boot events only at 08:50:25-08:50:55, which
 argues against (1) - but those are all after the update phase, and an
 intermediate restart during finalisation need not appear the way an ordinary
-boot does. **Settle this before changing the arming**, because the two causes
-have different fixes: (1) wants a larger `AutoLogonCount`, (2) wants the arming
-re-applied after the update rather than before it.
+boot does.
+
+**FIXED 2026-09-06, and the fix does not depend on which of the two it was.**
+The engine now arms **999**, which is what `unattend.xml` has always armed the
+FIRST logon of every deployed machine with:
+
+```xml
+<AutoLogon>
+  <Enabled>true</Enabled>
+  <LogonCount>999</LogonCount>
+```
+
+The tight count was the inconsistency, not the fix. It was computed as the
+Restart steps still ahead plus one, which is correct arithmetic and is safe
+only while HDT controls every boot - and the whole point of a step that
+restarts through a servicing operation is that it does not. Whether the update
+spent the logon on a finalisation boot or reset the values outright, headroom
+survives both; an exact count survives neither.
+
+**The count was never what ends autologon.** `Clear-HDTAutoLogon` in the
+`finally`, plus the boot-time reconcile, is what ends it (DESIGN 4.5.4). The
+count is the backstop for a run that dies without reaching either, and a
+backstop that expires while the sequence is still running is not a backstop.
+
+`Invoke-HDTTaskSequence.Reboot.Tests.ps1` reads `<LogonCount>` out of the
+template and asserts the engine arms the same number, so the two cannot drift
+apart again.
 
 **Why this matters beyond this step.** Every re-entrant step that restarts is
 exposed to it, but `WindowsUpdate` is the one that restarts THROUGH a servicing

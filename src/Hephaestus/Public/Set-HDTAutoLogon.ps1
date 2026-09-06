@@ -38,8 +38,22 @@
             the count before handing the session over: armed at 3, the three
             autologged sessions read 2, 1 and 0, and the fourth boot did not
             autologon at all. So n buys exactly n more autologons, with no
-            off-by-one. The caller computes it; 03-04 computes it as the number
-            of Restart steps left plus one.
+            off-by-one.
+
+            WHICH IS WHY THE CALLER NO LONGER PASSES THE LEGS IT HAS LEFT. It
+            used to: the number of Restart steps ahead, plus one. That is right
+            only while HDT controls every boot, and a step that restarts THROUGH
+            a servicing operation breaks it - the WindowsUpdate step armed one
+            leg, the cumulative update restarted the machine, and the arming was
+            gone before anyone could log on (SPIKES S25). Since 2026-09-06 the
+            caller passes 999, which is unattend.xml's own <LogonCount> for the
+            first logon of every machine HDT deploys.
+
+            THE COUNT IS A BACKSTOP AND NOT THE CONTROL. Clear-HDTAutoLogon in
+            the finally, plus the boot-time reconcile, is what ends autologon
+            (DESIGN 4.5.4). This number exists for the run that dies without
+            reaching either - and one that expires mid-sequence is not a
+            backstop, it is a defect.
 
             ARMING TWICE LEAVES WHAT ARMING ONCE LEFT. Every write is a set, not
             an append, so a run that re-arms before each Restart step - which is

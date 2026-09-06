@@ -211,18 +211,57 @@ Describe 'Invoke-HDTTaskSequence' {
 
     Context 'the count' {
 
-        It 'sets AutoLogonCount to one more than the Restart steps still ahead' {
+        # THE COUNT IS HEADROOM, NOT A SCHEDULE - changed 2026-09-06, and a
+        # deployment had to be stranded twice to earn the change.
+        #
+        # It used to be EXACTLY the legs still ahead: one more than the Restart
+        # steps left. That is correct arithmetic and it is only safe while HDT
+        # CONTROLS EVERY BOOT. A Windows Update restart does not play by that
+        # rule - the update's own finalisation gets to restart the machine, and
+        # whatever it does with the boot, the arming was gone by the time anyone
+        # could log on (SPIKES S25): AutoAdminLogon back to 0, DefaultPassword
+        # gone, RunOnce\HDTResume never consumed, and the machine sat at the
+        # logon screen with its updates installed and its sequence unfinished.
+        #
+        # THE UNATTEND HAS ALWAYS KNOWN THIS. unattend.xml arms the FIRST logon
+        # with <LogonCount>999</LogonCount>, for exactly this reason, and the
+        # engine arming a tight count afterwards was the inconsistency.
+        #
+        # THE COUNT WAS NEVER WHAT ENDS AUTOLOGON. Clear-HDTAutoLogon in the
+        # finally, plus the boot-time reconcile, is what ends it (DESIGN 4.5.4);
+        # the count is the backstop for a run that dies without either. A
+        # backstop that fires while the sequence is still going is not a
+        # backstop, it is the defect.
+        It 'arms a generous count rather than exactly the legs ahead' {
             $leg = & $script:runLeg $script:rebootYaml
 
-            # One more Restart after this one, so two more autologons.
-            $leg.Harness.Registry.GetValue($script:winlogonPath, 'AutoLogonCount') | Should -Be 2
-            $leg.Result.State.autoLogon.countSet | Should -Be 2
+            $leg.Harness.Registry.GetValue($script:winlogonPath, 'AutoLogonCount') | Should -Be 999
+            $leg.Result.State.autoLogon.countSet | Should -Be 999
         }
 
-        It 'sets it to 3 when two Restarts are still left' {
+        It 'arms the same count however many Restarts are left, because it is not a schedule' {
             $leg = & $script:runLeg $script:threeRestartYaml
 
-            $leg.Harness.Registry.GetValue($script:winlogonPath, 'AutoLogonCount') | Should -Be 3
+            $leg.Harness.Registry.GetValue($script:winlogonPath, 'AutoLogonCount') | Should -Be 999
+        }
+
+        # ONE NUMBER, TWO FILES, AND NEITHER MAY DRIFT. The unattend arms the
+        # first logon and the engine arms every one after it; a machine whose
+        # first logon is bounded at 999 and whose later legs are bounded at
+        # something else has two different promises about the same account.
+        It 'arms the count the unattend template arms the first logon with' {
+            $unattend = Join-Path -Path $script:repoRoot -ChildPath 'src/Hephaestus/Templates/unattend.xml'
+            Test-Path -LiteralPath $unattend -PathType Leaf | Should -BeTrue
+
+            $xml = [xml] ([System.IO.File]::ReadAllText($unattend))
+            $logonCount = @($xml.GetElementsByTagName('LogonCount')) |
+                ForEach-Object { [int] $_.InnerText } |
+                Select-Object -First 1
+
+            $logonCount | Should -Be 999 -Because 'the engine arms this number too; if the unattend changes, the engine must change with it'
+
+            $leg = & $script:runLeg $script:rebootYaml
+            $leg.Harness.Registry.GetValue($script:winlogonPath, 'AutoLogonCount') | Should -Be $logonCount
         }
 
         It 'writes it as a DWord, which is what Winlogon reads' {
@@ -231,28 +270,37 @@ Describe 'Invoke-HDTTaskSequence' {
             $leg.Harness.Registry.GetValueType($script:winlogonPath, 'AutoLogonCount') | Should -BeExactly 'DWord'
         }
 
-        It 'sets it to 1 on the last leg' {
+        It 'arms the same count on the last leg, which is where the tight count used to bite' {
+            # THE LAST LEG IS EXACTLY WHERE IT BROKE. A tight count arms 1 here,
+            # and 1 is enough only if the very next boot is the one that resumes.
+            # Put a servicing operation in between - a cumulative update
+            # finalising - and the single logon is spent before the engine ever
+            # sees a session (SPIKES S25).
             $first = & $script:runLeg $script:rebootYaml
             $state = $first.Result.State
             $state.leg = 2
 
             $second = & $script:runLeg $script:rebootYaml $state $first.Harness.FileSystem 'FullOS' $state.seq
 
-            $second.Harness.Registry.GetValue($script:winlogonPath, 'AutoLogonCount') | Should -Be 1
+            $second.Harness.Registry.GetValue($script:winlogonPath, 'AutoLogonCount') | Should -Be 999
         }
 
-        It 'refreshes the count on the second arm' {
+        It 'refreshes the count on the second arm rather than letting it run down' {
+            # THE REFRESH IS THE POINT, AND IT SURVIVES THE CHANGE. Every write
+            # is a SET, not an append, so re-arming before each restart puts the
+            # full headroom back however far Winlogon has decremented it since.
+            # What changed is the value, not the behaviour: it used to shrink
+            # towards the last leg, which is what made the last leg the fragile
+            # one.
             $first = & $script:runLeg $script:rebootYaml
-            $first.Harness.Registry.GetValue($script:winlogonPath, 'AutoLogonCount') | Should -Be 2
+            $first.Harness.Registry.GetValue($script:winlogonPath, 'AutoLogonCount') | Should -Be 999
 
             $state = $first.Result.State
             $state.leg = 2
             $second = & $script:runLeg $script:rebootYaml $state $first.Harness.FileSystem 'FullOS' $state.seq
 
-            # The same registry is not shared between harnesses, so the assertion
-            # is that the second arm wrote its own, smaller count.
-            $second.Harness.Registry.GetValue($script:winlogonPath, 'AutoLogonCount') | Should -Be 1
-            $second.Result.State.autoLogon.countSet | Should -Be 1
+            $second.Harness.Registry.GetValue($script:winlogonPath, 'AutoLogonCount') | Should -Be 999
+            $second.Result.State.autoLogon.countSet | Should -Be 999
         }
     }
 
@@ -480,11 +528,17 @@ steps:
                 Should -Be 2
         }
 
-        It 'counts down rather than accumulating' {
-            # One more Restart after the first, so two autologons; none after the
-            # second, so one. Arming twice leaves what arming once left.
-            $script:firstHarness.Registry.GetValue($script:winlogonPath, 'AutoLogonCount') | Should -Be 2
-            $script:secondHarness.Registry.GetValue($script:winlogonPath, 'AutoLogonCount') | Should -Be 1
+        It 'restores the same headroom on every arm rather than accumulating' {
+            # ARMING TWICE LEAVES WHAT ARMING ONCE LEFT - still true, and still
+            # the property worth asserting: every write is a set, so two arms do
+            # not stack up to 1998.
+            #
+            # It no longer counts DOWN. The count stopped being a schedule of the
+            # legs ahead on 2026-09-06: HDT does not control every boot, and a
+            # count that had run down to its last leg could not survive a
+            # cumulative update restarting the machine (SPIKES S25).
+            $script:firstHarness.Registry.GetValue($script:winlogonPath, 'AutoLogonCount') | Should -Be 999
+            $script:secondHarness.Registry.GetValue($script:winlogonPath, 'AutoLogonCount') | Should -Be 999
         }
 
         It 'keeps the rest of the Winlogon key across both arms' {
