@@ -47,7 +47,7 @@ Describe 'the DESIGN 4.4.2 event vocabulary' {
         $script:documented.Count | Should -BeGreaterThan 0 -Because 'DESIGN 4.4.2 has to list the vocabulary somewhere this test can read'
     }
 
-    It 'has twenty-four names in the engine' {
+    It 'has twenty-nine names in the engine' {
         # Fourteen until 2026-08-27, when ApplyDrivers added five driver.* events
         # and the console - which until that day wrote no log at all - added
         # three console.* ones. The number is asserted rather than derived on
@@ -89,7 +89,23 @@ Describe 'the DESIGN 4.4.2 event vocabulary' {
         # The number belongs HERE because this is the only file that also reads
         # DESIGN 4.4.2's table, so the count and the document that defines it are
         # checked in one place and cannot disagree.
-        $script:accepted.Count | Should -Be 24
+        #
+        # THE TWENTY-FIFTH TO TWENTY-NINTH ARE THE volume.* FAMILY, ADDED
+        # 2026-09-06 WITH M9's CleanVolume STEP - which had been writing every
+        # one of its records under the `message` default, because this test is
+        # the gate and the step landed before DESIGN 4.4.2 had a row for it.
+        # That is the tripwire working rather than failing: the step could not
+        # invent a name in a ValidateSet, so it wrote nothing the console or
+        # ConvertTo-HDTReport could select on until the document said what the
+        # names were.
+        #
+        # Five, for the reason drivers have five: the step DESTROYS the machine
+        # it runs on, and the question afterwards is what it took and what it
+        # left. volume.target, volume.clean, volume.delete, volume.preserve,
+        # volume.retry. There is deliberately no volume.fail - a clean that
+        # could not delete something makes the same claim every failed step
+        # makes, so it keeps step.fail.
+        $script:accepted.Count | Should -Be 29
     }
 
     It 'documents every name the engine accepts' {
