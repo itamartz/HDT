@@ -1,0 +1,184 @@
+# PATCH A DEPLOYED MACHINE FROM THE LAB'S OWN WSUS - the end-to-end proof of
+# the WindowsUpdate step (DESIGN 10.1).
+#
+# WHAT MAKES THIS SEQUENCE DIFFERENT FROM REF-DEPLOY IS ITS LAST STEP. Everything
+# above State Restore is an ordinary deployment, deliberately: a failure before
+# the last step is a failure of deployment, which four other e2e files already
+# cover, and this one exists to ask a question none of them ask.
+#
+# WHY IT DEPLOYS AN IMAGE RATHER THAN VENDOR MEDIA. REF-ACROBAT is the reference
+# image HDT captured on 2026-08-31, and it deploys at build 26100.1742 - months
+# behind. That gap is the instrument: an unpatched starting point is what makes
+# "the build number moved" mean something. Deploying current vendor media would
+# leave nothing for the server to offer and the step would correctly report
+# nothing applicable, which is indistinguishable from a broken step.
+#
+# ONE WindowsUpdate STEP, NOT TWO. DESIGN 10.1 says the step conventionally runs
+# twice - once before applications and once after - because installing an
+# application can pull in a component that then needs patching. There is no
+# InstallApplications step in this sequence at all, so there is nothing between
+# two runs to make the second find anything the first did not. The MULTI-PASS
+# behaviour that matters here is the one INSIDE the step, which loops until a
+# pass finds nothing applicable or maxPasses is reached.
+#
+# AND IT IS THE LAST STEP ON PURPOSE. That position is not incidental - it is
+# the regression this sequence guards. A re-entrant step in the last position
+# asks for a restart with nothing after it, and the engine used to answer "then
+# nothing needs a Windows session" and arm no autologon, stranding the run at
+# RebootPending with the patching already done and its log claiming every step
+# after it ran in WinPE - about a set with no steps in it. Fixed 2026-09-06;
+# moving this step away from the end would stop testing that.
+#
+# %Variable% AND $Variable ARE THE SAME THING to the engine, exactly as in
+# client.yaml: the PowerShell spelling in conditions, %Name% inside quoted
+# values.
+schemaVersion: 1
+id: WSUS-UPDATE
+name: Deploy the reference image and patch it from WSUS
+version: 1.0.0
+description: >
+  Deploys the REF-ACROBAT reference image to a bare machine, boots it into
+  Windows, and patches it online against the WSUS server %HDTWSUSServer% names.
+
+variables:
+  # THE UNPATCHED STARTING POINT. See the header: the gap between what this
+  # image carries and what the server offers is the measurement.
+  HDTOSImage: REF-ACROBAT
+  HDTOSImageIndex: 1
+
+steps:
+
+  # ------------------------------------------------------------ Initialization
+  - group: Initialization
+    runIn: WinPE
+    steps:
+      - name: Gather local only
+        type: Gather
+
+  # ---------------------------------------------------------------- Validation
+  - group: Validation
+    runIn: WinPE
+    steps:
+      # minRamMB is 2048 rather than 4096 because a 4 GB machine reports
+      # slightly under 4096 - the firmware keeps some of it.
+      - name: Validate
+        type: Validate
+        minRamMB: 2048
+        minDiskGB: 60
+
+  # ---------------------------------------------------------------- Preinstall
+  #
+  # THE PAIR, AND ONLY ONE OF THEM RUNS. A GPT disk on a BIOS machine fails
+  # after the image has been applied, which is late, expensive, and looks like a
+  # working deployment until the restart.
+  - group: Preinstall
+    runIn: WinPE
+    steps:
+      - name: Format and Partition Disk (UEFI)
+        type: DiskPartition
+        diskNumber: 0
+        wipe: true
+        condition: '$HDTIsUEFI -eq $true'
+        partition:
+          - name: System
+            type: EFI
+            size: 260MB
+            filesystem: FAT32
+          - name: Windows
+            type: Primary
+            size: remainder
+            filesystem: NTFS
+          - name: Recovery
+            type: Recovery
+            size: 1GB
+            filesystem: NTFS
+
+      - name: Format and Partition Disk (BIOS)
+        type: DiskPartition
+        diskNumber: 0
+        wipe: true
+        condition: '$HDTIsUEFI -eq $false'
+        partition:
+          - name: System
+            type: Primary
+            size: 500MB
+            filesystem: NTFS
+          - name: Windows
+            type: Primary
+            size: remainder
+            filesystem: NTFS
+
+  # ------------------------------------------------------------------- Install
+  - group: Install
+    runIn: WinPE
+    steps:
+      - name: Install Operating System
+        type: ApplyImage
+        os: "%HDTOSImage%"
+        index: "%HDTOSImageIndex%"
+        target: "%HDTOSVolume%"
+        timeoutMinutes: 60
+
+  # --------------------------------------------------------------- Postinstall
+  - group: Postinstall
+    runIn: WinPE
+    steps:
+      # BEFORE Apply Windows Settings: unattend.xml's DriverPaths are processed
+      # in the offlineServicing pass the moment ApplyUnattend applies the file,
+      # so the drivers have to be on the volume first (HDT 0.10.1).
+      - name: Inject Drivers
+        type: ApplyDrivers
+        group: 'Win11\%HDTMake%\%HDTModel%'
+        mode: all
+
+      - name: Apply Windows Settings
+        type: ApplyUnattend
+        template: unattend.xml
+
+      - name: Configure Boot
+        type: ConfigureBoot
+
+      - name: Install Certificates
+        type: InstallCertificate
+        target: "%HDTOSVolume%"
+        condition: "$HDTHasCertificate == True"
+
+      # THE HANDOVER. Everything above ran in WinPE; everything below runs in
+      # the Windows that is about to start for the first time.
+      - name: Restart into Windows
+        type: Restart
+
+  # ------------------------------------------------------------- State Restore
+  - group: State Restore
+    runIn: FullOS
+    steps:
+      # Tattoo FIRST, so the machine is identifiable even if patching then
+      # fails. An unpatched machine that says what built it is a machine
+      # somebody can fix; an unpatched one with no tattoo is a mystery.
+      - name: Tattoo
+        type: Tattoo
+
+      # THE STEP UNDER TEST.
+      #
+      # server IS %HDTWSUSServer% AND IT IS RESOLVED, NOT LITERAL. The lab sets
+      # it in rules.yaml's fallback rule to an ADDRESS rather than a name: the
+      # target holds a DHCP lease on the lab LAN and nothing guarantees it can
+      # resolve the server by name before it has patched. Unset would mean
+      # Microsoft Update, which would prove nothing about our server.
+      #
+      # continueOnError IS true, WHICH IS DESIGN 10.1'S RECOMMENDED DEFAULT and
+      # is NOT a way of making this test pass. Windows Update is the least
+      # predictable thing in a sequence, and a failed optional update should not
+      # scrap an otherwise good build. The assertions read what the step
+      # RECORDED rather than only whether the run went green, so a step that
+      # swallowed a failure would still be caught.
+      #
+      # maxPasses 3 BOUNDS THE STEP ACROSS LEGS, not the leg. The step
+      # checkpoints the passes it has completed into _HDTWindowsUpdatePass, so a
+      # machine cannot loop through the reboot forever.
+      - name: Windows Update
+        type: WindowsUpdate
+        server: "%HDTWSUSServer%"
+        categories: [SecurityUpdates, CriticalUpdates, UpdateRollups]
+        maxPasses: 3
+        continueOnError: true
