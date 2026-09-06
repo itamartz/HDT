@@ -3564,6 +3564,27 @@ backstop that expires while the sequence is still running is not a backstop.
 template and asserts the engine arms the same number, so the two cannot drift
 apart again.
 
+**PROVEN ON A MACHINE, 2026-09-06** - `run-20260906-185731`, the third run of
+`WSUS-UPDATE` on `HDT-M8-Wsus`, and the first time this step has ever finished:
+
+```
+(leg 1)  WinPE: deploy REF-ACROBAT
+(leg 2)  Autologon armed for Administrator for 999 more leg(s)
+         pass 1 of at most 3: the search returned 2 update(s); 2 applicable
+         pass 1 finished in 1012 second(s): 2 installed, 0 failed
+         ended RebootPending
+(leg 3)  pass 2 of at most 3: the search returned 0 update(s)
+         step 12 'Windows Update' completed
+         ended Succeeded
+```
+
+Leg 3 is the one that never happened before. `tests/e2e/WindowsUpdate.E2E.Tests.ps1`
+passed 17 of 17 against it in 1810 s.
+
+**So the multi-pass loop has now been exercised end to end**, which no fake could
+do: pass 2 exists only if a machine rebooted through a servicing operation,
+logged itself back on and resumed the step it was in the middle of.
+
 **Why this matters beyond this step.** Every re-entrant step that restarts is
 exposed to it, but `WindowsUpdate` is the one that restarts THROUGH a servicing
 operation, and it is the only step whose restart is performed by something other
