@@ -279,5 +279,72 @@ Describe 'Invoke-HDTTaskSequence -Resumed' {
                 Test-HDTAutoLogonNeeded -Step $Step -AfterIndex 1 | Should -BeFalse
             }
         }
+
+        # A RE-ENTRANT STEP IS ITS OWN REMAINING WORK, and forgetting that
+        # stranded a real deployment on 2026-09-06.
+        #
+        # HDT-WSUS-TGT ran DEPLOY-ACROBAT, whose LAST step - 12 of 12 - is
+        # WindowsUpdate. It installed both approved updates, needed a restart
+        # before pass 2 could see what they revealed, and returned
+        # New-HDTStepResult -Reenter, which keeps stepIndex where it is so the
+        # step runs AGAIN in the full OS.
+        #
+        # But the arming question was asked as "does any step AFTER this one
+        # run in the full OS?", and after step 12 there is nothing at all. Over
+        # an empty set that is vacuously false, so no autologon was armed:
+        #
+        #   no autologon was armed: every step after 'Windows Update' runs in
+        #   WinPE, so the boot media starts the next leg and nothing has to log on.
+        #   Run ended RebootPending: 9 completed, 0 failed, 2 skipped
+        #
+        # Nothing logged on, pass 2 never ran, and the run never reached
+        # Succeeded even though the patching itself had worked. The message was
+        # not merely unhelpful, it was FALSE - there was no step after it in
+        # WinPE or anywhere else.
+        #
+        # A Restart step is different and must stay different: it never runs a
+        # second time, so excluding it is right. The distinction is re-entry,
+        # not position.
+        It 'arms a logon for a re-entrant FullOS step that is the last step in the sequence' {
+            $step = @(
+                [pscustomobject] @{ Name = 'Tattoo'; Type = 'Tattoo'; RunIn = 'FullOS' }
+                [pscustomobject] @{ Name = 'Windows Update'; Type = 'WindowsUpdate'; RunIn = 'FullOS' }
+            )
+
+            InModuleScope Hephaestus -Parameters @{ Step = $step } {
+                param($Step)
+
+                # AfterIndex 2 is the last step asking to come back as itself.
+                Test-HDTAutoLogonNeeded -Step $Step -AfterIndex 2 -Reenter | Should -BeTrue
+            }
+        }
+
+        # And the switch must not paper over the capture case above: a
+        # re-entrant step that runs in WinPE still needs nothing armed.
+        It 'arms nothing for a re-entrant step that runs in WinPE' {
+            $step = @(
+                [pscustomobject] @{ Name = 'Capture Image'; Type = 'CaptureImage'; RunIn = 'WinPE' }
+            )
+
+            InModuleScope Hephaestus -Parameters @{ Step = $step } {
+                param($Step)
+
+                Test-HDTAutoLogonNeeded -Step $Step -AfterIndex 1 -Reenter | Should -BeFalse
+            }
+        }
+
+        # Without -Reenter nothing changes, so every existing caller keeps the
+        # behaviour it was written against.
+        It 'still ignores the restarting step itself when it is not re-entrant' {
+            $step = @(
+                [pscustomobject] @{ Name = 'Restart into Windows'; Type = 'Restart'; RunIn = 'FullOS' }
+            )
+
+            InModuleScope Hephaestus -Parameters @{ Step = $step } {
+                param($Step)
+
+                Test-HDTAutoLogonNeeded -Step $Step -AfterIndex 1 | Should -BeFalse
+            }
+        }
     }
 }

@@ -87,7 +87,24 @@ function Test-HDTAutoLogonNeeded {
         [object[]] $Step,
 
         [Parameter(Mandatory = $true)]
-        [int] $AfterIndex
+        [int] $AfterIndex,
+
+        # THE STEP AT AfterIndex IS COMING BACK AS ITSELF, so it counts as work
+        # remaining. A `Restart` step never does - it is finished the moment the
+        # machine goes down - which is why the default excludes it and why this
+        # is a switch rather than a change of default.
+        #
+        # IT COST A STRANDED DEPLOYMENT TO LEARN (2026-09-06). DEPLOY-ACROBAT's
+        # last step, 12 of 12, is WindowsUpdate. It installed both updates, asked
+        # for a restart so pass 2 could see what they revealed, and returned
+        # New-HDTStepResult -Reenter. The question asked here was "does any step
+        # AFTER 12 run in the full OS?" - and after the last step there is
+        # nothing, so the answer was vacuously false and no autologon was armed.
+        # The machine rebooted, nothing logged on, pass 2 never ran, and the run
+        # sat at RebootPending with its own log claiming "every step after
+        # 'Windows Update' runs in WinPE" about a set with no steps in it.
+        [Parameter()]
+        [switch] $Reenter
     )
 
     Set-StrictMode -Version Latest
@@ -99,7 +116,15 @@ function Test-HDTAutoLogonNeeded {
 
     $list = @($Step)
 
-    for ($ahead = $AfterIndex; $ahead -lt $list.Count; $ahead++) {
+    # A RE-ENTRANT STEP INCLUDES ITSELF, and it does so by starting the walk one
+    # earlier rather than by a special case below: the question "which of the
+    # steps still to run needs a session?" is the same question, and the only
+    # difference is whether this one is still to run.
+    $from = $AfterIndex
+    if ($Reenter) { $from = $AfterIndex - 1 }
+    if ($from -lt 0) { $from = 0 }
+
+    for ($ahead = $from; $ahead -lt $list.Count; $ahead++) {
         $candidate = $list[$ahead]
 
         if ($null -eq $candidate) { continue }

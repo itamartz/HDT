@@ -770,7 +770,15 @@
             # just removed and took the run down at step 11 of 12, on a machine
             # that had already been generalized and so could not be picked up
             # where it left off. Watched end to end on 2026-08-31.
-            $needsAutoLogon = Test-HDTAutoLogonNeeded -Step $stepList -AfterIndex $index
+            #
+            # AND -Reenter IS PASSED THROUGH, because a step coming back as
+            # itself is a step still to run. Without it the LAST step in a
+            # sequence could ask for a restart, be told there was nothing after
+            # it that needed a session, and never come back - which is exactly
+            # what stranded DEPLOY-ACROBAT on HDT-WSUS-TGT on 2026-09-06 at step
+            # 12 of 12, with both updates installed and pass 2 never run.
+            $needsAutoLogon = Test-HDTAutoLogonNeeded -Step $stepList -AfterIndex $index `
+                -Reenter:([bool] $attempt.Reenter)
             if ([string] $attempt.Status -eq 'RebootRequested' -and $needsAutoLogon -and
                 [string]::IsNullOrWhiteSpace([string] $(
                     if ($Context.Variable.Contains('HDTAdminPassword')) { $Context.Variable['HDTAdminPassword'] } else { '' }))) {
@@ -1102,7 +1110,9 @@
 
                 } else {
                     Write-HDTLog -Context $log -Component 'Restart' `
-                        -Message ("no autologon was armed: every step after '{0}' runs in WinPE, so the boot media starts the next leg and nothing has to log on." -f $step.Name) `
+                        -Message ("no autologon was armed: nothing left to run after '{0}' needs a Windows session - {1}. The boot media starts any remaining leg, so nothing has to log on." -f
+                            $step.Name,
+                            $(if ($index -ge $stepList.Count) { 'it is the last step in the sequence and it is not coming back' } else { 'every step after it runs in WinPE' })) `
                         -Data ([ordered] @{ autoLogonArmed = $false })
                 }
 
