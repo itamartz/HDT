@@ -1223,18 +1223,56 @@ not what survived it. The design is DESIGN §3.2.
   `state.json` asserts about itself — which is the whole reason for the
   `Writable = $false` above, and the reason the guard is placed ahead of the
   already-completed check in the first place.
-- **`Suspend` on `IBitLockerService`.** The surface is `GetVolume`,
-  `AddProtector`, `BackupProtector`, `Enable` (`New-HDTBitLockerService.ps1:36-37`)
-  and carries no suspend. MDT runs
-  `Win32_EncryptableVolume.DisableKeyProtectors(0)` immediately before it arms
-  the boot entry (`Client.xml:85-90`, `ZTIDisableBDEProtectors.wsf:88-96`) — a
-  suspend, not a decrypt. Without it, an encrypted machine's next boot lands in
+- **`Suspend` on `IBitLockerService`, and the step that calls it — both built.**
+  The interface carries a fifth operation beside `GetVolume`, `AddProtector`,
+  `BackupProtector` and `Enable`, and `SuspendBitLocker` is the step type that
+  uses it. MDT runs `Win32_EncryptableVolume.DisableKeyProtectors(0)`
+  immediately before it arms the boot entry (`Client.xml:85-90`,
+  `ZTIDisableBDEProtectors.wsf:88-96`) — a suspend, not a decrypt — and
+  `Templates/refresh.yaml` puts HDT's in the same place, ahead of both
+  `BootToWinPE` steps. Without it, an encrypted machine's next boot lands in
   BitLocker recovery instead of in WinPE.
-- **Refresh-only validation**, which HDT has none of and MDT runs in
-  `ZTIValidate.wsf`: the downgrade refusal (`:138-146`), the partition-match
-  refusal escapable by `DestinationOSRefresh=OKTOUSEOTHERDISKANDPARTITION`
-  (`:151-154`), and free space of image size + 150 MB + 3 GB (`:231-256`) — which
-  MDT applies to `REFRESH` and explicitly skips for `NEWCOMPUTER`.
+
+  The step declares `runIn: FullOS`, because the suspend can only be done from
+  the Windows that is running, and it reads the volume first: a machine with
+  nothing to suspend completes having asked for nothing, which is MDT's own
+  `ProtectionStatus<>0` select. `rebootCount` defaults to `0` — until protection
+  is explicitly resumed, rather than until the next boot — because a Refresh
+  reboots more than once.
+
+  **Proven against fakes only.** The ordering claim is asserted on the ordered
+  operation list of the real template
+  (`tests/unit/RefreshTemplate.EndToEnd.Tests.ps1`), and nothing here has run on
+  a real machine: whether a real `Suspend-BitLocker` on a real TPM leaves the
+  one-shot boot entry reachable is not something a hand-written double can
+  answer.
+- **Refresh-only validation — the three guards MDT runs in `ZTIValidate.wsf`,
+  built.** They are three more checks on the existing `Validate` step rather than
+  a step type of their own, because a guard an author can leave out of a sequence
+  is a guard that is not there:
+  `imageVersion` is the downgrade refusal (`:138-146`), comparing the BUILD and
+  not `GetMajorMinorVersion`, which returns `10.0` for every Windows since
+  Windows 10 and so has not been able to fire in a decade;
+  `allowOtherPartition` is the partition-match refusal (`:151-154`), with the
+  override declared on the step in place of MDT's
+  `DestinationOSRefresh=OKTOUSEOTHERDISKANDPARTITION` magic string, and it warns
+  rather than passing in silence; and `imageSizeMB` is free space of image size +
+  150 MB + 3 GB (`:231-256`), measured against the SIZE of the volume rather than
+  the space free on it, because `CleanVolume` empties it first.
+
+  **Which run a check belongs to is a `Scope` column on
+  `Get-HDTValidateCheckDefinition`**, so the table that declares the checks is
+  also the table that says who runs them and the two cannot disagree — a fourth
+  guard is a row there. All three report themselves `skipped`, with the reason,
+  on a `NEWCOMPUTER` run, which is what MDT's `Case "NEWCOMPUTER"` does; the
+  target-disk checks are scoped the other way and report the same on a `REFRESH`,
+  because the boot disk a Refresh replaces is the one disk the target-disk rules
+  exclude absolutely.
+
+  **Proven against fakes only**, like everything else in M9: the guards are
+  asserted over the scoped SET read back out of that table
+  (`tests/unit/Invoke-HDTValidateStep.Refresh.Tests.ps1`), and no run has yet
+  refused a real machine.
 - **`BootToWinPE` is reused unchanged.** `Invoke-HDTBootToWinPEStep`,
   `Get-HDTLocalWinPePlan` and `Get-HDTBcdCommand` shipped in M7 and were
   deliberately kept out of the forbidden set so a resumed leg can tear down its

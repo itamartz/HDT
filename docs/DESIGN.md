@@ -229,7 +229,7 @@ search-and-replace:
 | `ProductKey` | `HDTProductKey` | `AssetTag` | `HDTAssetTag` |
 | `MandatoryApplications` | `HDTMandatoryApplications` | `FinishAction` | `HDTFinishAction` |
 | `TaskSequenceName` | `HDTTaskSequenceName` | `TaskSequenceVersion` | `HDTTaskSequenceVersion` |
-| `_SMSTSOrgName` | `HDTBrandingName` | | |
+| `_SMSTSOrgName` | `HDTBrandingName` | `OSCurrentVersion` | `HDTOSCurrentVersion` |
 
 **Where HDT keeps one name and MDT keeps two.** `OverrideProductKey` exists in
 MDT because a task sequence could carry its own key and a rule needed a way to
@@ -434,12 +434,39 @@ the technician did not bring. MDT does it as the step immediately before
 (`Client.xml:85-90`), and it does it through WMI rather than `manage-bde`:
 `Win32_EncryptableVolume.DisableKeyProtectors(0)`
 (`ZTIDisableBDEProtectors.wsf:88-96`). **That is a suspend, not a decrypt** —
-the volume stays encrypted and the protectors return on the next boot, which is
-why it costs seconds instead of hours; the decrypt branch in that script is for
-OS combinations HDT does not support. HDT has no equivalent today:
-`IBitLockerService` is `GetVolume`, `AddProtector`, `BackupProtector` and
-`Enable` (`New-HDTBitLockerService.ps1:36-37`), with no `Suspend` anywhere on it.
-Adding one is work Refresh requires; it is not designed here.
+the volume stays encrypted, which is why it costs seconds instead of hours; the
+decrypt branch in that script (`:104`) is for OS combinations HDT does not
+support, so **HDT never decrypts** — the volume is about to be emptied by
+`CleanVolume` and overwritten by `ApplyImage`, so the plaintext underneath the
+ciphertext has no value to anybody, and paying hours for it buys nothing.
+
+`IBitLockerService` therefore carries a fifth operation, `Suspend(drive,
+rebootCount)`, beside `GetVolume`, `AddProtector`, `BackupProtector` and
+`Enable`. The reboot count is the **caller's** and not the adapter's, the way
+every other decision on this interface is: MDT passes `0`, which is "stay
+suspended until protection is explicitly resumed" rather than "until the next
+boot", and a Refresh reboots more than once — a suspend that expired on the
+first of them would put the second into recovery.
+
+**The step that calls it is `SuspendBitLocker`**, and it declares `runIn:
+FullOS` because that is the only phase in which the suspend is either possible
+or useful: WinPE has not unlocked the volume, and by the time WinPE is running
+the boot that needed the suspend has already happened. It reads the volume
+before it asks, so a machine with nothing to suspend completes having called
+nothing — MDT's own guard, which selects only `ProtectionStatus<>0` — rather
+than failing on every unencrypted machine in an estate. `Templates/refresh.yaml`
+places it exactly where `Client.xml:85` does: last thing before the transport is
+staged and armed.
+
+**There is no re-enable, and on a Refresh there could not be.** MDT tracks one
+through `ISBDE` (`ZTIDisableBDEProtectors.wsf:107,112,116`) because its Refresh
+can end on the installation it started from. HDT's replaces that installation:
+the volume whose protectors were suspended is emptied by `CleanVolume` and
+overwritten by `ApplyImage`, so there is nothing left to resume protection *on*.
+Encryption of the new installation is the `EnableBitLocker` step in State
+Restore, which is a different volume's worth of work — and a share that leaves
+`HDTEnableBitLocker` false refreshes an encrypted laptop into an unencrypted
+one. The template says so where an author will read it.
 
 **The transport already exists and Refresh does not rebuild it.** `BootToWinPE`
 (§4.2, §9.3) stages a WinPE under `<volume>\HDT\Boot`, arms a one-shot
@@ -453,7 +480,7 @@ a resumed leg can tear down the mechanism that carried it there
 exactly that, unchanged. PSD is no help here and it is worth saying so — it has
 no full-OS-to-WinPE path at all — so MDT is the only prior art.
 
-**Three checks MDT runs only on a Refresh, and HDT has none of them yet.**
+**Three checks MDT runs only on a Refresh, and they live in HDT's pre-flight.**
 `ZTIValidate.wsf` refuses a downgrade (`:138-146`, "Performing a Refresh from a
 newer OS Version to an older OS Version is not supported"), refuses a target that
 is not the partition Windows is running from unless
@@ -462,6 +489,51 @@ and requires free space of the image size plus 150 MB plus 3 GB (`:231-256`) —
 check it applies to `REFRESH` and explicitly skips for `NEWCOMPUTER`, because a
 machine that has just been given its partition table has the room by construction
 and a machine being refreshed has whatever its owner left on it.
+
+**HDT puts all three in the `Validate` step**, which is this repository's
+`ZTIValidate` and is what runs first. Each is a refusal that is worthless a
+moment later: a Refresh empties the OS volume before it applies the image, so a
+machine that cannot fit the image, or is about to be rolled back, or is about to
+be written to a volume it does not boot from, has to be told while its
+installation is still there. A step type of their own would be a guard an author
+could leave out of a sequence. They are declared in
+`Get-HDTValidateCheckDefinition` — the one place a check is declared, and it is
+data — where each row carries a `Scope`, so `REFRESH` is asked for rather than
+written down twice and a NEWCOMPUTER run reports every one of them as *skipped*
+rather than silently passing.
+
+| MDT | HDT | Reads |
+|---|---|---|
+| `ImageBuild` vs `OSCurrentVersion` (9808) | `imageVersion` vs `HDTOSCurrentVersion` | gathered facts |
+| `DestinationOSRefresh` (9809) | `allowOtherPartition` | `HDTOSVolume` vs `IEnvironmentProvider`'s `SystemDrive` |
+| image + 150 MB + 3 GB (9807) | `imageSizeMB` | `IDiskService` volume rows |
+
+**And the target-disk check does not run on a Refresh at all**, which is the one
+place this section's own reasoning had to be pushed back into an existing step.
+`Select-HDTTargetDisk` excludes, absolutely and unoverridably, "the disk this
+machine booted from" — right for a bare-metal run, where that disk is the WinPE
+stick, and backwards for a Refresh, where it is the disk being replaced. Left
+alone it refused every Refresh at step one, with a message about a disk the run
+was never going to use. So on a `REFRESH` the per-disk rows and the target-disk
+row are reported *skipped, with the reason*, exactly as the three checks below
+are skipped on a `NEWCOMPUTER` run — a Refresh does not choose a disk, it reuses
+the one Windows was booting from, and what governs its target is the
+partition-match guard in the same step.
+
+**The escape hatch keeps the capability and drops the incantation.**
+`OKTOUSEOTHERDISKANDPARTITION` is an MDT artefact and §1 keeps it out, but a
+deliberate override is a real need — so it is `allowOtherPartition: true` on the
+step that enforces it, the same shape as `DiskPartition`'s `wipe: true`, where a
+step that may do something irreversible says so out loud. It still expands a
+`%Variable%`, so a site that wants the decision made per machine by a rule can
+still have that, and an overridden safety rule always warns.
+
+**The free-space check measures the volume, not the space free on it**, which
+looks wrong until MDT's own comment is read: "assuming most of the drive will be
+cleaned off before calling setup". In HDT that assumption is a step — `CleanVolume`
+empties the OS volume immediately before the image is applied — so a check
+against free space would refuse every machine that is full, which is very nearly
+the definition of a machine somebody wants to refresh.
 
 **And there is no confirmation screen.** MDT has nothing anywhere that asks "you
 are about to wipe this machine" — not `DeployWiz_Ready.xml` or its `.vbs`, not
@@ -497,8 +569,16 @@ silently drift.
 Collected once at engine start in WinPE, refreshed after OS apply.
 
 Source: CIM — `Win32_ComputerSystem`, `Win32_ComputerSystemProduct`,
-`Win32_BaseBoard`, `Win32_BIOS`, `Win32_Tpm` — plus firmware detection from
-`$env:firmware_type` and the `SecureBoot` registry path.
+`Win32_BaseBoard`, `Win32_BIOS`, `Win32_Tpm`, `Win32_OperatingSystem` — plus
+firmware detection from `$env:firmware_type` and the `SecureBoot` registry path.
+
+`HDTOSCurrentVersion` is `Win32_OperatingSystem.Version` — MDT's
+`OSCurrentVersion`, gathered where MDT gathers it (`ZTIGather.wsf:295-300`). It
+is what a Refresh's downgrade guard compares an image against, and it carries
+the **whole** version rather than major and minor: every Windows since Windows
+10 reports `10.0`, Windows 11 included, so MDT's own major/minor comparison
+(`ZTIValidate.wsf:138-146`) cannot tell them apart and has not been able to fire
+on a supported OS since 2015. The build is the only component that moves.
 
 **Network facts come from `Win32_NetworkAdapterConfiguration`, not
 `Get-NetIPAddress`.** WinPE has no `NetTCPIP`/`NetAdapter` module (§5.1,
@@ -1054,6 +1134,11 @@ drifts. Count the rows.
 | `driver.match` | a driver was chosen, with the id it matched, the rank, and the device |
 | `driver.staged` | a driver package was copied to the machine, with how many files |
 | `update.apply` | one Windows update was applied offline, with its KB, the release it was filed under, dism's exit code and the outcome — one record per package, never one summary for the pass |
+| `volume.target` | a clean established which volume it is standing on, and which one the engine is itself running from |
+| `volume.clean` | the tally: what the volume carries, how much of it goes and how much stays — written once before the first delete and again after the last |
+| `volume.delete` | one entry deleted, and whether it took an ACL reset to go |
+| `volume.preserve` | one entry kept, **with the reason it is on the preserved set** |
+| `volume.retry` | a delete refused, with the exception that refused it, before the ACL reset that follows |
 | `console.session` | the admin console opened or closed, with its version |
 | `console.action` | the console invoked a command, with its name, parameter names and duration |
 | `console.error` | a console action threw, with the exception type and stack |
@@ -1107,6 +1192,28 @@ version rather than specificity all look identical in a log that records only
 sub-type so that a filter can pull just the matches out of a deployment that
 made two hundred of them. This is MDT's `ZTIDrivers.log` restated as structure:
 the same facts, filterable rather than greppable.
+
+**Why emptying a volume gets five of its own, for the same reason.** `CleanVolume`
+(§3.2) is the one step that *destroys* the machine it is running on, and the
+question asked of it afterwards is never "did it run" — it is "what did it take,
+and what did it leave". A volume that came back carrying the last installation's
+`Program Files` and a volume that came back missing `<volume>\HDT\` are both
+"the clean ran", and only the records tell them apart. So the target it settled
+on is its own name (`volume.target`), and so is every entry that went
+(`volume.delete`), every entry that stayed **and the reason it is exempt**
+(`volume.preserve`), and the refusal that made it reset an ACL and try again
+(`volume.retry`) — which is the single most diagnostic line the step writes,
+because a delete that needed an ACL reset is a volume some other deployment
+built. `volume.clean` is the tally, written before the first delete and again
+after the last: two records, one claim, one name, which is `var.resolve`'s rule
+about a claim rather than a writer.
+
+**The failure keeps `step.fail` and does not get a sixth name.** A clean that
+could not delete something asserts exactly what every other failed step asserts —
+this step did not finish — and giving it its own name would mean an administrator
+asking "what failed" had to know which step types had invented one. The
+divergence from MDT is in the *severity and the outcome*, not in the vocabulary:
+`LTIApply.wsf:1297-1299` records the same event as a warning and carries on.
 
 `data` carries step-specific detail without polluting the top level.
 
