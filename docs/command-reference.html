@@ -253,11 +253,11 @@ try {
 <li><a href="#rules-and-variables"><span class="nav-t">Rules &amp; variables</span><span class="nav-n">13</span></a></li>
 <li><a href="#machine-facts-and-network"><span class="nav-t">Machine facts, network &amp; host checks</span><span class="nav-n">12</span></a></li>
 <li><a href="#task-sequence-authoring"><span class="nav-t">Task sequence authoring</span><span class="nav-n">22</span></a></li>
-<li><a href="#step-types-and-templates"><span class="nav-t">Step types, templates &amp; descriptions</span><span class="nav-n">48</span></a></li>
-<li><a href="#step-implementations"><span class="nav-t">Step implementations</span><span class="nav-n">26</span></a></li>
+<li><a href="#step-types-and-templates"><span class="nav-t">Step types, templates &amp; descriptions</span><span class="nav-n">52</span></a></li>
+<li><a href="#step-implementations"><span class="nav-t">Step implementations</span><span class="nav-n">28</span></a></li>
 <li><a href="#operating-systems-and-drivers"><span class="nav-t">Operating systems, drivers, updates &amp; selection profiles</span><span class="nav-n">26</span></a></li>
 <li><a href="#applications"><span class="nav-t">Applications &amp; Windows features</span><span class="nav-n">7</span></a></li>
-<li><a href="#disks-and-imaging"><span class="nav-t">Disks &amp; imaging</span><span class="nav-n">7</span></a></li>
+<li><a href="#disks-and-imaging"><span class="nav-t">Disks &amp; imaging</span><span class="nav-n">8</span></a></li>
 <li><a href="#boot-image-and-winpe"><span class="nav-t">Boot image &amp; WinPE</span><span class="nav-n">27</span></a></li>
 <li><a href="#transport-pxe-and-media"><span class="nav-t">Transport: PXE, media &amp; content providers</span><span class="nav-n">11</span></a></li>
 <li><a href="#execution-and-resume"><span class="nav-t">Execution engine, state &amp; resume</span><span class="nav-n">18</span></a></li>
@@ -285,10 +285,10 @@ try {
       reports them, every parameter, the examples from its help, and the file it lives in.
       <em>How it works</em> opens the long-form design note the author wrote next to the code.</p>
       <div class="stats">
-        <div class="stat"><div class="n">303</div><div class="l">exported commands</div></div>
+        <div class="stat"><div class="n">310</div><div class="l">exported commands</div></div>
         <div class="stat"><div class="n">17</div><div class="l">groups</div></div>
-        <div class="stat"><div class="n">303</div><div class="l">carry examples</div></div>
-        <div class="stat"><div class="n">88</div><div class="l">support -WhatIf</div></div>
+        <div class="stat"><div class="n">310</div><div class="l">carry examples</div></div>
+        <div class="stat"><div class="n">89</div><div class="l">support -WhatIf</div></div>
       </div>
       <div class="legend">
         <span class="chip v-read">Get &middot; reads</span>
@@ -845,7 +845,7 @@ Format-Table Order, Name, Value, Source, Rule</pre><p>Why every value is what it
 <div class="sig-wrap"><pre class="sig">Get-HDTVariableProvenance [-Resolution] &lt;Object&gt; [[-Name] &lt;string[]&gt;] [&lt;CommonParameters&gt;]</pre></div>
 <section class="params"><h4>Parameters</h4><div class="table-wrap"><table><tr><td class="p-name"><code>-Resolution</code><div class="p-flags"><span class="req">required</span></div></td><td class="p-type"><code>Object</code></td><td class="p-desc"><p>A Resolve-HDTVariable result.</p></td></tr><tr><td class="p-name"><code>-Name</code></td><td class="p-type"><code>String[]</code></td><td class="p-desc"><p>One or more variable names to report on. Wildcards are supported, so HDTSkip* answers for a whole family at once. Omit for everything.</p></td></tr></table></div></section>
 <section class="examples"><h4>Examples</h4><div class="ex"><div class="ex-title">Example 1</div><pre class="code">$fact = Get-HDTMachineFact -CimProvider (New-HDTCimProvider) `
--RegistryService (New-HDTRegistryService) -EnvironmentProvider (New-HDTEnvironmentProvider)
+-RegistryService (New-HDTRegistryService) -EnvironmentProvider (New-HDTEnvironmentProvider) -Phase WinPE
 $result = Resolve-HDTVariable -Fact $fact
 Get-HDTVariableProvenance -Resolution $result |
     Format-Table Order, Name, Value, Source, Rule -AutoSize</pre><p>The whole story of a deployment&#x27;s variables, in one table.</p></div><div class="ex"><div class="ex-title">Example 2</div><pre class="code">Get-HDTVariableProvenance -Resolution $result -Name HDTComputerName</pre><p>Why this machine is called what it is called.</p></div></section>
@@ -866,7 +866,7 @@ Get-HDTVariableProvenance -Resolution $result |
 <div class="sig-wrap"><pre class="sig">Export-HDTVariableProvenance [-Resolution] &lt;Object&gt; [-Path] &lt;string&gt; [-FileSystem &lt;Object&gt;] [-Timestamp &lt;datetime&gt;] [-WhatIf] [-Confirm] [&lt;CommonParameters&gt;]</pre></div>
 <section class="params"><h4>Parameters</h4><div class="table-wrap"><table><tr><td class="p-name"><code>-Resolution</code><div class="p-flags"><span class="req">required</span></div></td><td class="p-type"><code>Object</code></td><td class="p-desc"><p>A Resolve-HDTVariable result.</p></td></tr><tr><td class="p-name"><code>-Path</code><div class="p-flags"><span class="req">required</span></div></td><td class="p-type"><code>String</code></td><td class="p-desc"><p>Where to write it. Conventionally &lt;_HDTLogPath&gt;\Gather\provenance.json. Parent directories are created by the filesystem service.</p></td></tr><tr><td class="p-name"><code>-FileSystem</code></td><td class="p-type"><code>Object</code></td><td class="p-desc"><p>An IFileSystem - the real adapter in production, New-HDTFakeFileSystem in a test. Defaults to the real one.</p></td></tr><tr><td class="p-name"><code>-Timestamp</code></td><td class="p-type"><code>DateTime</code></td><td class="p-desc"><p>The instant recorded as &quot;generated&quot;. Defaults to now, in UTC; a test supplies a fixed one so it can assert on an exact document.</p></td></tr><tr><td class="p-name"><code>-WhatIf</code></td><td class="p-type"><code>SwitchParameter</code></td><td class="p-desc"><span class="muted">&mdash;</span></td></tr><tr><td class="p-name"><code>-Confirm</code></td><td class="p-type"><code>SwitchParameter</code></td><td class="p-desc"><span class="muted">&mdash;</span></td></tr></table></div></section>
 <section class="examples"><h4>Examples</h4><div class="ex"><div class="ex-title">Example 1</div><pre class="code">$fact = Get-HDTMachineFact -CimProvider (New-HDTCimProvider) `
--RegistryService (New-HDTRegistryService) -EnvironmentProvider (New-HDTEnvironmentProvider)
+-RegistryService (New-HDTRegistryService) -EnvironmentProvider (New-HDTEnvironmentProvider) -Phase WinPE
 $resolution = Resolve-HDTVariable -Fact $fact
 Export-HDTVariableProvenance -Resolution $resolution -Path &#x27;X:\HDT\Logs\Gather\provenance.json&#x27;</pre><p>Not just what each variable ended up as, but which of the five sources set it and which rule won. That is the question somebody actually has when a machine comes out named wrong.</p></div><div class="ex"><div class="ex-title">Example 2</div><pre class="code">Export-HDTVariableProvenance -Resolution $resolution -Path &#x27;X:\HDT\Logs\Gather\provenance.json&#x27; -WhatIf</pre><p>Names the file and writes nothing.</p></div></section>
 <details class="notes"><summary>How it works</summary><div class="prose"><p>provenance.json - every variable and which source set it (3.1)&quot; in the log directory of every deployment. This writes it, through the injected IFileSystem rather than Set-Content, so the whole path is provable with nothing on disk.</p>
@@ -896,7 +896,7 @@ $context = New-HDTExecutionContext -RunId &#x27;run-0001&#x27; -Phase WinPE `
     -WorkspaceRoot &#x27;C:\HDTLab\Share&#x27; -Variable ([ordered] @{}) `
     -Service (New-HDTServiceCatalog -FileSystem (New-HDTFileSystem) -Clock $clock) -Log $log
 $fact = Get-HDTMachineFact -CimProvider (New-HDTCimProvider) `
-    -RegistryService (New-HDTRegistryService) -EnvironmentProvider (New-HDTEnvironmentProvider)
+    -RegistryService (New-HDTRegistryService) -EnvironmentProvider (New-HDTEnvironmentProvider) -Phase WinPE
 $resolution = Resolve-HDTVariable -Fact $fact
 Write-HDTVariableLog -Context $context -Resolution $resolution</pre><p>Writes one record per resolved variable, each carrying which source set it. At Info, not Debug: how a machine got its name is not a detail.</p></div><div class="ex"><div class="ex-title">Example 2</div><pre class="code">@(Get-HDTRunLogRecord -Context $log | Where-Object { $_.Event -eq &#x27;var.resolve&#x27; }).Count</pre><p>How many it wrote. The same stream the provenance export is built from, so the log and the file cannot disagree.</p></div></section>
 <details class="notes"><summary>How it works</summary><div class="prose"><p>Not knowing why HDTComputerName ended up as it did is the single biggest debugging pain a deployment has. Export-HDTVariableProvenance answers that from a file; this puts the same answer into the log STREAM, one var.resolve record per variable, which is what the report renderer and the console&#x27;s monitoring view read.</p>
@@ -988,36 +988,40 @@ $answer = Resolve-HDTBootstrapRule -RuleDocument $document -Fact $fact -DeployRo
 </article>
 </div></section>
     <section class="cat" id="machine-facts-and-network" data-cat="machine-facts-and-network"><header class="cat-head"><div class="cat-eyebrow">12 commands</div><h2>Machine facts, network &amp; host checks</h2><p class="cat-blurb">Gather what a machine is, read or set its IPv4 configuration, and judge names, accounts and elevation.</p></header><div class="cat-body">
-<article class="fn" id="Get-HDTMachineFact" data-name="get-hdtmachinefact" data-hay="get-hdtmachinefact gathers the machine facts through injected services. cimprovider registryservice environmentprovider provenance clock">
+<article class="fn" id="Get-HDTMachineFact" data-name="get-hdtmachinefact" data-hay="get-hdtmachinefact gathers the machine facts through injected services. cimprovider registryservice environmentprovider phase deploymenttype provenance clock">
 <header class="fn-head">
 <h3><a class="anchor" href="#Get-HDTMachineFact">Get-HDTMachineFact</a></h3>
 <div class="tags"><span class="chip v-read">Get</span>
 </div></header>
 <p class="syn">Gathers the machine facts through injected services.</p>
-<div class="sig-wrap"><pre class="sig">Get-HDTMachineFact [-CimProvider] &lt;Object&gt; [-RegistryService] &lt;Object&gt; [-EnvironmentProvider] &lt;Object&gt; [[-Provenance] &lt;IDictionary&gt;] [[-Clock] &lt;Object&gt;] [&lt;CommonParameters&gt;]</pre></div>
-<section class="params"><h4>Parameters</h4><div class="table-wrap"><table><tr><td class="p-name"><code>-CimProvider</code><div class="p-flags"><span class="req">required</span></div></td><td class="p-type"><code>Object</code></td><td class="p-desc"><p>An ICimProvider - New-HDTCimProvider in production, New-HDTFakeCimProvider in a test.</p></td></tr><tr><td class="p-name"><code>-RegistryService</code><div class="p-flags"><span class="req">required</span></div></td><td class="p-type"><code>Object</code></td><td class="p-desc"><p>An IRegistryService, used only to read the Secure Boot state key.</p></td></tr><tr><td class="p-name"><code>-EnvironmentProvider</code><div class="p-flags"><span class="req">required</span></div></td><td class="p-type"><code>Object</code></td><td class="p-desc"><p>An IEnvironmentProvider, used for firmware_type and the processor architecture variables.</p></td></tr><tr><td class="p-name"><code>-Provenance</code></td><td class="p-type"><code>IDictionary</code></td><td class="p-desc"><p>WHERE EACH FACT CAME FROM, AND WHICH ONES THE MACHINE COULD NOT ANSWER. A dictionary the CALLER owns and this fills in - the same shape Get-HDTDriver&#x27;s -Cache uses, and for the same reason: it lets a command hand back a second answer without changing the one every existing caller already reads.</p>
+<div class="sig-wrap"><pre class="sig">Get-HDTMachineFact [-CimProvider] &lt;Object&gt; [-RegistryService] &lt;Object&gt; [-EnvironmentProvider] &lt;Object&gt; [-Phase] &lt;string&gt; [[-DeploymentType] &lt;string&gt;] [[-Provenance] &lt;IDictionary&gt;] [[-Clock] &lt;Object&gt;] [&lt;CommonParameters&gt;]</pre></div>
+<section class="params"><h4>Parameters</h4><div class="table-wrap"><table><tr><td class="p-name"><code>-CimProvider</code><div class="p-flags"><span class="req">required</span></div></td><td class="p-type"><code>Object</code></td><td class="p-desc"><p>An ICimProvider - New-HDTCimProvider in production, New-HDTFakeCimProvider in a test.</p></td></tr><tr><td class="p-name"><code>-RegistryService</code><div class="p-flags"><span class="req">required</span></div></td><td class="p-type"><code>Object</code></td><td class="p-desc"><p>An IRegistryService, used only to read the Secure Boot state key.</p></td></tr><tr><td class="p-name"><code>-EnvironmentProvider</code><div class="p-flags"><span class="req">required</span></div></td><td class="p-type"><code>Object</code></td><td class="p-desc"><p>An IEnvironmentProvider, used for firmware_type and the processor architecture variables.</p></td></tr><tr><td class="p-name"><code>-Phase</code><div class="p-flags"><span class="req">required</span></div></td><td class="p-type"><code>String</code></td><td class="p-desc"><p>WinPE or FullOS - the leg the engine started on, and the only thing HDTDeploymentType is derived from: WinPE gives NEWCOMPUTER, FullOS gives REFRESH. It is declared rather than probed, because this command touches nothing itself; the caller already holds the answer as _HDTPhase. Mandatory, so a full-OS caller cannot forget it and publish NEWCOMPUTER on a Refresh.</p></td></tr><tr><td class="p-name"><code>-DeploymentType</code></td><td class="p-type"><code>String</code></td><td class="p-desc"><p>What the run already knows it is, when something already knows - NEWCOMPUTER or REFRESH, read off the run&#x27;s own state document by a resumed leg.</p>
+<p>Empty is the ordinary case and means &quot;derive it from -Phase&quot;, which is what the first leg of every run does because nothing has decided yet. Only a resumed leg passes one, and it passes back the value an earlier leg of the SAME run derived. MDT does exactly this (LiteTouch.wsf:373-387): the derivation is the else branch of &quot;nobody has said yet&quot;.</p>
+<p>It exists because a Refresh changes legs without changing what it is. Started in the full OS it is a REFRESH; its second leg runs in WinPE, and a gather that re-derived would rename the run NEWCOMPUTER at the moment the resume guard is asking (DESIGN 3.2).</p></td></tr><tr><td class="p-name"><code>-Provenance</code></td><td class="p-type"><code>IDictionary</code></td><td class="p-desc"><p>WHERE EACH FACT CAME FROM, AND WHICH ONES THE MACHINE COULD NOT ANSWER. A dictionary the CALLER owns and this fills in - the same shape Get-HDTDriver&#x27;s -Cache uses, and for the same reason: it lets a command hand back a second answer without changing the one every existing caller already reads.</p>
 <p>IT EXISTS BECAUSE AN EMPTY FACT IS INVISIBLE. A fact that comes back blank is simply absent from the log, and nothing distinguishes &quot;this machine has no TPM&quot; from &quot;the query failed&quot; from &quot;the property was empty&quot; - so a rule keyed on HDTSystemSKU that silently never matches has no explanation anywhere.</p>
 <p>AND IT IS NOT ONLY DIAGNOSTIC. Invoke-HDTGatherStep reads Determined to decide whether a re-gathered fact may overwrite a value something else resolved. On a real deployment the step replaced HDTAssetTag - set by a rule script - with the empty string SMBIOS reported, because it had no way to tell an answer from a non-answer.</p></td></tr><tr><td class="p-name"><code>-Clock</code></td><td class="p-type"><code>Object</code></td><td class="p-desc"><p>PER-SOURCE TIMING, AND ONLY WHEN A CLOCK IS INJECTED. A gather that takes four seconds is one slow QUERY - Win32_Tpm against a stuck TPM service is the usual answer - and which one is the only useful thing to know about it. Optional because the engine&#x27;s rule is that a real clock reading never appears inside engine code: a caller with an IClock passes it, and a caller without one gets no timings rather than a DateTime::UtcNow hidden in here.</p></td></tr></table></div></section>
 <section class="examples"><h4>Examples</h4><div class="ex"><div class="ex-title">Example 1</div><pre class="code">$fact = Get-HDTMachineFact `
 -CimProvider (New-HDTCimProvider) `
     -RegistryService (New-HDTRegistryService) `
-    -EnvironmentProvider (New-HDTEnvironmentProvider)
-$fact[&#x27;HDTModel&#x27;]</pre><p>Gathers from the live machine through the real adapters.</p></div><div class="ex"><div class="ex-title">Example 2</div><pre class="code">$service = @{</pre><pre class="block">CimProvider         = New-HDTCimProvider
+    -EnvironmentProvider (New-HDTEnvironmentProvider) `
+    -Phase WinPE
+$fact[&#x27;HDTModel&#x27;]</pre><p>Gathers from the live machine through the real adapters, on the WinPE leg - so HDTDeploymentType comes back NEWCOMPUTER.</p></div><div class="ex"><div class="ex-title">Example 2</div><pre class="code">$service = @{</pre><pre class="block">CimProvider         = New-HDTCimProvider
     RegistryService     = New-HDTRegistryService
     EnvironmentProvider = New-HDTEnvironmentProvider
+    Phase               = &#x27;FullOS&#x27;
 }</pre>
 <pre class="block">$fact = Get-HDTMachineFact @service
-@($fact.Keys | Where-Object { $_ -like &#x27;HDTIs*&#x27; }) |
-    ForEach-Object { &#x27;{0} = {1}&#x27; -f $_, $fact[$_] }</pre>
-<p>The yes-or-no facts a rule matches on - HDTIsLaptop, HDTIsVirtual, HDTIsUefi - read off this machine.</p>
+$fact[&#x27;HDTDeploymentType&#x27;]</pre>
+<p>REFRESH. The same gather run from the running Windows rather than from a boot, which is the only thing that decides the scenario.</p>
 <p>THERE IS NO BARE CALL, AND THAT IS THE POINT. All three adapters are mandatory with no default, so `Get-HDTMachineFact` on its own does not gather - it PROMPTS for three objects nobody can type at a prompt. Every other command here defaults its services to the real ones; this is the one whose whole job is reading hardware, so a default would let a test that forgot its fakes poll the live CIM stack and pass. Splatting is the readable way to hand over three.</p></div></section>
 <details class="notes"><summary>How it works</summary><div class="prose"><p>Produces the gathered-facts layer of the variable model - hardware, firmware, chassis and network - as an ordered, case-insensitive dictionary keyed by HDT variable name. Every rule that matches on a machine matches on what this returns.</p>
 <p>It touches nothing itself. Every value arrives through one of three injected services, which is why the whole fact table can be proven under Pester against captured fixtures with no machine attached, and why a BIOS machine, an ARM machine and a machine with no TPM are all testable from a desk that has none of them. There is deliberately no Get-CimInstance, Get-ItemProperty or $env: reference anywhere in this file.</p>
 <p>CIM classes are queried once each, in a fixed order, and everything is derived from those locals - a second query is a second round trip to WMI, which is slow in WinPE. The order is asserted by a test:</p>
 <pre class="block">  Win32_ComputerSystem, Win32_ComputerSystemProduct, Win32_BaseBoard,
   Win32_BIOS, Win32_SystemEnclosure,
-  Win32_NetworkAdapterConfiguration, Win32_Tpm</pre>
-<p>The first four are required: a deployment that cannot read Win32_ComputerSystem has no facts to rule on and must fail loudly. The last three are optional and degrade to &quot;no instances&quot; - WinPE without the TPM optional component, a VM with no enclosure data and a machine with no IP enabled adapter are all normal in the field.</p>
+  Win32_NetworkAdapterConfiguration, Win32_Tpm,
+  Win32_OperatingSystem</pre>
+<p>The first four are required: a deployment that cannot read Win32_ComputerSystem has no facts to rule on and must fail loudly. The last four are optional and degrade to &quot;no instances&quot; - WinPE without the TPM optional component, a VM with no enclosure data and a machine with no IP enabled adapter are all normal in the field.</p>
 <p>Network facts come from Win32_NetworkAdapterConfiguration rather than Get-NetIPAddress because WinPE has no NetTCPIP module, which a boot test confirmed. The IPEnabled filtering is done here, not by the provider: ICimProvider has no -Filter, so every implementation returns the unfiltered set.</p>
 <p>What this deliberately does NOT produce: HDTBootMode, which only the boot path knows (phase 05); HDTComputerName and HDTTimeZone, which rules decide rather than hardware; and anything named _HDT*, which is engine-owned.</p></div></details>
 <div class="extra"><div class="kv"><span class="k">Outputs</span><div class="v"><p>System.Collections.Specialized.OrderedDictionary. Ordered so a facts.json diff stays readable, case-insensitive so a hand-written rules.yaml may spell a variable however it likes.</p></div></div><div class="kv"><span class="k">Notes</span><div class="v"><p>The chassis type tables (laptop 8, 9, 10, 11, 12, 14, 18, 21; desktop 3, 4, 5, 6, 7, 15, 16; server 23), the virtual-machine manufacturer list, and the PROCESSOR_ARCHITEW6432 precedence are derived from PSD (friendsOfMDT), Scripts/PSDGather.psm1, function Get-PSDLocalInfo. PSD is MIT licensed; see NOTICE.md at the repository root. Nothing else is carried across - PSD calls Get-CimInstance inline, which PROJECT constraint 4 forbids here.</p></div></div></div>
@@ -1762,7 +1766,7 @@ Save-HDTSequenceDocument -Path &#x27;C:\HDTLab\Share\TaskSequences\DEMO-05\seque
 <footer class="src"><code>src/Hephaestus/Hephaestus.bundle.ps1</code></footer>
 </article>
 </div></section>
-    <section class="cat" id="step-types-and-templates" data-cat="step-types-and-templates"><header class="cat-head"><div class="cat-eyebrow">48 commands</div><h2>Step types, templates &amp; descriptions</h2><p class="cat-blurb">Discover the step types this engine can run, and get the YAML and the one-line description for each.</p></header><div class="cat-body">
+    <section class="cat" id="step-types-and-templates" data-cat="step-types-and-templates"><header class="cat-head"><div class="cat-eyebrow">52 commands</div><h2>Step types, templates &amp; descriptions</h2><p class="cat-blurb">Discover the step types this engine can run, and get the YAML and the one-line description for each.</p></header><div class="cat-body">
 <article class="fn" id="Get-HDTStepType" data-name="get-hdtsteptype" data-hay="get-hdtsteptype discovers every step type in the session, by convention. name">
 <header class="fn-head">
 <h3><a class="anchor" href="#Get-HDTStepType">Get-HDTStepType</a></h3>
@@ -1938,6 +1942,38 @@ $line -join [System.Environment]::NewLine</pre><p>The same lines under a name of
 $step = @($sequence.Step | Where-Object { $_.Type -eq &#x27;DiskPartition&#x27; })[0]
 Get-HDTDiskPartitionStepDescription -Step $step</pre><p>The one line the log and the progress display carry for this step.</p></div><div class="ex"><div class="ex-title">Example 2</div><pre class="code">Get-HDTStepDescription -Step $step</pre><p>The same line through the dispatcher, which is how the engine asks. It finds this function by name; a step type that declares none gets &#x27;&lt;Type&gt;: &lt;name&gt;&#x27; instead.</p></div></section>
 <details class="notes"><summary>How it works</summary><div class="prose"><p>The optional third of the step contract&#x27;s triple. This is the step that destroys a disk, so the line a technician sees on the progress display names the layout and, where the sequence pinned one, the disk number - the two facts that decide what is about to be lost.</p></div></details>
+<div class="extra"><div class="kv"><span class="k">Outputs</span><div class="v"><p>System.String</p></div></div></div>
+<footer class="src"><code>src/Hephaestus/Hephaestus.bundle.ps1</code></footer>
+</article>
+<article class="fn" id="Get-HDTCleanVolumeStepTemplate" data-name="get-hdtcleanvolumesteptemplate" data-hay="get-hdtcleanvolumesteptemplate the yaml a new cleanvolume step starts life as. name">
+<header class="fn-head">
+<h3><a class="anchor" href="#Get-HDTCleanVolumeStepTemplate">Get-HDTCleanVolumeStepTemplate</a></h3>
+<div class="tags"><span class="chip v-read">Get</span>
+</div></header>
+<p class="syn">The YAML a new CleanVolume step starts life as.</p>
+<div class="sig-wrap"><pre class="sig">Get-HDTCleanVolumeStepTemplate [[-Name] &lt;string&gt;] [&lt;CommonParameters&gt;]</pre></div>
+<section class="params"><h4>Parameters</h4><div class="table-wrap"><table><tr><td class="p-name"><code>-Name</code></td><td class="p-type"><code>String</code></td><td class="p-desc"><p>The step&#x27;s name. Defaults to &#x27;Clean the OS volume&#x27;, which says what happens to the machine rather than naming the type.</p></td></tr></table></div></section>
+<section class="examples"><h4>Examples</h4><div class="ex"><div class="ex-title">Example 1</div><pre class="code">Get-HDTCleanVolumeStepTemplate</pre><p>The YAML lines for a new CleanVolume step.</p></div><div class="ex"><div class="ex-title">Example 2</div><pre class="code">$line = Get-HDTCleanVolumeStepTemplate -Name &#x27;Delete the old installation&#x27;
+$line -join [System.Environment]::NewLine</pre><p>The same lines under a name of your own. They are lines, not a document: Add-HDTStep splices them into a sequence.yaml so the comments and the order of everything already in it survive.</p></div></section>
+<details class="notes"><summary>How it works</summary><div class="prose"><p>The optional fourth of the step contract: what a NEW step of this type looks like on disk. See Get-HDTNoOpStepTemplate for the shape all of them share.</p>
+<p>IT WRITES &#x27;volume: primary&#x27; RATHER THAN LEAVING IT OUT, even though primary is the default. This is the step that empties an operating system volume, and a step whose target is invisible in the document is a step nobody reviews the target of - the one line an author should see when they open the sequence is which volume this is about.</p>
+<p>&#x27;primary&#x27; IS %HDTOSVolume%, which is the same word the ApplyImage step that follows it uses for the same volume. Two steps naming one volume two different ways is how they come to disagree.</p></div></details>
+<div class="extra"><div class="kv"><span class="k">Outputs</span><div class="v"><p>System.String[] - the YAML lines, unindented.</p></div></div></div>
+<footer class="src"><code>src/Hephaestus/Hephaestus.bundle.ps1</code></footer>
+</article>
+<article class="fn" id="Get-HDTCleanVolumeStepDescription" data-name="get-hdtcleanvolumestepdescription" data-hay="get-hdtcleanvolumestepdescription describes a cleanvolume step by the volume it empties. step">
+<header class="fn-head">
+<h3><a class="anchor" href="#Get-HDTCleanVolumeStepDescription">Get-HDTCleanVolumeStepDescription</a></h3>
+<div class="tags"><span class="chip v-read">Get</span>
+</div></header>
+<p class="syn">Describes a CleanVolume step by the volume it empties.</p>
+<div class="sig-wrap"><pre class="sig">Get-HDTCleanVolumeStepDescription [-Step] &lt;Object&gt; [&lt;CommonParameters&gt;]</pre></div>
+<section class="params"><h4>Parameters</h4><div class="table-wrap"><table><tr><td class="p-name"><code>-Step</code><div class="p-flags"><span class="req">required</span></div></td><td class="p-type"><code>Object</code></td><td class="p-desc"><p>A flattened step from Import-HDTSequenceDocument.</p></td></tr></table></div></section>
+<section class="examples"><h4>Examples</h4><div class="ex"><div class="ex-title">Example 1</div><pre class="code">$sequence = Import-HDTSequenceDocument -Path &#x27;C:\HDTLab\Share\TaskSequences\REFRESH-WIN11\sequence.yaml&#x27;
+$step = @($sequence.Step | Where-Object { $_.Type -eq &#x27;CleanVolume&#x27; })[0]
+Get-HDTCleanVolumeStepDescription -Step $step</pre><p>The one line the log and the progress display carry for this step.</p></div><div class="ex"><div class="ex-title">Example 2</div><pre class="code">Get-HDTStepDescription -Step $step</pre><p>The same line through the dispatcher, which is how the engine asks.</p></div></section>
+<details class="notes"><summary>How it works</summary><div class="prose"><p>The optional third of the step contract&#x27;s triple. This is the line a technician reads on the progress display while a previous installation is being deleted off the machine in front of them, so it says what is happening - the volume is being EMPTIED - and names the volume, because &quot;which one&quot; is the only question anybody has about a step that deletes.</p>
+<p>IT SAYS &#x27;the volume this deployment targets&#x27; RATHER THAN A LETTER WHEN THE STEP NAMES NONE, which is the same reasoning Get-HDTApplyDriversStepDescription writes down: a description is built while a sequence is being edited, long before HDTOSVolume exists, and &#x27;CleanVolume: &#x27; reads like a step somebody forgot to finish.</p></div></details>
 <div class="extra"><div class="kv"><span class="k">Outputs</span><div class="v"><p>System.String</p></div></div></div>
 <footer class="src"><code>src/Hephaestus/Hephaestus.bundle.ps1</code></footer>
 </article>
@@ -2157,6 +2193,39 @@ $step = @($sequence.Step | Where-Object { $_.Type -eq &#x27;EnableBitLocker&#x27
 Get-HDTEnableBitLockerStepDescription -Step $step</pre><p>The one line the log and the progress display carry for this step.</p></div><div class="ex"><div class="ex-title">Example 2</div><pre class="code">Get-HDTStepDescription -Step $step</pre><p>The same line through the dispatcher, which is how the engine asks. It finds this function by name; a step type that declares none gets &#x27;&lt;Type&gt;: &lt;name&gt;&#x27; instead.</p></div></section>
 <details class="notes"><summary>How it works</summary><div class="prose"><p>The optional third of the step contract&#x27;s triple. This string goes to the progress display and to the master log at Info.</p>
 <p>IT NAMES THE SCOPE, because that is the number a technician watching a progress window cares about: usedSpaceOnly finishes in minutes and full can take hours on a large disk, and knowing which one is running is the difference between waiting and investigating.</p></div></details>
+<div class="extra"><div class="kv"><span class="k">Outputs</span><div class="v"><p>System.String</p></div></div></div>
+<footer class="src"><code>src/Hephaestus/Hephaestus.bundle.ps1</code></footer>
+</article>
+<article class="fn" id="Get-HDTSuspendBitLockerStepTemplate" data-name="get-hdtsuspendbitlockersteptemplate" data-hay="get-hdtsuspendbitlockersteptemplate the yaml a new suspendbitlocker step starts life as. name">
+<header class="fn-head">
+<h3><a class="anchor" href="#Get-HDTSuspendBitLockerStepTemplate">Get-HDTSuspendBitLockerStepTemplate</a></h3>
+<div class="tags"><span class="chip v-read">Get</span>
+</div></header>
+<p class="syn">The YAML a new SuspendBitLocker step starts life as.</p>
+<div class="sig-wrap"><pre class="sig">Get-HDTSuspendBitLockerStepTemplate [[-Name] &lt;string&gt;] [&lt;CommonParameters&gt;]</pre></div>
+<section class="params"><h4>Parameters</h4><div class="table-wrap"><table><tr><td class="p-name"><code>-Name</code></td><td class="p-type"><code>String</code></td><td class="p-desc"><p>The step&#x27;s name. Defaults to &#x27;Suspend BitLocker&#x27;, which says what happens to the machine rather than naming the type.</p></td></tr></table></div></section>
+<section class="examples"><h4>Examples</h4><div class="ex"><div class="ex-title">Example 1</div><pre class="code">Get-HDTSuspendBitLockerStepTemplate</pre><p>The YAML lines for a new SuspendBitLocker step.</p></div><div class="ex"><div class="ex-title">Example 2</div><pre class="code">$line = Get-HDTSuspendBitLockerStepTemplate -Name &#x27;Suspend BitLocker before the transport is armed&#x27;
+$line -join [System.Environment]::NewLine</pre><p>The same lines under a name of your own. They are lines, not a document: Add-HDTStep splices them into a sequence.yaml so the comments and the order of everything already in it survive.</p></div></section>
+<details class="notes"><summary>How it works</summary><div class="prose"><p>The optional fourth of the step contract: what a NEW step of this type looks like on disk. See Get-HDTNoOpStepTemplate for the shape all of them share.</p>
+<p>IT WRITES runIn: FullOS, AND THAT IS THE ONE LINE IT CANNOT LEAVE OUT. You cannot suspend the protectors of a volume from a WinPE that has not unlocked it, and by the time WinPE is running the boot that needed the suspend has already happened. A step added from the console into a WinPE group with no runIn on it would run there, fail, and look like a BitLocker fault - so the step declares its own phase rather than inheriting the group&#x27;s.</p>
+<p>IT WRITES rebootCount: 0 EVEN THOUGH 0 IS THE DEFAULT, for Get-HDTCleanVolumeStepTemplate&#x27;s reason: this is a setting whose wrong value is invisible until a machine asks for a recovery key two reboots later. 0 is &quot;until protection is explicitly resumed&quot;; 1 would be &quot;until the next boot&quot;, and a Refresh boots more than once.</p>
+<p>IT NAMES NO DRIVE. Blank is the volume the run published, and failing that the one this Windows is running from - which is what a Refresh replaces and what MDT pins the destination to. A letter written into a template that ships to every share would be a guess at somebody else&#x27;s machine.</p></div></details>
+<div class="extra"><div class="kv"><span class="k">Outputs</span><div class="v"><p>System.String[] - the YAML lines, unindented.</p></div></div></div>
+<footer class="src"><code>src/Hephaestus/Hephaestus.bundle.ps1</code></footer>
+</article>
+<article class="fn" id="Get-HDTSuspendBitLockerStepDescription" data-name="get-hdtsuspendbitlockerstepdescription" data-hay="get-hdtsuspendbitlockerstepdescription describes a suspendbitlocker step by the volume it unprotects. step">
+<header class="fn-head">
+<h3><a class="anchor" href="#Get-HDTSuspendBitLockerStepDescription">Get-HDTSuspendBitLockerStepDescription</a></h3>
+<div class="tags"><span class="chip v-read">Get</span>
+</div></header>
+<p class="syn">Describes a SuspendBitLocker step by the volume it unprotects.</p>
+<div class="sig-wrap"><pre class="sig">Get-HDTSuspendBitLockerStepDescription [-Step] &lt;Object&gt; [&lt;CommonParameters&gt;]</pre></div>
+<section class="params"><h4>Parameters</h4><div class="table-wrap"><table><tr><td class="p-name"><code>-Step</code><div class="p-flags"><span class="req">required</span></div></td><td class="p-type"><code>Object</code></td><td class="p-desc"><p>A flattened step from Import-HDTSequenceDocument.</p></td></tr></table></div></section>
+<section class="examples"><h4>Examples</h4><div class="ex"><div class="ex-title">Example 1</div><pre class="code">$sequence = Import-HDTSequenceDocument -Path &#x27;C:\HDTLab\Share\TaskSequences\REFRESH-WIN11\sequence.yaml&#x27;
+$step = @($sequence.Step | Where-Object { $_.Type -eq &#x27;SuspendBitLocker&#x27; })[0]
+Get-HDTSuspendBitLockerStepDescription -Step $step</pre><p>The one line the log and the progress display carry for this step.</p></div><div class="ex"><div class="ex-title">Example 2</div><pre class="code">Get-HDTStepDescription -Step $step</pre><p>The same line through the dispatcher, which is how the engine asks.</p></div></section>
+<details class="notes"><summary>How it works</summary><div class="prose"><p>The optional third of the step contract&#x27;s triple. This is the line a technician reads while the machine in front of them has its protectors turned off, so it says the thing they would otherwise worry about: the volume is SUSPENDED, not decrypted, and it names which volume.</p>
+<p>IT SAYS &#x27;the volume this machine runs from&#x27; RATHER THAN A LETTER WHEN THE STEP NAMES NONE, which is Get-HDTCleanVolumeStepDescription&#x27;s reasoning: a description is built while a sequence is being edited, long before HDTOSVolume exists or any machine has reported a SystemDrive, and &#x27;SuspendBitLocker: &#x27; reads like a step somebody forgot to finish.</p></div></details>
 <div class="extra"><div class="kv"><span class="k">Outputs</span><div class="v"><p>System.String</p></div></div></div>
 <footer class="src"><code>src/Hephaestus/Hephaestus.bundle.ps1</code></footer>
 </article>
@@ -2544,7 +2613,7 @@ Get-HDTBootToWinPEStepDescription -Step $step</pre><p>The one line the log and t
 <footer class="src"><code>src/Hephaestus/Hephaestus.bundle.ps1</code></footer>
 </article>
 </div></section>
-    <section class="cat" id="step-implementations" data-cat="step-implementations"><header class="cat-head"><div class="cat-eyebrow">26 commands</div><h2>Step implementations</h2><p class="cat-blurb">The step types themselves: what each one does to a machine when the engine dispatches it.</p></header><div class="cat-body">
+    <section class="cat" id="step-implementations" data-cat="step-implementations"><header class="cat-head"><div class="cat-eyebrow">28 commands</div><h2>Step implementations</h2><p class="cat-blurb">The step types themselves: what each one does to a machine when the engine dispatches it.</p></header><div class="cat-body">
 <article class="fn" id="Invoke-HDTStep" data-name="invoke-hdtstep" data-hay="invoke-hdtstep dispatches one step to the invoke-hdt&lt;type&gt;step function that implements it. step context steptype">
 <header class="fn-head">
 <h3><a class="anchor" href="#Invoke-HDTStep">Invoke-HDTStep</a></h3>
@@ -2633,7 +2702,7 @@ Invoke-HDTGatherStep -Step $step -Context $context</pre><p>Runs one step out of 
 </div></header>
 <p class="syn">Pre-flights a machine before anything destructive runs on it.</p>
 <div class="sig-wrap"><pre class="sig">Invoke-HDTValidateStep [-Step] &lt;Object&gt; [-Context] &lt;Object&gt; [&lt;CommonParameters&gt;]</pre></div>
-<section class="params"><h4>Parameters</h4><div class="table-wrap"><table><tr><td class="p-name"><code>-Step</code><div class="p-flags"><span class="req">required</span></div></td><td class="p-type"><code>Object</code></td><td class="p-desc"><p>A flattened step from Import-HDTSequenceDocument.</p></td></tr><tr><td class="p-name"><code>-Context</code><div class="p-flags"><span class="req">required</span></div></td><td class="p-type"><code>Object</code></td><td class="p-desc"><p>A New-HDTExecutionContext context. Its Service catalog must carry a Disk service.</p></td></tr></table></div></section>
+<section class="params"><h4>Parameters</h4><div class="table-wrap"><table><tr><td class="p-name"><code>-Step</code><div class="p-flags"><span class="req">required</span></div></td><td class="p-type"><code>Object</code></td><td class="p-desc"><p>A flattened step from Import-HDTSequenceDocument.</p></td></tr><tr><td class="p-name"><code>-Context</code><div class="p-flags"><span class="req">required</span></div></td><td class="p-type"><code>Object</code></td><td class="p-desc"><p>A New-HDTExecutionContext context. Its Service catalog must carry a Disk service, and an Environment service on a REFRESH run - that is where SystemDrive is read from, which is how the partition-match guard knows which volume the machine is running from without touching hardware.</p></td></tr></table></div></section>
 <section class="examples"><h4>Examples</h4><div class="ex"><div class="ex-title">Example 1</div><pre class="code">$clock = New-HDTClock
 $service = New-HDTServiceCatalog -FileSystem (New-HDTFileSystem) -Clock $clock
 $log = New-HDTLogContext -RunId &#x27;run-0001&#x27; -Phase WinPE -LogPath &#x27;X:\HDT\Logs&#x27; -Clock $clock
@@ -2650,7 +2719,11 @@ $result.Data.check | Format-Table check, observed, threshold, result</pre><p>Eve
     minDiskGB: 60
     requireUefi: true                    # optional
     diskNumber: 0                        # optional
-    requireVariable: [HDTComputerName]   # optional</pre>
+    requireVariable: [HDTComputerName]   # optional
+    imageVersion: &#x27;10.0.26100&#x27;           # optional, REFRESH only
+    imageSizeMB: 5200                    # optional, REFRESH only
+    allowOtherPartition: false           # optional, REFRESH only</pre>
+<p>THREE OF THEM RUN ONLY ON A REFRESH, and they are MDT&#x27;s ZTIValidate.wsf guards under HDT&#x27;s own names: the downgrade refusal (:138-146), the partition-match refusal (:151-154) and the free-space refusal (:231-256). On a NEWCOMPUTER run every one is reported &#x27;skipped&#x27; with the reason, because a bare-metal deployment repartitions the disk - the volume they measure does not survive to be measured - and it lays Windows onto a machine that may carry none. MDT draws the line in the same place and skips the same three. The block near the end of this function says what each refuses and why it has to refuse HERE rather than later.</p>
 <p>IT RUNS Select-HDTTargetDisk WITH THE ARGUMENTS DiskPartition WILL USE, and that is the reason the step exists. A deployment that is going to refuse to choose a disk refuses HERE, in the first step, while the machine is still intact - rather than after the technician has watched two minutes of progress bar. The protected drive letters are built the same way too, so the pre-flight cannot pass a machine the real step would then refuse.</p>
 <p>IT REPORTS EVERY FAILED CHECK, NOT THE FIRST. &#x27;not enough RAM&#x27;, followed twenty minutes later by &#x27;no disk large enough&#x27;, is two trips to the bench.</p>
 <p>AND IT REPORTS EVERY PASSED CHECK TOO, WITH ITS THRESHOLD. This step&#x27;s whole content is its checks, so &quot;this machine passed the pre-flight&quot; on its own is unfalsifiable: a reader cannot tell whether eight checks ran or one, and a check weakened next month leaves the log looking identical. Worse, it was ASYMMETRIC - the failure path printed every check and its bound, so the only way to learn what HDT checks was to fail it, and an administrator qualifying a new hardware model had to break a machine to read the rules.</p>
@@ -2711,6 +2784,51 @@ Invoke-HDTDiskPartitionStep -Step $step -Context $context</pre><p>Runs one step 
 <p>THIS STEP PUBLISHES HDTOSVolume; THE LOOP MOVES THE LOG. _HDTLogPath moves to &lt;target&gt;\HDT\Logs once the target volume is formatted, and from 05-03 it does: Invoke-HDTTaskSequence calls Set-HDTLogPath after any step completes in the WinPE phase having left HDTOSVolume non-empty, mirroring the whole log tree onto the volume this step just made, and pointing the state document&#x27;s mirror at &lt;target&gt;\HDT\state.json at the same moment.</p>
 <p>IT IS STILL NOT THIS STEP&#x27;S JOB, and that is the point of saying so here. A step does not own the log context; one that reached into it would be the wrong shape, and every other step that formats a volume in future would have to remember to do the same thing. The step publishes a fact and the loop - the one place that sees every step finish - acts on it.</p></div></details>
 <div class="extra"><div class="kv"><span class="k">Outputs</span><div class="v"><p>A New-HDTStepResult. Data carries diskNumber and plan, or errorId on a refusal.</p></div></div></div>
+<footer class="src"><code>src/Hephaestus/Hephaestus.bundle.ps1</code></footer>
+</article>
+<article class="fn" id="Invoke-HDTCleanVolumeStep" data-name="invoke-hdtcleanvolumestep" data-hay="invoke-hdtcleanvolumestep empties the deployment target volume, leaving the run&#x27;s own state standing, so an image can be applied over a bare volume. step context whatif confirm">
+<header class="fn-head">
+<h3><a class="anchor" href="#Invoke-HDTCleanVolumeStep">Invoke-HDTCleanVolumeStep</a></h3>
+<div class="tags"><span class="chip v-act">Invoke</span>
+<span class="chip risk" title="Supports -WhatIf and -Confirm">ShouldProcess</span>
+</div></header>
+<p class="syn">Empties the deployment target volume, leaving the run&#x27;s own state standing, so an image can be applied over a bare volume.</p>
+<div class="sig-wrap"><pre class="sig">Invoke-HDTCleanVolumeStep [-Step] &lt;Object&gt; [-Context] &lt;Object&gt; [-WhatIf] [-Confirm] [&lt;CommonParameters&gt;]</pre></div>
+<section class="params"><h4>Parameters</h4><div class="table-wrap"><table><tr><td class="p-name"><code>-Step</code><div class="p-flags"><span class="req">required</span></div></td><td class="p-type"><code>Object</code></td><td class="p-desc"><p>A flattened step from Import-HDTSequenceDocument. It may carry &#x27;volume&#x27;: a drive letter, a variable that expands to one, or &#x27;primary&#x27;, which is %HDTOSVolume% and the default.</p></td></tr><tr><td class="p-name"><code>-Context</code><div class="p-flags"><span class="req">required</span></div></td><td class="p-type"><code>Object</code></td><td class="p-desc"><p>A New-HDTExecutionContext context. Its Service catalog must carry a FileSystem and an Environment service.</p></td></tr><tr><td class="p-name"><code>-WhatIf</code></td><td class="p-type"><code>SwitchParameter</code></td><td class="p-desc"><span class="muted">&mdash;</span></td></tr><tr><td class="p-name"><code>-Confirm</code></td><td class="p-type"><code>SwitchParameter</code></td><td class="p-desc"><span class="muted">&mdash;</span></td></tr></table></div></section>
+<section class="examples"><h4>Examples</h4><div class="ex"><div class="ex-title">Example 1</div><pre class="code">$clock = New-HDTClock
+$service = New-HDTServiceCatalog -FileSystem (New-HDTFileSystem) -Clock $clock `
+    -Environment (New-HDTEnvironmentProvider)
+$log = New-HDTLogContext -RunId &#x27;run-0001&#x27; -Phase WinPE -LogPath &#x27;X:\HDT\Logs&#x27; -Clock $clock
+$context = New-HDTExecutionContext -RunId &#x27;run-0001&#x27; -Phase WinPE `
+    -WorkspaceRoot &#x27;\\srv\HDTShare&#x27; -Variable ([ordered] @{ HDTOSVolume = &#x27;C&#x27; }) `
+    -Service $service -Log $log
+$sequence = Import-HDTSequenceDocument -Path &#x27;C:\HDTLab\Share\TaskSequences\REFRESH-WIN11\sequence.yaml&#x27;
+$step = @($sequence.Step | Where-Object { $_.Type -eq &#x27;CleanVolume&#x27; })[0]
+Invoke-HDTCleanVolumeStep -Step $step -Context $context</pre><p>Empties the volume the run published as HDTOSVolume, immediately before the image is applied over it. Building the context is what the engine does before the first step; a step cannot be run without one.</p></div><div class="ex"><div class="ex-title">Example 2</div><pre class="code">Invoke-HDTCleanVolumeStep -Step $step -Context $context -WhatIf</pre><p>Lists what it would delete and what it would keep, and deletes nothing. This is the step that empties an operating system volume; -WhatIf is how you find out which one it picked before it picks it.</p></div></section>
+<details class="notes"><summary>How it works</summary><div class="prose"><p>THE STEP A REFRESH IS MADE OF. DESIGN 3.2: a Refresh does not repartition and does not format - it DELETES. DISM /Apply-Image OVERLAYS a volume; it does not empty one, so without this step the previous Windows\, Program Files\, Users\ and ProgramData\ survive underneath the new installation and the machine looks deployed while carrying the last installation&#x27;s files.</p>
+<pre class="block">  - name: Clean the OS volume
+    type: CleanVolume
+    volume: primary          # &#x27;primary&#x27; = %HDTOSVolume%, or a letter</pre>
+<p>IT DELETES RATHER THAN FORMATS BECAUSE THE RUN&#x27;S OWN STATE IS STANDING ON THE VOLUME BEING CLEANED. state.json is mirrored to &lt;volume&gt;\HDT\state.json, the staged boot image is under &lt;volume&gt;\HDT\Boot and the logs are beside them - all of it the leg that came back is made of. A format would take every one of them. Get-HDTCleanVolumePreservedName is the set that survives and the reason each name is on it, and this step logs both.</p>
+<p>THE PARTITION TABLE IS NOT TOUCHED, and holding it apart from the volume contents is the mistake DESIGN 3.2 exists to foreclose. The table was already correct - Windows was booting from it - and repartitioning would destroy the staged WinPE the run depends on to come back through. DiskPartition therefore stays out of a Refresh sequence entirely, and this step does a different job.</p>
+<p>THREE GUARDS, EACH WITH A TEST THAT PROVES NOTHING WAS DELETED WHEN IT FIRED:</p>
+<pre class="block">  1. Assert-HDTCleanVolumeTarget. It is given the volume and refuses
+     an ambiguous one rather than guessing, the same refusal
+     DiskPartition makes about a disk - and it is where CLAUDE.md&#x27;s
+     &quot;never build a delete target by enumerating a parent directory&quot;
+     is answered rather than waived. Read that function.
+  2. SupportsShouldProcess. Under -WhatIf the step enumerates, logs
+     exactly what it would delete and what it would keep, and calls
+     no delete method at all.
+  3. The preserved set, applied to folders AND to the files sitting
+     in the root, so a name that must survive survives wherever it
+     is.</pre>
+<p>THE ORDER IS MDT&#x27;S, LTIApply.wsf:1245-1317. Subfolders first at :1265-1282, then the root files at :1308-1315 - a root file is in no subfolder, so the folder loop never reaches it and a bootmgr or a pagefile from the last installation would otherwise survive the clean.</p>
+<p>AND ONE RETRY THROUGH AN ACL RESET, which is MDT&#x27;s ResetFolder at :1564 called from :1285-1299. IFileSystem carries the icacls half - GrantAccess - and takeown on the adapter is a file-only method, so the reset here is the grant: Modify to Administrators, then one more delete. A folder whose ACL denies the caller is the commonest reason a delete refuses on a volume built by somebody else&#x27;s deployment.</p>
+<p>IT FAILS WHERE MDT WARNS, AND THAT DIVERGENCE IS DELIBERATE. LTIApply.wsf:1297-1299 logs &quot;Unable to delete &quot; and carries on, so a locked folder survives into the new installation and nothing anywhere fails. HDT fails the step, for the reason already written into the resume guard, which fails rather than skips: a half-cleaned volume is a machine that looks deployed and is not, carrying a previous installation&#x27;s Program Files into a new one, and the administrator who has to explain it a week later is reading a log that recorded the cause as a warning.</p>
+<p>EVERYTHING GOES THROUGH IFileSystem (rule 5), so the whole step - the enumeration, the preserved set, the retry and the failure - runs under Pester against the hand-written fake.</p>
+<p>AND EVERY RECORD IT WRITES HAS AN EVENT OF ITS OWN, DESIGN 4.4.2&#x27;s volume.* family: volume.target for the volume it settled on, volume.clean for the tally before and after, volume.preserve for each entry kept and why, volume.delete for each entry that went, and volume.retry for the refusal that made it reset an ACL. The failure keeps step.fail, because a clean that could not delete something makes the same claim every failed step makes.</p></div></details>
+<div class="extra"><div class="kv"><span class="k">Outputs</span><div class="v"><p>A New-HDTStepResult. Data carries volume, deleted and preserved, or errorId on a refusal.</p></div></div></div>
 <footer class="src"><code>src/Hephaestus/Hephaestus.bundle.ps1</code></footer>
 </article>
 <article class="fn" id="Invoke-HDTApplyImageStep" data-name="invoke-hdtapplyimagestep" data-hay="invoke-hdtapplyimagestep applies windows to the volume the partition step created. step context">
@@ -3081,6 +3199,33 @@ $result.Status</pre><p>Failed rather than thrown when the key cannot be escrowed
 <p>THE DRIVE IS NOT GUESSED. It comes from drive: or from HDTOSVolume, and with neither the step refuses naming the variable - rule 6.</p>
 <p>wait: false RETURNS ONCE ENCRYPTION IS UNDERWAY, which is the default because encrypting a large disk takes longer than the rest of the deployment put together and nothing after it needs to wait. wait: true polls until the volume reports FullyEncrypted, bounded by timeoutMinutes - a wait with no bound is a hung sequence.</p></div></details>
 <div class="extra"><div class="kv"><span class="k">Outputs</span><div class="v"><p>A New-HDTStepResult. Data carries drive, method, scope, protector, escrow and the escrowed protector&#x27;s id - never the key.</p></div></div></div>
+<footer class="src"><code>src/Hephaestus/Hephaestus.bundle.ps1</code></footer>
+</article>
+<article class="fn" id="Invoke-HDTSuspendBitLockerStep" data-name="invoke-hdtsuspendbitlockerstep" data-hay="invoke-hdtsuspendbitlockerstep suspends bitlocker on the volume a refresh is about to replace, so arming a one-shot boot entry does not put the machine into recovery. step context">
+<header class="fn-head">
+<h3><a class="anchor" href="#Invoke-HDTSuspendBitLockerStep">Invoke-HDTSuspendBitLockerStep</a></h3>
+<div class="tags"><span class="chip v-act">Invoke</span>
+</div></header>
+<p class="syn">Suspends BitLocker on the volume a Refresh is about to replace, so arming a one-shot boot entry does not put the machine into recovery.</p>
+<div class="sig-wrap"><pre class="sig">Invoke-HDTSuspendBitLockerStep [-Step] &lt;Object&gt; [-Context] &lt;Object&gt; [&lt;CommonParameters&gt;]</pre></div>
+<section class="params"><h4>Parameters</h4><div class="table-wrap"><table><tr><td class="p-name"><code>-Step</code><div class="p-flags"><span class="req">required</span></div></td><td class="p-type"><code>Object</code></td><td class="p-desc"><p>A flattened step from Import-HDTSequenceDocument. It may carry &#x27;drive&#x27; - a letter or a %Variable% - and &#x27;rebootCount&#x27;.</p></td></tr><tr><td class="p-name"><code>-Context</code><div class="p-flags"><span class="req">required</span></div></td><td class="p-type"><code>Object</code></td><td class="p-desc"><p>A New-HDTExecutionContext context. Its Service catalog must carry a BitLocker and an Environment service.</p></td></tr></table></div></section>
+<section class="examples"><h4>Examples</h4><div class="ex"><div class="ex-title">Example 1</div><pre class="code">$sequence = Import-HDTSequenceDocument -Path &#x27;C:\HDTLab\Share\TaskSequences\REFRESH-WIN11\sequence.yaml&#x27;
+$step = @($sequence.Step | Where-Object { $_.Type -eq &#x27;SuspendBitLocker&#x27; })[0]
+Invoke-HDTSuspendBitLockerStep -Step $step -Context $context</pre><p>Suspends protection on the volume this Windows is running from, immediately before the sequence stages and arms its WinPE.</p></div><div class="ex"><div class="ex-title">Example 2</div><pre class="code">@($context.Service.BitLocker.GetOperationName())</pre><p>GetVolume then Suspend, which is the order worth asserting: the read is what stops the step asking an unencrypted machine to suspend something it does not have.</p></div></section>
+<details class="notes"><summary>How it works</summary><div class="prose"><p>THE STEP THAT HAS TO RUN BEFORE THE TRANSPORT IS ARMED. DESIGN 3.2: a Refresh runs on a production machine that is very likely encrypted, and the BootToWinPE steps after this one change the boot configuration the TPM measured. The next boot then lands in BitLocker recovery, on a machine nobody is standing in front of, wanting a key the technician did not bring - and the deployment stops there, on a machine it has already been told to wipe.</p>
+<pre class="block">  - name: Suspend BitLocker
+    type: SuspendBitLocker
+    runIn: FullOS
+    drive: &#x27;%HDTOSVolume%&#x27;   # blank is the volume this OS runs from
+    rebootCount: 0           # 0 = until protection is resumed</pre>
+<p>MDT DOES EXACTLY THIS, IN EXACTLY THIS PLACE. Templates\Client.xml:85 is a step inside a group conditioned DeploymentType equals REFRESH, and the step immediately after it stages the transport. The script it runs calls Win32_EncryptableVolume.DisableKeyProtectors(0) - through WMI rather than manage-bde, and the BitLocker cmdlets this adapter uses are that same class&#x27;s projection.</p>
+<p>A SUSPEND, AND NEVER A DECRYPT. The volume is about to be emptied by CleanVolume and overwritten by ApplyImage, so the plaintext underneath the ciphertext has no value to anybody, and a decrypt costs hours on a large disk to buy exactly that nothing. MDT&#x27;s decrypt branch is for operating system combinations HDT does not support and is not ported. A suspend costs seconds and leaves the ciphertext where it was.</p>
+<p>IT RUNS IN THE FULL OS, AND THAT IS NOT AN OPTION. You cannot suspend the protectors of a volume from a WinPE that has not unlocked it, and by the time WinPE is running the boot that needed the suspend has already happened. The template declares runIn: FullOS and Test-HDTStepRunInPhase skips it anywhere else.</p>
+<p>REBOOT COUNT 0 IS THE DEFAULT AND THE SECOND REBOOT IS WHY. 1 means &quot;until the next boot&quot;; a Refresh boots into the staged WinPE, applies an image and boots again, so a suspend that expired on the first of those puts the second into recovery - the exact failure this step exists to prevent, arriving one reboot later. MDT passes 0 for the same reason, and the count is the CALLER&#x27;S rather than the adapter&#x27;s, as every other decision on IBitLockerService is.</p>
+<p>AN UNENCRYPTED MACHINE IS THE ORDINARY CASE, NOT A FAILURE. Most benches have no BitLocker on them at all, and Suspend-BitLocker errors on a volume with nothing to suspend. So this reads the volume first and asks for nothing when protection is already off - which is MDT&#x27;s own guard restated: ZTIDisableBDEProtectors.wsf:88 selects only &quot;where ProtectionStatus&lt;&gt;0&quot;. A step that suspended unconditionally would fail on every unencrypted machine in an estate, and each of those failures would read as a BitLocker fault rather than as a step that never looked.</p>
+<p>WHICH VOLUME IS THE SAME QUESTION Validate AND CleanVolume ALREADY ANSWER, AND IT IS ANSWERED THE SAME WAY. A Refresh carries no DiskPartition step, so nothing has published HDTOSVolume when this runs; MDT fills the identical gap identically, pinning the destination to SystemDrive (ZTIUtility.vbs:3586-3593). SystemDrive comes off IEnvironmentProvider and never off $env:, so the whole step is provable against a hand-written fake. Three places reading one fact three ways is how they come to suspend one volume and empty another.</p>
+<p>THERE IS NO RE-ENABLE HERE, AND THAT IS DELIBERATE. MDT tracks one through ISBDE and resumes protection on the machine it started from; HDT&#x27;s Refresh replaces that installation entirely, so there is nothing left to resume protection ON. The new installation&#x27;s encryption is client.yaml&#x27;s EnableBitLocker step, in State Restore, which is a different volume&#x27;s worth of work.</p></div></details>
+<div class="extra"><div class="kv"><span class="k">Outputs</span><div class="v"><p>A New-HDTStepResult. Data carries drive, rebootCount and suspended.</p></div></div></div>
 <footer class="src"><code>src/Hephaestus/Hephaestus.bundle.ps1</code></footer>
 </article>
 <article class="fn" id="Invoke-HDTJoinDomainStep" data-name="invoke-hdtjoindomainstep" data-hay="invoke-hdtjoindomainstep joins the deployed machine to a domain, or to a workgroup. step context">
@@ -4272,7 +4417,7 @@ asked for - which is worse than installing something twice.</pre>
 <footer class="src"><code>src/Hephaestus/Hephaestus.bundle.ps1</code></footer>
 </article>
 </div></section>
-    <section class="cat" id="disks-and-imaging" data-cat="disks-and-imaging"><header class="cat-head"><div class="cat-eyebrow">7 commands</div><h2>Disks &amp; imaging</h2><p class="cat-blurb">Turn a named layout into real partitions, and choose the one disk to wipe and the one image to apply.</p></header><div class="cat-body">
+    <section class="cat" id="disks-and-imaging" data-cat="disks-and-imaging"><header class="cat-head"><div class="cat-eyebrow">8 commands</div><h2>Disks &amp; imaging</h2><p class="cat-blurb">Turn a named layout into real partitions, and choose the one disk to wipe and the one image to apply.</p></header><div class="cat-body">
 <article class="fn" id="Get-HDTDiskLayout" data-name="get-hdtdisklayout" data-hay="get-hdtdisklayout returns a named disk layout, or every layout hdt knows. name definition">
 <header class="fn-head">
 <h3><a class="anchor" href="#Get-HDTDiskLayout">Get-HDTDiskLayout</a></h3>
@@ -4446,6 +4591,24 @@ Resolve-HDTDeployRoot -DeployRoot &#x27;\Share&#x27; -Provider Local -CandidateR
 <p>IT DECIDES FROM THE PROVIDER, NOT FROM A MARKER ON A DRIVE. LiteTouch.wsf walks every ready drive looking for Media.tag and defaults to UNC when it finds none, because a VBScript booted by WinPE has nothing better to go on. HDT does: bootstrap.json already names the provider the boot image was built with, and Resolve-HDTDeployRoot already validates it against the same two names. Deciding from that means the answer cannot disagree with the provider actually in use, which is the failure mode a drive-sniffing search has - a stale Media.tag on a second disk and the deployment silently stops using the network it is really reading from.</p>
 <p>THE VALIDATESET IS THE REFUSAL. A provider that is neither gets the same shape of error Resolve-HDTDeployRoot gives for the same mistake, before the body runs, and it costs no branch to maintain.</p></div></details>
 <div class="extra"><div class="kv"><span class="k">Outputs</span><div class="v"><p>System.String. UNC or MEDIA.</p></div></div><div class="kv"><span class="k">Notes</span><div class="v"><p>The variable this feeds is HDTDeploymentMethod, which Get-HDTVariableMap marks not writable - it is a fact about how the machine booted, not a preference, so a rules.yaml that declares it is refused by Assert-HDTRuleDocument.</p></div></div></div>
+<footer class="src"><code>src/Hephaestus/Hephaestus.bundle.ps1</code></footer>
+</article>
+<article class="fn" id="Get-HDTDeploymentPhase" data-name="get-hdtdeploymentphase" data-hay="get-hdtdeploymentphase answers which leg a run started on - winpe or fullos - from the system drive. systemdrive">
+<header class="fn-head">
+<h3><a class="anchor" href="#Get-HDTDeploymentPhase">Get-HDTDeploymentPhase</a></h3>
+<div class="tags"><span class="chip v-read">Get</span>
+</div></header>
+<p class="syn">Answers which leg a run STARTED on - WinPE or FullOS - from the system drive.</p>
+<div class="sig-wrap"><pre class="sig">Get-HDTDeploymentPhase [-SystemDrive] &lt;string&gt; [&lt;CommonParameters&gt;]</pre></div>
+<section class="params"><h4>Parameters</h4><div class="table-wrap"><table><tr><td class="p-name"><code>-SystemDrive</code><div class="p-flags"><span class="req">required</span></div></td><td class="p-type"><code>String</code></td><td class="p-desc"><p>The system drive as the environment reports it: &#x27;X:&#x27; in WinPE, &#x27;C:&#x27; in the full OS. A trailing separator, surrounding whitespace and either case are all accepted and all name the same drive.</p></td></tr></table></div></section>
+<section class="examples"><h4>Examples</h4><div class="ex"><div class="ex-title">Example 1</div><pre class="code">Get-HDTDeploymentPhase -SystemDrive &#x27;X:&#x27;</pre><p>WinPE. The machine booted the RAM disk, so this is a NEWCOMPUTER deployment and the log starts on X:.</p></div><div class="ex"><div class="ex-title">Example 2</div><pre class="code">$environment = New-HDTEnvironmentProvider
+$phase = Get-HDTDeploymentPhase -SystemDrive ([string] $environment.GetVariable(&#x27;SystemDrive&#x27;))</pre><p>How the payload asks. The environment is read through the adapter and the decision is made here, so both halves can be proven from a desk.</p></div></section>
+<details class="notes"><summary>How it works</summary><div class="prose"><p>WinPE BOOTS WITH ITS SYSTEM DRIVE AT X:, AND THAT IS THE WHOLE EVIDENCE. WinPE runs from a RAM disk which Windows Setup mounts at X:; a machine running an installed Windows has its system drive on a real volume, which is C: on all but a handful of estates and is never X:. So the drive letter is not a proxy for how the machine started - it IS how the machine started, and reading it is what MDT has always done: LiteTouch.wsf:373-387 tests oEnv(&quot;SystemDrive&quot;) = &quot;X:&quot; and calls the run NEWCOMPUTER when the drive is the RAM disk, REFRESH when it is not, and ZTIUtility.vbs:3339-3347 re-derives it per task sequence rather than trusting what an earlier leg recorded.</p>
+<p>THE PHASE IS A FACT ABOUT THE RUN&#x27;S ORIGIN, NOT A PREFERENCE, and that is why nothing lets a caller or a rules.yaml declare it. It decides where the log goes (Get-HDTLogPath), what _HDTPhase says, and - through Get-HDTMachineFact - whether HDTDeploymentType is NEWCOMPUTER or REFRESH, which is the value DESIGN 3.2 makes the one thing that can unlock ApplyImage on a resumed leg. An administrator who could declare REFRESH on a machine that booted WinPE would not get a Refresh; they would get a run that lies about its own origin, and every symptom of that points somewhere else. So the answer is derived, here, from evidence nothing on the disk can forge. Get-HDTVariableMap accordingly marks HDTDeploymentType Writable = $false.</p>
+<p>IT TAKES THE VALUE RATHER THAN READING IT, which is the split that makes this testable at all. Engine logic never touches the machine (CLAUDE.md rule 5): the raw read is the IEnvironmentProvider adapter&#x27;s - $environment.GetVariable(&#x27;SystemDrive&#x27;), the same call Invoke-HDTBootToWinPEStep already makes - and every branch is here, against a string. That is what lets a fake say &#x27;X:&#x27; on a laptop that is not in WinPE, and it is why there is no $env: anywhere in this file.</p>
+<p>THE COMPARISON IS DELIBERATELY FUSSY, because the shapes differ and the cost of getting it wrong is a wiped volume. $env:SystemDrive is &#x27;C:&#x27; with NO trailing separator on a real machine, so a function written against &#x27;C:\&#x27; would look right and be wrong everywhere; a fixture, a fake or a future caller can equally hand over &#x27;X:\&#x27;, &#x27;x:&#x27; or a padded string. All of those name the same drive and all of them answer the same way. What does NOT answer the same way is a PATH on that drive: &#x27;X:\Windows&#x27; is a directory, not a system drive, so a StartsWith test would call a full-OS machine WinPE.</p>
+<p>AN EMPTY VALUE IS REFUSED RATHER THAN GUESSED. Both guesses are destructive - WinPE publishes NEWCOMPUTER on a running Windows, FullOS publishes the REFRESH that unlocks ApplyImage - and every Windows and every WinPE sets SystemDrive, so nothing is being made robust by picking one. Invoke-HDTBootToWinPEStep refuses the same absence for the same reason.</p></div></details>
+<div class="extra"><div class="kv"><span class="k">Outputs</span><div class="v"><p>System.String. WinPE or FullOS - the same two values every -Phase parameter in the module takes.</p></div></div><div class="kv"><span class="k">Notes</span><div class="v"><p>The variable this ultimately feeds is HDTDeploymentType, which Get-HDTVariableMap marks not writable - DESIGN 3.2.</p></div></div></div>
 <footer class="src"><code>src/Hephaestus/Hephaestus.bundle.ps1</code></footer>
 </article>
 </div></section>
@@ -5092,7 +5255,7 @@ New-HDTBootIso -MediaRoot &#x27;C:\HDTLab\scratch\bootimage\work\media&#x27; `
 <section class="examples"><h4>Examples</h4><div class="ex"><div class="ex-title">Example 1</div><pre class="code">$fs = New-HDTFileSystem
 $path = &#x27;X:\HDT\bootstrap.json&#x27;
 $fact = Get-HDTMachineFact -CimProvider (New-HDTCimProvider) `
-    -RegistryService (New-HDTRegistryService) -EnvironmentProvider (New-HDTEnvironmentProvider)
+    -RegistryService (New-HDTRegistryService) -EnvironmentProvider (New-HDTEnvironmentProvider) -Phase WinPE
 $resolved = Resolve-HDTVariable -Fact $fact
 $bootstrap = Get-HDTBootstrapConfiguration -Path &#x27;X:\HDT\bootstrap.json&#x27;
 $bootstrap.DeployRoot</pre></div><div class="ex"><div class="ex-title">Example 2</div><pre class="code">$bootstrap = Get-HDTBootstrapConfiguration -Path $path -FileSystem $fs
@@ -5583,6 +5746,9 @@ $state = New-HDTRunState -SequenceId &#x27;DEMO-05&#x27; -RunId &#x27;run-0001&#
   sequenceId     the sequence&#x27;s id from sequence.yaml
   status         Running | Succeeded | Failed
   phase          WinPE | FullOS
+  deploymentType NEWCOMPUTER | REFRESH - WHAT THE RUN IS, decided
+                 on this, its first leg, and read back by every leg
+                 after it rather than re-derived
   leg            1-based, incremented on every resume
   seq            the last JSONL seq written - how the
                  monotonic counter survives a reboot
@@ -5883,15 +6049,20 @@ $decision = Invoke-HDTBootReconciliation -StatePath &#x27;C:\HDT\state.json&#x27
 <div class="extra"><div class="kv"><span class="k">Outputs</span><div class="v"><p>System.Management.Automation.PSCustomObject with Action (&#x27;Resume&#x27; or &#x27;Teardown&#x27;), Reason and State.</p></div></div></div>
 <footer class="src"><code>src/Hephaestus/Hephaestus.bundle.ps1</code></footer>
 </article>
-<article class="fn" id="Get-HDTResumeCandidate" data-name="get-hdtresumecandidate" data-hay="get-hdtresumecandidate decides, on a winpe boot, whether a task sequence is already in progress. disk filesystem clock excludevolume maxagehour">
+<article class="fn" id="Get-HDTResumeCandidate" data-name="get-hdtresumecandidate" data-hay="get-hdtresumecandidate decides, on a winpe boot, whether a task sequence is already in progress. phase disk filesystem clock excludevolume maxagehour">
 <header class="fn-head">
 <h3><a class="anchor" href="#Get-HDTResumeCandidate">Get-HDTResumeCandidate</a></h3>
 <div class="tags"><span class="chip v-read">Get</span>
 </div></header>
 <p class="syn">Decides, on a WinPE boot, whether a task sequence is already in progress.</p>
-<div class="sig-wrap"><pre class="sig">Get-HDTResumeCandidate [-Disk] &lt;Object&gt; [[-FileSystem] &lt;Object&gt;] [-Clock] &lt;Object&gt; [[-ExcludeVolume] &lt;string[]&gt;] [[-MaxAgeHour] &lt;int&gt;] [&lt;CommonParameters&gt;]</pre></div>
-<section class="params"><h4>Parameters</h4><div class="table-wrap"><table><tr><td class="p-name"><code>-Disk</code><div class="p-flags"><span class="req">required</span></div></td><td class="p-type"><code>Object</code></td><td class="p-desc"><p>An IDiskService. Only GetVolume() is called - the same flat listing of lettered volumes the Local content provider scans.</p></td></tr><tr><td class="p-name"><code>-FileSystem</code></td><td class="p-type"><code>Object</code></td><td class="p-desc"><p>An IFileSystem. Defaults to the real one.</p></td></tr><tr><td class="p-name"><code>-Clock</code><div class="p-flags"><span class="req">required</span></div></td><td class="p-type"><code>Object</code></td><td class="p-desc"><p>An IClock. The only source of the current time, which is what the staleness test is measured against.</p></td></tr><tr><td class="p-name"><code>-ExcludeVolume</code></td><td class="p-type"><code>String[]</code></td><td class="p-desc"><p>Drive letters the scan skips. Defaults to the WinPE RAM disk.</p></td></tr><tr><td class="p-name"><code>-MaxAgeHour</code></td><td class="p-type"><code>Int32</code></td><td class="p-desc"><p>How stale a Running state may be before it stops counting as live. Defaults to 12, matching Invoke-HDTBootReconciliation.</p></td></tr></table></div></section>
-<section class="examples"><h4>Examples</h4><div class="ex"><div class="ex-title">Example 1</div><pre class="code">$decision = Get-HDTResumeCandidate -Disk (New-HDTDiskService) `
+<div class="sig-wrap"><pre class="sig">Get-HDTResumeCandidate [-Phase] &lt;string&gt; [-Disk] &lt;Object&gt; [[-FileSystem] &lt;Object&gt;] [-Clock] &lt;Object&gt; [[-ExcludeVolume] &lt;string[]&gt;] [[-MaxAgeHour] &lt;int&gt;] [&lt;CommonParameters&gt;]</pre></div>
+<section class="params"><h4>Parameters</h4><div class="table-wrap"><table><tr><td class="p-name"><code>-Phase</code><div class="p-flags"><span class="req">required</span></div></td><td class="p-type"><code>String</code></td><td class="p-desc"><p>The leg this START is on - WinPE or FullOS.</p>
+<p>A START IS NOT A RESUME, AND THAT IS THE WHOLE OF THIS PARAMETER. Until M9 the only caller ran in WinPE, where X: is excluded and every other volume belongs to the machine being deployed. A Refresh starts the same payload from the RUNNING WINDOWS (DESIGN 3.2), so the scan now reaches C:\HDT\state.json - the document that machine&#x27;s PREVIOUS HDT deployment left behind.</p>
+<p>Succeeded and Failed were already right: a finished run is not a run in progress. The two that were wrong are the ones still marked Running, because that machine&#x27;s last deployment died or was interrupted - a fresh one would be RESUMED, so the Refresh an operator just launched would silently continue somebody else&#x27;s half-finished sequence at its step index; a stale one would be AMBIGUOUS, so a deliberate act would be refused by a document about a run that ended weeks ago.</p>
+<p>A run that is STARTING in the full OS was launched by a person standing at the machine: it is a new deployment by definition. A run RESUMING into the full OS was sent there by its own reboot, and that arrives through Start-HDTResume.ps1 - armed by the leg before it, reading the path it was given, and never consulting this scan at all. Only the second is evidence that a run is in progress, so a full-OS start answers None and mints a fresh run.</p>
+<p>THE OLD DOCUMENT IS LEFT EXACTLY WHERE IT IS. Nothing here deletes or rewrites it: it is the only account of what happened to this machine last time, and it is named in the Reason so the decision is answerable from the log rather than from a missing file.</p>
+<p>AND THE WinPE LEG OF THAT SAME REFRESH STILL RESUMES. The machine stages a WinPE, reboots into it, and comes back to find the document the leg before it wrote - which is a run in progress, found on a WinPE leg, which is exactly what this command is for.</p></td></tr><tr><td class="p-name"><code>-Disk</code><div class="p-flags"><span class="req">required</span></div></td><td class="p-type"><code>Object</code></td><td class="p-desc"><p>An IDiskService. Only GetVolume() is called - the same flat listing of lettered volumes the Local content provider scans.</p></td></tr><tr><td class="p-name"><code>-FileSystem</code></td><td class="p-type"><code>Object</code></td><td class="p-desc"><p>An IFileSystem. Defaults to the real one.</p></td></tr><tr><td class="p-name"><code>-Clock</code><div class="p-flags"><span class="req">required</span></div></td><td class="p-type"><code>Object</code></td><td class="p-desc"><p>An IClock. The only source of the current time, which is what the staleness test is measured against.</p></td></tr><tr><td class="p-name"><code>-ExcludeVolume</code></td><td class="p-type"><code>String[]</code></td><td class="p-desc"><p>Drive letters the scan skips. Defaults to the WinPE RAM disk.</p></td></tr><tr><td class="p-name"><code>-MaxAgeHour</code></td><td class="p-type"><code>Int32</code></td><td class="p-desc"><p>How stale a Running state may be before it stops counting as live. Defaults to 12, matching Invoke-HDTBootReconciliation.</p></td></tr></table></div></section>
+<section class="examples"><h4>Examples</h4><div class="ex"><div class="ex-title">Example 1</div><pre class="code">$decision = Get-HDTResumeCandidate -Phase WinPE -Disk (New-HDTDiskService) `
 -FileSystem (New-HDTFileSystem) -Clock (New-HDTClock)</pre><p>What Start-HDTDeployment.ps1 asks before it mints a run. On a machine that has never been deployed this answers None in a few milliseconds and the ordinary path continues.</p></div><div class="ex"><div class="ex-title">Example 2</div><pre class="code">if ($decision.Action -eq &#x27;Ambiguous&#x27;) { throw $decision.Reason }</pre><p>The refusal. It is a throw rather than a warning because the alternative to stopping is partitioning a disk on a guess.</p></div></section>
 <details class="notes"><summary>How it works</summary><div class="prose"><p>THE OTHER DIRECTION OF THE REBOOT, AND THE ONE THAT WAS MISSING.</p>
 <p>Invoke-HDTTaskSequence has survived the WinPE -&gt; FullOS reboot since M2: it checkpoints to state.json, stages the resume agent onto the OS volume and arms a logon that runs Start-HDTResume.ps1. Coming BACK - FullOS -&gt; WinPE, which is what a Sysprep-and-Capture reference build does between generalizing a machine and capturing it - had nothing. Start-HDTDeployment.ps1 minted a brand-new run at step 1 on every WinPE boot, so the capture leg would have reached the sequence&#x27;s own DiskPartition step and formatted the volume it had just sealed.</p>
@@ -6109,7 +6280,7 @@ $log = Set-HDTLogPath -Context $log -TargetVolume &#x27;W:&#x27; -Variable $vari
 <section class="examples"><h4>Examples</h4><div class="ex"><div class="ex-title">Example 1</div><pre class="code">$workspaceRoot = &#x27;C:\HDTLab\Share&#x27;
 $line = [string[]] @([System.IO.File]::ReadAllLines(&#x27;C:\HDTLab\Share\workspace.yaml&#x27;))
 $fact = Get-HDTMachineFact -CimProvider (New-HDTCimProvider) `
-    -RegistryService (New-HDTRegistryService) -EnvironmentProvider (New-HDTEnvironmentProvider)
+    -RegistryService (New-HDTRegistryService) -EnvironmentProvider (New-HDTEnvironmentProvider) -Phase WinPE
 $resolved = Resolve-HDTVariable -Fact $fact
 Get-HDTLogDestination -WorkspaceRoot $workspaceRoot -Variable $resolved.Variable</pre></div><div class="ex"><div class="ex-title">Example 2</div><pre class="code">Add-HDTRule -Line $line -Name &#x27;Log server&#x27; -Set @{ HDTSLShare = &#x27;\\logs-01\HDTLogs&#x27; }</pre><p>What a site writes once in rules.yaml.</p></div><div class="ex"><div class="ex-title">Example 3</div><pre class="code">Get-HDTLogDestination -WorkspaceRoot &#x27;D:\Deploy&#x27; -Variable @{ HDTDeploymentMethod = &#x27;MEDIA&#x27; }</pre><p>Path &#x27;&#x27;, Source &#x27;Media&#x27;, Skipped &#x27;D:\Deploy\Logs&#x27; - a deployment from a disc, whose deploy root cannot be written to. Setting HDTSLShare gives it somewhere it can go.</p></div></section>
 <details class="notes"><summary>How it works</summary><div class="prose"><p>THE COPY-BACK DESTINATION USED TO BE DERIVED AND NOTHING COULD CHANGE IT. Logs landed under &lt;deployRoot&gt;\Logs and nowhere else, which is right for a lab and wrong for most sites: the deployment share is frequently read-only to the account the deployment runs as, is frequently a replica, and is frequently not where a team keeps logs.</p>
@@ -6306,7 +6477,7 @@ Show-HDTWizardShell -ShellXamlPath &#x27;X:\HDT\UI\HDTWizardShell.xaml&#x27; -Pa
 <div class="sig-wrap"><pre class="sig">Import-HDTWizardDocument [-Provider] &lt;Object&gt; [&lt;CommonParameters&gt;]</pre></div>
 <section class="params"><h4>Parameters</h4><div class="table-wrap"><table><tr><td class="p-name"><code>-Provider</code><div class="p-flags"><span class="req">required</span></div></td><td class="p-type"><code>Object</code></td><td class="p-desc"><p>An IContentProvider, already connected.</p></td></tr></table></div></section>
 <section class="examples"><h4>Examples</h4><div class="ex"><div class="ex-title">Example 1</div><pre class="code">$provider = New-HDTLocalContentProvider -Root &#x27;C:\HDTLab\Share&#x27;</pre><pre class="block">$fact = Get-HDTMachineFact -CimProvider (New-HDTCimProvider) `
-    -RegistryService (New-HDTRegistryService) -EnvironmentProvider (New-HDTEnvironmentProvider)
+    -RegistryService (New-HDTRegistryService) -EnvironmentProvider (New-HDTEnvironmentProvider) -Phase WinPE
 $resolved = Resolve-HDTVariable -Fact $fact
 $wizard = Import-HDTWizardDocument -Provider $provider
 if ($null -eq $wizard) { }   # no wizard on this share</pre></div><div class="ex"><div class="ex-title">Example 2</div><pre class="code">$ask = Get-HDTWizardPage -Page $wizard.Page -Variable $resolved.Variable</pre><p>if ($ask.IsWizardNeeded) { Show-HDTWizardShell -Page $ask.Page ... }</p></div></section>
@@ -6371,12 +6542,12 @@ Get-HDTWizardField -NetworkConfiguration (Get-HDTNetworkConfiguration)</pre><p>T
 <section class="examples"><h4>Examples</h4><div class="ex"><div class="ex-title">Example 1</div><pre class="code">$provider = New-HDTLocalContentProvider -Root &#x27;Z:\Deploy&#x27;
 $ask = Import-HDTWizardDocument -Provider $provider
 $fact = Get-HDTMachineFact -CimProvider (New-HDTCimProvider) `
-    -RegistryService (New-HDTRegistryService) -EnvironmentProvider (New-HDTEnvironmentProvider)
+    -RegistryService (New-HDTRegistryService) -EnvironmentProvider (New-HDTEnvironmentProvider) -Phase WinPE
 $resolved = Resolve-HDTVariable -Fact $fact
 Get-HDTWizardSeed -Page $ask.Page -Variable $resolved.Variable</pre><p>One field per box the rules can already fill in.</p></div><div class="ex"><div class="ex-title">Example 2</div><pre class="code">$provider = New-HDTLocalContentProvider -Root &#x27;Z:\Deploy&#x27;
 $ask = Import-HDTWizardDocument -Provider $provider
 $fact = Get-HDTMachineFact -CimProvider (New-HDTCimProvider) `
-    -RegistryService (New-HDTRegistryService) -EnvironmentProvider (New-HDTEnvironmentProvider)
+    -RegistryService (New-HDTRegistryService) -EnvironmentProvider (New-HDTEnvironmentProvider) -Phase WinPE
 $resolved = Resolve-HDTVariable -Fact $fact
 $seed = Get-HDTWizardSeed -Page $ask.Page -Variable $resolved.Variable
 Show-HDTWizardShell -Page $ask.Page -Field @($seed)</pre><p>What the payload does: the seed is one more set of fields, applied by name like every other.</p></div></section>
@@ -6510,7 +6681,7 @@ $fs = New-HDTFileSystem
 $title = &#x27;Task Sequence&#x27;
 $field = @()
 $fact = Get-HDTMachineFact -CimProvider (New-HDTCimProvider) `
-    -RegistryService (New-HDTRegistryService) -EnvironmentProvider (New-HDTEnvironmentProvider)
+    -RegistryService (New-HDTRegistryService) -EnvironmentProvider (New-HDTEnvironmentProvider) -Phase WinPE
 $resolved = Resolve-HDTVariable -Fact $fact
 $ask = Get-HDTWizardPage -Page @() -Variable $resolved.Variable
 Get-HDTWizardSequence -WorkspaceRoot &#x27;Z:\Deploy&#x27;</pre></div><div class="ex"><div class="ex-title">Example 2</div><pre class="code">$sequence = Get-HDTWizardSequence -WorkspaceRoot $root -FileSystem $fs -Variable $resolved.Variable
@@ -6537,7 +6708,7 @@ Show-HDTWizardShell -Page $ask.Page -Field (@($field) + @($sequence.Field)) -Tit
 <section class="examples"><h4>Examples</h4><div class="ex"><div class="ex-title">Example 1</div><pre class="code">$title = &#x27;Computer Details&#x27;
 $field = @()
 $fact = Get-HDTMachineFact -CimProvider (New-HDTCimProvider) `
-    -RegistryService (New-HDTRegistryService) -EnvironmentProvider (New-HDTEnvironmentProvider)
+    -RegistryService (New-HDTRegistryService) -EnvironmentProvider (New-HDTEnvironmentProvider) -Phase WinPE
 $resolved = Resolve-HDTVariable -Fact $fact
 $ask = Get-HDTWizardPage -Page @() -Variable $resolved.Variable
 Get-HDTWizardComputerName -Variable $resolved.Variable</pre></div><div class="ex"><div class="ex-title">Example 2</div><pre class="code">$name = Get-HDTWizardComputerName -Variable $resolved.Variable
@@ -6596,7 +6767,7 @@ $answer = Get-HDTWizardCredential -DeployRoot &#x27;\\LAP-AMMSO01\HDTShare$&#x27
 <section class="params"><h4>Parameters</h4><div class="table-wrap"><table><tr><td class="p-name"><code>-WorkspaceRoot</code><div class="p-flags"><span class="req">required</span></div></td><td class="p-type"><code>String</code></td><td class="p-desc"><p>The connected share&#x27;s root.</p></td></tr><tr><td class="p-name"><code>-FileSystem</code></td><td class="p-type"><code>Object</code></td><td class="p-desc"><p>An IFileSystem. The share is already connected by the time this page is reached, so it reads ordinary paths. Defaults to the real one.</p></td></tr><tr><td class="p-name"><code>-Variable</code></td><td class="p-type"><code>IDictionary</code></td><td class="p-desc"><p>The resolved variables, read for HDTApplications and nothing else.</p></td></tr><tr><td class="p-name"><code>-Control</code></td><td class="p-type"><code>String</code></td><td class="p-desc"><p>The control the field names. Defaults to HDTApplicationList, which is what the shipped page calls it; a site that renamed it in its own page does not have to fork this command.</p></td></tr></table></div></section>
 <section class="examples"><h4>Examples</h4><div class="ex"><div class="ex-title">Example 1</div><pre class="code">Get-HDTWizardApplication -WorkspaceRoot &#x27;Z:\Deploy&#x27;</pre><p>Every application on the share, none ticked.</p></div><div class="ex"><div class="ex-title">Example 2</div><pre class="code">$root = &#x27;Z:\Deploy&#x27;</pre><pre class="block">$rule = Import-HDTRuleDocument -Path (Join-Path $root &#x27;rules.yaml&#x27;)
 $fact = Get-HDTMachineFact -CimProvider (New-HDTCimProvider) `
-    -RegistryService (New-HDTRegistryService) -EnvironmentProvider (New-HDTEnvironmentProvider)
+    -RegistryService (New-HDTRegistryService) -EnvironmentProvider (New-HDTEnvironmentProvider) -Phase WinPE
 $resolved = Resolve-HDTVariable -Fact $fact
 $application = Get-HDTWizardApplication -WorkspaceRoot $root -Variable $resolved.Variable
 @($application.Choice | Where-Object { $_.IsSelected } | ForEach-Object { $_.Id })</pre>
@@ -6695,7 +6866,7 @@ $deploy = Start-HDTWizardDeployment -Answer $answer</pre><p>Turns what the techn
 <div class="sig-wrap"><pre class="sig">Start-HDTProgressDisplay [-XamlPath] &lt;string&gt; [-Variable &lt;hashtable&gt;] [-DisplayHost &lt;Object&gt;] [-FileSystem &lt;Object&gt;] [-EnvironmentProvider &lt;Object&gt;] [&lt;CommonParameters&gt;]</pre></div>
 <section class="params"><h4>Parameters</h4><div class="table-wrap"><table><tr><td class="p-name"><code>-XamlPath</code><div class="p-flags"><span class="req">required</span></div></td><td class="p-type"><code>String</code></td><td class="p-desc"><p>The window. X:\HDT\UI\HDTProgress.xaml inside a boot image.</p></td></tr><tr><td class="p-name"><code>-Variable</code></td><td class="p-type"><code>Hashtable</code></td><td class="p-desc"><p>The resolved variables. HDTSkipProgress is the only one read.</p></td></tr><tr><td class="p-name"><code>-DisplayHost</code></td><td class="p-type"><code>Object</code></td><td class="p-desc"><p>An IProgressHost. Defaults to the real adapter.</p></td></tr><tr><td class="p-name"><code>-FileSystem</code></td><td class="p-type"><code>Object</code></td><td class="p-desc"><p>An IFileSystem. Defaults to the real adapter.</p></td></tr><tr><td class="p-name"><code>-EnvironmentProvider</code></td><td class="p-type"><code>Object</code></td><td class="p-desc"><p>FOR F8, AND ONLY FOR F8. The window opens a command prompt on that key - MDT&#x27;s &quot;Enable command support&quot; - and it runs in a runspace with no Hephaestus module in it, so it cannot resolve ComSpec for itself. The path is worked out here, where a provider can be injected, and handed over with the markup.</p></td></tr></table></div></section>
 <section class="examples"><h4>Examples</h4><div class="ex"><div class="ex-title">Example 1</div><pre class="code">$fact = Get-HDTMachineFact -CimProvider (New-HDTCimProvider) `
--RegistryService (New-HDTRegistryService) -EnvironmentProvider (New-HDTEnvironmentProvider)
+-RegistryService (New-HDTRegistryService) -EnvironmentProvider (New-HDTEnvironmentProvider) -Phase WinPE
 $resolved = Resolve-HDTVariable -Fact $fact
 $progress = New-HDTProgressHost
 $display = Start-HDTProgressDisplay -XamlPath &#x27;X:\HDT\UI\HDTProgress.xaml&#x27; -Variable $resolved</pre></div><div class="ex"><div class="ex-title">Example 2</div><pre class="code">if ($display.Mode -eq &#x27;Window&#x27;) { $display.DisplayHost.Update($progress) }</pre><p>What the engine does on every step: render if there is something to render to, and never ask whether it worked.</p></div></section>
@@ -7234,10 +7405,10 @@ method.</pre>
 <section class="examples"><h4>Examples</h4><div class="ex"><div class="ex-title">Example 1</div><pre class="code">$bitLocker = New-HDTBitLockerService
 $bitLocker.GetVolume(&#x27;C:&#x27;)</pre><p>The volume&#x27;s protection state, read before anything is turned on.</p></div><div class="ex"><div class="ex-title">Example 2</div><pre class="code">@($bitLocker.GetOperationName())</pre><p>The order it was asked to work in, which is the thing worth asserting: Enable must never come before the protector is backed up. A volume encrypted with a key nobody can recover is the outcome that matters.</p></div></section>
 <details class="notes"><summary>How it works</summary><div class="prose"><p>DESIGN 10.3&#x27;s encryption service. Rule 5 forbids engine logic from calling Enable-BitLocker directly, so the EnableBitLocker step receives this object and can be handed New-HDTFakeBitLockerService in a test.</p>
-<p>IT IS BRANCH-FREE, WHICH IS WHY IT IS NOT UNIT TESTED (rule 1&#x27;s adapter exception) - AND THERE IS NO SAFE WAY TO TEST IT ANYWAY. Three of its four methods change the encryption state of a physical disk, and the disk in front of this code during development is the developer&#x27;s own. The contract file runs the real row for SHAPE ONLY and never calls a method on it; the fake carries the behaviour.</p>
-<p>Every decision - which protector, whether escrow succeeded, whether to encrypt at all - is made by the step. This projects four cmdlets and nothing else.</p>
+<p>IT IS BRANCH-FREE, WHICH IS WHY IT IS NOT UNIT TESTED (rule 1&#x27;s adapter exception) - AND THERE IS NO SAFE WAY TO TEST IT ANYWAY. Four of its five methods change the encryption state of a physical disk, and the disk in front of this code during development is the developer&#x27;s own. The contract file runs the real row for SHAPE ONLY and never calls a method on it; the fake carries the behaviour.</p>
+<p>Every decision - which protector, whether escrow succeeded, whether to encrypt at all, how many reboots a suspend lasts - is made by the step. This projects five cmdlets and nothing else.</p>
 <p>THE PROTECTOR TYPE IS A STRING THE STEP CHOOSES, mapping to the switch Add-BitLockerKeyProtector wants. The mapping is here rather than in the step because it is the adapter&#x27;s job to know the cmdlet&#x27;s shape, and the step&#x27;s job to know DESIGN 10.3&#x27;s vocabulary.</p></div></details>
-<div class="extra"><div class="kv"><span class="k">Outputs</span><div class="v"><p>System.Management.Automation.PSCustomObject carrying GetVolume, AddProtector, BackupProtector and Enable, plus Operations, GetOperationName and ServiceName.</p></div></div></div>
+<div class="extra"><div class="kv"><span class="k">Outputs</span><div class="v"><p>System.Management.Automation.PSCustomObject carrying GetVolume, AddProtector, BackupProtector, Enable and Suspend, plus Operations, GetOperationName and ServiceName.</p></div></div></div>
 <footer class="src"><code>src/Hephaestus/Hephaestus.bundle.ps1</code></footer>
 </article>
 <article class="fn" id="New-HDTDomainService" data-name="new-hdtdomainservice" data-hay="new-hdtdomainservice the real idomainservice: a thin adapter over add-computer and win32_computersystem. journal">

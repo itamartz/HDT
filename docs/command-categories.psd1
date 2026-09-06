@@ -120,6 +120,8 @@
                 'Get-HDTValidateStepDescription'
                 'Get-HDTDiskPartitionStepTemplate'
                 'Get-HDTDiskPartitionStepDescription'
+                'Get-HDTCleanVolumeStepTemplate'
+                'Get-HDTCleanVolumeStepDescription'
                 'Get-HDTApplyImageStepTemplate'
                 'Get-HDTApplyImageStepDescription'
                 'Get-HDTApplyUnattendStepTemplate'
@@ -134,6 +136,8 @@
                 'Get-HDTInstallCertificateStepDescription'
                 'Get-HDTEnableBitLockerStepTemplate'
                 'Get-HDTEnableBitLockerStepDescription'
+                'Get-HDTSuspendBitLockerStepTemplate'
+                'Get-HDTSuspendBitLockerStepDescription'
                 'Get-HDTJoinDomainStepTemplate'
                 'Get-HDTJoinDomainStepDescription'
                 'Get-HDTCommandLineStepTemplate'
@@ -170,6 +174,7 @@
                 'Invoke-HDTGatherStep'
                 'Invoke-HDTValidateStep'
                 'Invoke-HDTDiskPartitionStep'
+                'Invoke-HDTCleanVolumeStep'
                 'Invoke-HDTApplyImageStep'
                 'Invoke-HDTCaptureImageStep'
                 'Invoke-HDTBootToWinPEStep'
@@ -179,6 +184,7 @@
                 'Invoke-HDTInstallRolesStep'
                 'Invoke-HDTInstallCertificateStep'
                 'Invoke-HDTEnableBitLockerStep'
+                'Invoke-HDTSuspendBitLockerStep'
                 'Invoke-HDTJoinDomainStep'
                 'Invoke-HDTCommandLineStep'
                 'Invoke-HDTPowerShellStep'
@@ -252,6 +258,7 @@
                 'Resolve-HDTImageIndex'
                 'Resolve-HDTDeployRoot'
                 'Get-HDTDeploymentMethod'
+                'Get-HDTDeploymentPhase'
             )
         }
         @{

@@ -1,0 +1,481 @@
+﻿# HDT STANDARD REFRESH TASK SEQUENCE
+#
+# WIPE AND LOAD, STARTED FROM THE WINDOWS THAT IS ABOUT TO BE REPLACED.
+#
+# client.yaml deploys a machine that is booted from media and has nothing on it.
+# This deploys the same image onto a machine somebody is sitting at, which has
+# been running for three years and is very likely encrypted, domain-joined and
+# full. Nothing about the OUTCOME differs - same image, same drivers, same
+# answer file, same applications - and DESIGN 3.2 says so in as many words. What
+# differs is how the run reaches WinPE, and everything unusual in this file is
+# about that one arrow.
+#
+# USER STATE DOES NOT SURVIVE IT, AND THAT IS PERMANENT. DESIGN 1 rules USMT out
+# of HDT entirely and 3.2 declines to soften it: REFRESH names where the run
+# STARTED, not what was carried across it. MDT's Client.xml puts Capture User
+# State, Capture Groups and Restore User State around exactly this shape of
+# sequence; every one of those groups is deliberately absent here. An
+# administrator who wants the profile kept wants a product HDT is not, and a
+# template that left a placeholder group called "State Capture" with nothing in
+# it would be promising one.
+#
+# THE ENGINE DECIDES THIS IS A REFRESH, NOT THIS FILE. Started in WinPE the run
+# is NEWCOMPUTER; started in the full OS it is REFRESH, derived from the phase
+# and carried across the reboot, and no rules.yaml may claim otherwise
+# (DESIGN 3.2). So there is no `HDTDeploymentType: REFRESH` line below and
+# adding one would be refused: the type is what actually happened, and a
+# document asserting it about itself is the one thing the resume guard exists to
+# disbelieve.
+#
+# THREE LEGS, AND THE MIDDLE ONE IS A RESUME.
+#
+#   1. FULL OS   gather, validate, suspend BitLocker, stage a WinPE onto this
+#                machine's own disk, arm one boot into it, restart
+#   2. WinPE     empty the volume, apply the image, drivers, updates, answer
+#                file, boot files, tear the transport down, restart
+#   3. FULL OS   join, tattoo, applications, encryption
+#
+# THE TRANSPORT IS THE ONE MDT USES AND THE ONE reference.yaml ALREADY PROVED.
+# BootToWinPE stage copies a WinPE to <volume>\HDT\Boot, arm points
+# bcdedit /bootsequence at it for the NEXT boot and only the next boot, and
+# remove takes both away again - LTIApply.wsf /PE /STAGE and /PE /BCD, driven by
+# ZTIBCDUtility.vbs. MDT does the pair as one step, "Apply Windows PE"
+# (Client.xml:91); HDT splits it, because nothing is armed until the staging has
+# been shown to work.
+#
+# THE FIRMWARE BOOT ORDER IS NOT TOUCHED, and that is the whole reason a Refresh
+# can work at all. This machine already boots Windows from its own disk; the
+# one-shot entry borrows the next boot and hands the order straight back. A
+# firmware-order switch would send EVERY boot to WinPE, which is SPIKES S6's
+# fourth finding and cost reference.yaml four steps of a sequence.
+#
+# THERE IS NO DiskPartition STEP IN THIS FILE, AND ITS ABSENCE IS THE DESIGN.
+# MDT gates every partition and format step on `DeploymentType equals
+# NEWCOMPUTER` (Client.xml:131, mirrored Server.xml:115) and a Refresh walks
+# past the whole group. HDT goes further and REFUSES one on a resumed leg
+# unconditionally (Get-HDTResumeForbiddenStepType): the partition table was
+# already correct - Windows was booting from it - and repartitioning would
+# destroy the staged WinPE the second leg is running from. Adding one here
+# produces a sequence that fails at the machine, on purpose.
+#
+# SO THE WIPE IS A DELETION. DISM /Apply-Image OVERLAYS a volume; it does not
+# empty one, and MDT has never asked it to - LTIApply.wsf:1245-1317 walks the
+# root and runs rd /s /q on each folder. CleanVolume is that, and it keeps
+# <volume>\HDT\ standing because the run's own state, its staged boot image and
+# its logs are on the volume it is emptying.
+#
+# WHAT IS BUILT AND WHAT IS UNPROVEN, because a green suite is very good at
+# supporting a claim nobody has checked on a machine.
+#
+# BUILT AND PROVEN AGAINST FAKES: every step below, the ordered operation list
+# this sequence produces on both legs, the suspend landing ahead of the arm, and
+# every refusal - including that a resumed leg reaching a DiskPartition step
+# fails rather than partitioning.
+#
+# NOT YET RUN ON A REAL MACHINE. Not one line of this has refreshed anything.
+# The open questions are the ones no fake can answer: whether a real
+# Suspend-BitLocker on a real TPM leaves the one-shot boot entry reachable, and
+# whether a real CleanVolume finishes against a real Windows\ tree with a real
+# service still holding files open. That sentence stays here until a machine has
+# done it.
+#
+# %Variable% AND $Variable ARE THE SAME THING to the engine. This file uses the
+# PowerShell spelling in conditions and %Name% inside quoted values, exactly as
+# client.yaml does.
+
+schemaVersion: 1
+id: REFRESH
+name: Standard Refresh Task Sequence
+description: >
+  Replaces the Windows this machine is running: validate it while its
+  installation is still there, suspend BitLocker, stage a WinPE onto its own
+  disk and restart into it, empty the OS volume, apply the image, and finish in
+  the new installation. User state is not kept.
+
+variables:
+  # WHAT AN AUTHOR IS EXPECTED TO CHANGE, gathered at the top rather than
+  # scattered through the steps. Each is referenced below as "%Name%".
+  HDTOSImage: Win11-LTSC-2024
+  HDTOSImageIndex: 1
+
+  # THE ONE LINE IN THIS FILE THAT IS NOT TRUE OF EVERY MACHINE, AND IT IS HERE
+  # BECAUSE A REFRESH HAS NO PARTITION STEP TO PUBLISH IT.
+  #
+  # On a bare-metal deployment DiskPartition lays out the disk and publishes
+  # HDTOSVolume as a fact about what it did; every step downstream - ApplyImage,
+  # ApplyUnattend, CleanVolume - reads it from there. A Refresh never partitions
+  # anything, so nothing publishes it, and the two steps that empty and overwrite
+  # a volume will not guess which one.
+  #
+  # MDT HAS THE IDENTICAL GAP AND FILLS IT IDENTICALLY: GetOSDDestinationDrive
+  # pins the destination to SystemDrive for a Refresh (ZTIUtility.vbs:3586-3593),
+  # which is the volume Windows was running from. C: is that volume on very
+  # nearly every machine, and the Validate step below REFUSES any other one
+  # unless allowOtherPartition says the difference is deliberate - so a machine
+  # whose Windows is not on C: is told so while its installation is still there,
+  # rather than after the volume has been emptied.
+  #
+  # IT IS A LETTER, NOT A PATH. 'C', not 'C:' and not 'C:\'.
+  HDTOSVolume: C
+
+  # AND THE SYSTEM PARTITION, FOR THE SAME REASON AND WITH A SHARPER EDGE.
+  # Configure Boot writes the boot files with bcdboot and needs the letter of
+  # the ESP (or System Reserved) to write them to; DiskPartition publishes it on
+  # a bare-metal run and there is no DiskPartition here.
+  #
+  # S IS HDT'S OWN LETTER FOR IT - uefi-standard lays out S/W/R - so a machine
+  # HDT deployed and is now refreshing already answers to this. A MACHINE
+  # PARTITIONED BY SOMETHING ELSE VERY LIKELY DOES NOT: Windows setup leaves the
+  # ESP with no drive letter at all, and the Configure Boot step will refuse a
+  # letter that names no volume rather than guessing. Check it, and give the ESP
+  # a letter in WinPE if it has none.
+  HDTSystemVolume: S
+
+  # THE BUILD AND THE FOOTPRINT OF THE IMAGE ABOVE, which are what two of the
+  # three Refresh-only guards compare against. Both are declared here so the
+  # tokens in the Validate step always resolve; change them with HDTOSImage.
+  #
+  # 10.0.26100 is Windows 11 Enterprise LTSC 2024. A Refresh cannot roll an
+  # installation back to an earlier build - MDT refuses the same thing at
+  # ZTIValidate.wsf:138-146 - so this is compared against what is on the machine
+  # now and the run stops before anything is deleted.
+  HDTOSImageVersion: '10.0.26100'
+
+  # THE APPLIED FOOTPRINT IN MB, not the size of the WIM. The check wants image
+  # + 150 MB for WinPE and its logs + 3 GB for Setup, and it measures the SIZE
+  # of the target volume rather than the space free on it - which looks wrong
+  # until MDT's own comment is read: "assuming most of the drive will be cleaned
+  # off before calling setup". In HDT that assumption is a step. Checking free
+  # space would refuse every machine that is full, which is very nearly the
+  # definition of a machine somebody wants to refresh.
+  HDTOSImageSizeMB: 20000
+
+steps:
+
+  # ------------------------------------------------------------ Initialization
+  #
+  # MDT's first group, and in its Client.xml it holds exactly one step. This one
+  # runs in the FULL OS, which is the difference: everything after it conditions
+  # on what it reads, and on a Refresh the machine reporting those facts is a
+  # working Windows rather than a WinPE.
+  #
+  # HDTOSCurrentVersion COMES FROM HERE, and the downgrade guard below is the
+  # only thing that reads it. It can only be read from the installation that is
+  # about to be replaced, so this group has to be on this leg.
+  - group: Initialization
+    runIn: FullOS
+    steps:
+      - name: Gather local only
+        type: Gather
+
+  # ---------------------------------------------------------------- Validation
+  #
+  # EVERY REFUSAL IN THIS FILE IS WORTHLESS A MOMENT LATER, which is why they are
+  # all here. A Refresh empties the OS volume before it applies the image, so a
+  # machine that cannot fit the image, or is about to be rolled back to an older
+  # build, or is about to have the wrong volume emptied, has to be told while its
+  # installation is still standing. Afterwards there is nothing left to keep.
+  #
+  # THE THREE REFRESH-ONLY GUARDS ARE MDT'S ZTIValidate CHECKS, and they run only
+  # on a REFRESH - a NEWCOMPUTER run reports each of them as SKIPPED rather than
+  # silently passing, because a check absent from the log and a check that passed
+  # look identical a week later.
+  - group: Validation
+    runIn: FullOS
+    steps:
+      - name: Validate
+        type: Validate
+
+        # minRamMB is 2048 rather than 4096 deliberately - a 4 GB machine
+        # reports slightly under 4096, because the firmware keeps some of it.
+        minRamMB: 2048
+
+        # THERE IS NO minDiskGB HERE, AND ITS ABSENCE IS NOT AN OVERSIGHT.
+        #
+        # client.yaml declares minDiskGB: 60, and that check asks whether this
+        # machine has a usable DEPLOYMENT TARGET DISK of that size. The first
+        # exclusion it applies is absolute and not overridable: "disk N is the
+        # disk this machine booted from" (Get-HDTTargetDiskAssessment). On a
+        # bare-metal run that is exactly right - the boot disk is the WinPE stick
+        # and nobody wants Windows on it. On a Refresh it is exactly backwards:
+        # the disk this machine booted from IS the target, because a Refresh
+        # replaces the installation it started in.
+        #
+        # So on a Refresh it is a bound on a choice nobody makes, and it can only
+        # refuse - with a message about a disk the run was never going to use.
+        # imageSizeMB below is the check that belongs here instead: it is MDT's
+        # own Refresh-only free-space guard, and it measures the volume actually
+        # being replaced rather than hunting for a spare disk.
+        #
+        # THE ENGINE DOES NOT RELY ON THIS FILE FOR ANY OF THAT. minDiskGB is
+        # scoped NEWCOMPUTER in Get-HDTValidateCheckDefinition and reports itself
+        # SKIPPED, with the reason, on a REFRESH - because the console's Validate
+        # page offers every check on every sequence, so a comment in the shipped
+        # template protects the shipped template and nobody else.
+
+
+        # THE DOWNGRADE REFUSAL, ZTIValidate.wsf:138-146. MDT compares major and
+        # minor only, and every Windows since Windows 10 reports 10.0 - so its
+        # check has not been able to fire since 2015. HDT compares the BUILD,
+        # which is the component that actually moves.
+        imageVersion: '%HDTOSImageVersion%'
+
+        # THE FREE-SPACE REFUSAL, ZTIValidate.wsf:231-256. MDT applies it to
+        # REFRESH and explicitly skips it for NEWCOMPUTER: a machine that has
+        # just been given its partition table has the room by construction, and
+        # a machine being refreshed has whatever its owner left on it.
+        imageSizeMB: '%HDTOSImageSizeMB%'
+
+        # THE PARTITION-MATCH REFUSAL, ZTIValidate.wsf:151-154. A Refresh
+        # replaces the installation it STARTED from, so any other volume is
+        # refused. MDT's escape hatch is the incantation
+        # DestinationOSRefresh=OKTOUSEOTHERDISKANDPARTITION; DESIGN 1 keeps that
+        # spelling out of HDT and keeps the capability, so it is a switch on the
+        # step that enforces it - the same shape as DiskPartition's wipe: true,
+        # where a step that may do something irreversible says so out loud.
+        #
+        # AN OVERRIDDEN SAFETY RULE ALWAYS WARNS, so turning this on is visible
+        # in the log of the run that used it.
+        allowOtherPartition: false
+
+  # -------------------------------------------------------------- State Capture
+  #
+  # MDT'S GROUP NAME, AND IT IS KEPT ON PURPOSE EVEN THOUGH NO STATE IS
+  # CAPTURED. An administrator arriving from Workbench is looking for these
+  # words, and this is where MDT's own "Refresh only" group lives
+  # (Client.xml:76-93) - the two steps below are that group, in order, with the
+  # USMT steps around it absent because HDT has no USMT and will not have one.
+  #
+  # NOTHING IS ARMED UNTIL WE KNOW IT CAN COME BACK, which is reference.yaml's
+  # rule and it matters more here than it does there. A reference machine that
+  # cannot reach WinPE is a wasted afternoon; a production machine that has had
+  # its protectors suspended and its boot entry armed and CANNOT reach WinPE is
+  # somebody's laptop. So every step in this group fails the sequence rather
+  # than warning, and they run in the order in which each is recoverable.
+  - group: State Capture
+    runIn: FullOS
+    steps:
+      # BEFORE THE BOOT CONFIGURATION IS TOUCHED, WHICH IS THE WHOLE POINT OF
+      # THE ORDER. Arming a ramdisk boot entry changes what the TPM measured, and
+      # an encrypted machine's next boot then lands in BitLocker recovery wanting
+      # a key the technician did not bring - on a machine nobody is standing in
+      # front of. MDT runs its "Disable BDE Protectors" step in exactly this
+      # position, immediately before it stages the transport (Client.xml:85-90).
+      #
+      # A SUSPEND, NEVER A DECRYPT. The volume is about to be emptied and
+      # overwritten, so the plaintext underneath the ciphertext has no value to
+      # anybody, and a decrypt costs hours on a large disk to buy precisely that.
+      #
+      # rebootCount: 0 IS "UNTIL PROTECTION IS EXPLICITLY RESUMED" and 1 would be
+      # "until the next boot". A Refresh boots into WinPE, applies an image and
+      # boots again - so a suspend that expired on the first of those would put
+      # the second into recovery, which is this step's own failure arriving one
+      # reboot later.
+      #
+      # AN UNENCRYPTED MACHINE IS THE ORDINARY CASE and this step completes
+      # having asked for nothing, which is MDT's guard restated: it selects only
+      # volumes "where ProtectionStatus<>0".
+      - name: Suspend BitLocker
+        type: SuspendBitLocker
+        rebootCount: 0
+
+      # THE STAGING, AND IT IS DELIBERATELY NOT THE ARMING. A copy of the share's
+      # boot image goes to <volume>\HDT\Boot, beside this run's state and its
+      # logs. It is ~500 MB off the share and it is the step most likely to fail
+      # - a share that went away, a disk with no room - so it happens while this
+      # is still a Windows somebody can log into and nothing has been armed.
+      - name: Stage WinPE for the apply boot
+        type: BootToWinPE
+        action: stage
+
+      # THE ONE-SHOT. bcdedit /bootsequence hands the NEXT boot to the staged
+      # WinPE and only the next boot; the firmware order and {default} are left
+      # naming Windows, so a machine that never gets there is a machine that
+      # simply boots normally and can be tried again.
+      - name: Boot into WinPE
+        type: BootToWinPE
+        action: arm
+
+      # THE HANDOVER. Everything above ran in the Windows being replaced;
+      # everything below runs in the WinPE staged on this machine's own disk, and
+      # the engine resumes there from the state document mirrored beside it.
+      - name: Restart into WinPE
+        type: Restart
+        message: restarting into the staged WinPE to replace this installation
+
+  # ---------------------------------------------------------------- Preinstall
+  #
+  # THE RESUMED LEG STARTS HERE, and this group is where a Refresh differs from
+  # every other sequence HDT ships: client.yaml's Preinstall partitions a disk
+  # and this one empties a volume.
+  - group: Preinstall
+    runIn: WinPE
+    steps:
+      # DELETE, NOT FORMAT, AND THE REASON IS STANDING ON THE VOLUME. state.json
+      # is mirrored to <volume>\HDT\state.json, the WinPE this leg is running
+      # from was staged to <volume>\HDT\Boot, and the logs are beside them - all
+      # of it what the leg that came back is made of. A format would take every
+      # one of them, in the one place the run could not record why it died.
+      #
+      # 'primary' IS %HDTOSVolume%, which is the same word the ApplyImage step
+      # below uses for the same volume. Two steps naming one volume two different
+      # ways is how they come to disagree.
+      #
+      # IT FAILS WHERE MDT WARNS. LTIApply.wsf:1297-1299 logs "Unable to delete"
+      # and carries on, so a locked folder survives into the new installation.
+      # A half-cleaned volume is a machine that looks deployed and is not.
+      - name: Clean the OS volume
+        type: CleanVolume
+        volume: primary
+
+  # ------------------------------------------------------------------- Install
+  - group: Install
+    runIn: WinPE
+    steps:
+      # THE VOLUME THE STEP ABOVE JUST EMPTIED. On a bare-metal run this is a
+      # partition that was created ninety seconds ago; here it is the partition
+      # Windows was booting from until the last restart, which is why it had to
+      # be emptied first - DISM overlays a volume, it does not empty one.
+      #
+      # THIS IS THE ONE STEP THE RESUME GUARD LETS THROUGH. ApplyImage is
+      # forbidden on a resumed leg because a capture's would destroy the machine
+      # it is capturing; a Refresh's is the step the leg exists to run, so the
+      # guard makes an exception for ApplyImage on a REFRESH and for nothing
+      # else (DESIGN 3.2, Get-HDTResumePermittedStepType).
+      - name: Install Operating System
+        type: ApplyImage
+        os: "%HDTOSImage%"
+        index: "%HDTOSImageIndex%"
+        target: "%HDTOSVolume%"
+        timeoutMinutes: 60
+
+  # --------------------------------------------------------------- Postinstall
+  #
+  # client.yaml's Postinstall, unchanged, because DESIGN 3.2 is explicit that
+  # nothing about the outcome of a Refresh differs from a bare-metal run. The
+  # machine is imaged but has never started; everything here is written into a
+  # Windows that is not running yet.
+  - group: Postinstall
+    runIn: WinPE
+    steps:
+      # BEFORE Apply Windows Settings, AND THAT ORDER IS THE FEATURE.
+      # unattend.xml carries DriverPaths in the offlineServicing pass, which is
+      # processed the moment the answer file is applied to the offline image - so
+      # the drivers have to be ON the volume before that step runs. client.yaml
+      # shipped the other way round once and every driver was left to PnP after
+      # first boot, which happens asynchronously: a real Latitude came up with
+      # ten yellow devices that cleared themselves minutes later, and the feature
+      # looked like it worked while never once running.
+      - name: Inject Drivers
+        type: ApplyDrivers
+        group: 'Win11\%HDTMake%\%HDTModel%'
+        mode: all
+
+      # A share with nothing imported still deploys: no updates for the release
+      # is a completed step that applied nothing, not a failed deployment.
+      - name: Apply Patches
+        type: ApplyUpdates
+        release: '%HDTOSRelease%'
+
+      # Staged at <os volume>\Windows\Panther\unattend.xml, where Setup consumes
+      # it.
+      - name: Apply Windows Settings
+        type: ApplyUnattend
+        template: unattend.xml
+
+      # bcdboot and the recovery image. setBootOrder is left at its default,
+      # which is what makes the machine boot the installation that has just been
+      # applied - and on a Refresh the firmware order was never changed in the
+      # first place, so this is writing boot files rather than undoing anything.
+      - name: Configure Boot
+        type: ConfigureBoot
+
+      # THE TEARDOWN, BEFORE THE MACHINE LEAVES WinPE FOR GOOD.
+      #
+      # /bootsequence is consumed by the boot it caused, but the OSLOADER object
+      # it named stays in the store for ever and half a gigabyte of staged WinPE
+      # stays on the disk - on a machine that is about to be handed back to
+      # somebody. This removes both.
+      #
+      # IT WARNS RATHER THAN FAILING, which is reference.yaml's reasoning in the
+      # same position: by here the deployment is the only thing left that
+      # matters, and a cleanup that failed would cost the whole run. A stale
+      # entry pointing at a WIM that is gone is inert; the Windows Boot Manager
+      # falls through to {default}, which names the installation just applied.
+      #
+      # IT RUNS HERE AND NOT ON THE LAST LEG, because <volume>\HDT is still this
+      # run's own state directory on the leg below and CleanVolume kept it for
+      # that reason. WinPE is the last moment at which the boot store and the
+      # staged image can both be reached from outside the installation.
+      - name: Remove the local WinPE
+        type: BootToWinPE
+        action: remove
+
+      # THE SECOND HANDOVER. Everything below runs in the Windows that is about
+      # to start for the first time.
+      - name: Restart into Windows
+        type: Restart
+
+  # ------------------------------------------------------------- State Restore
+  #
+  # MDT's name for "the machine is now Windows and we are finishing the job", and
+  # this group is client.yaml's with MDT's Tattoo step added in MDT's own
+  # position. A Refresh that finished with a machine in a workgroup, unencrypted
+  # and with no applications on it would not be the same outcome as a bare-metal
+  # deployment, and DESIGN 3.2 says the outcomes do not differ.
+  - group: State Restore
+    runIn: FullOS
+    steps:
+      # MEMBERSHIP FIRST, BECAUSE EVERYTHING AFTER IT MAY DEPEND ON IT, and MDT
+      # puts "Recover From Domain" at the top of State Restore for the same
+      # reason. The machine was almost certainly domain-joined before this run;
+      # its computer object is still there, and this is what puts the new
+      # installation back into it.
+      #
+      # THE PASSWORD IS NOT HERE AND MUST NOT BE. It comes from
+      # HDTDomainAdminPassword in the variable bag, which every log, checkpoint
+      # and report redacts - and it does NOT survive the restart above, so an
+      # unattended join needs it set on THIS leg. A SetVariable step in this
+      # group is the way to do it.
+      - name: Join Domain
+        type: JoinDomain
+        domain: '%HDTJoinDomain%'
+        ou: '%HDTMachineObjectOU%'
+        workgroup: '%HDTJoinWorkgroup%'
+        userName: '%HDTDomainAdmin%'
+        userDomain: '%HDTDomainAdminDomain%'
+
+        retry:
+          count: 2
+          delaySeconds: 30
+
+      # BEFORE THE APPLICATIONS, WHICH IS MDT'S ORDER (Client.xml State Restore
+      # runs Tattoo, then Install Applications). It stamps what built this
+      # machine into the registry, and it is worth more on a Refresh than
+      # anywhere else: this machine already had a deployment record on it, from
+      # the build this run just deleted, and an audit that read the old one would
+      # be reading about an installation that no longer exists.
+      - name: Tattoo
+        type: Tattoo
+
+      - name: Install Applications
+        type: InstallApplications
+
+      # ENCRYPTION LAST, AND ONLY IF ASKED FOR - and on a Refresh that condition
+      # carries a warning worth reading. The machine this run started on may well
+      # have been encrypted; the Suspend BitLocker step at the top turned its
+      # protectors off, and then the volume and everything on it was deleted.
+      # There is nothing left to resume, so protection on the NEW installation is
+      # this step and only this step. A share that leaves HDTEnableBitLocker
+      # false will refresh an encrypted laptop into an unencrypted one.
+      - name: Enable BitLocker
+        type: EnableBitLocker
+        condition: '$HDTEnableBitLocker -eq $true'
+        scope: usedSpaceOnly
+        method: XtsAes256
+        protector: '%HDTBitLockerProtector%'
+        escrow: '%HDTBitLockerEscrow%'
+        pin: '%HDTBitLockerPin%'
+        startupKey: '%HDTBitLockerStartupKey%'
+        recoveryPassword: true
+        wait: false
