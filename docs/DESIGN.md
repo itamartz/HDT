@@ -266,11 +266,13 @@ MDT declares both in `ZTIGather.xml` and HDT carries both:
 
 | MDT | HDT | Answers | Values |
 |---|---|---|---|
-| `DeploymentType` | `HDTDeploymentType` | *what* is being done | `NEWCOMPUTER` — this engine performs bare-metal installs only |
+| `DeploymentType` | `HDTDeploymentType` | *what* is being done | `NEWCOMPUTER` from a WinPE boot, `REFRESH` from the running full OS |
 | `DeploymentMethod` | `HDTDeploymentMethod` | *how this machine reached its content* | `UNC` from a share, `MEDIA` from the disc or stick it booted from |
 
 They are independent, and the trap is assuming they are not: **a media
-deployment is still `NEWCOMPUTER`**. MDT's `LiteTouch.wsf` decides the method by
+deployment is still `NEWCOMPUTER`**, and **a Refresh is still `UNC`** — it is
+entered from a machine already on the network and reads the share like any other
+deployment. MDT's `LiteTouch.wsf` decides the method by
 walking every ready drive looking for its media marker and defaulting to `UNC`
 when it finds none; HDT decides it from the provider `bootstrap.json` already
 names, through `Get-HDTDeploymentMethod`, so the value cannot disagree with the
@@ -290,6 +292,184 @@ rather than a list of names written into the validator, so the next
 engine-published variable is refused the day its row lands. A `rules.yaml` that
 declared `MEDIA` on a share would produce a deployment that skips the network it
 is using, and every symptom of that points somewhere else.
+
+**`REFRESH` is the same wipe-and-load, entered from the running Windows rather
+than from a boot.** A machine that is already running Windows starts the engine
+in the full OS, stages a WinPE onto its own disk, arms one boot into it, applies
+the image on the leg that comes back, and finishes in the new installation.
+Nothing about the outcome differs from a `NEWCOMPUTER` run — same image, same
+drivers, same unattend — and **user state does not survive it**. §1 rules USMT
+out permanently and that is not softened here: `REFRESH` names where the run
+*started*, not what was carried across it. An admin who wants the profile kept
+wants a product HDT is not.
+
+**The engine derives it from the phase it started in, and a `rules.yaml` cannot
+say otherwise.** Started in WinPE, `NEWCOMPUTER`; started in the full OS,
+`REFRESH`. MDT decides it on the same evidence in the same place —
+`LiteTouch.wsf:373-387` tests `oEnv("SystemDrive") = "X:"` and writes
+`NEWCOMPUTER` when the drive is the RAM disk, `REFRESH` when it is not — and
+`ZTIUtility.vbs:3339-3347` re-derives it per task sequence rather than trusting
+what was recorded earlier. **No wizard pane sets it there**: the seventeen panes
+of `DeployWiz_Definition_ENU.xml` mention `DeploymentType` only inside a
+read-only `<Condition>`, and HDT ships no page for it either. So the map row
+carries `Writable = $false` exactly as `HDTDeploymentMethod`'s does, and
+`Assert-HDTRuleDocument` refuses the name for the same structural reason — it
+refuses on the column, not on a list of names. The failure it forecloses is the
+same one as well: an admin who declares `REFRESH` on a machine that booted WinPE
+does not get a Refresh, they get a run that lies about how it started, and every
+symptom of that points somewhere else.
+
+**A Refresh does not partition, and that is the load-bearing difference.** MDT
+puts every partition and format step inside one group conditioned
+`DeploymentType equals NEWCOMPUTER` (`Client.xml:131`, mirrored at
+`Server.xml:115`); a Refresh walks past the whole group and reuses the OS
+partition that is already there. HDT follows exactly — the Refresh sequence
+carries no `DiskPartition` step at all.
+
+The question that invites is whether wipe-and-load is still honest with no
+repartition in it, and the answer is that **the wipe is a deletion, run
+immediately before the apply.** `DISM /Apply-Image` overlays a volume; it does
+not empty one, and MDT has never asked it to. `LTIApply.wsf:1245-1317`,
+`Function CleanDrive`, enumerates
+`oFSO.GetFolder(sDestinationDrive & "\").Subfolders` at `:1265`, runs
+`cmd.exe /c rd /s /q "<folder>"` on each at `:1282`, and retries once through
+`ResetFolder`'s takeown/icacls (`:1564`) when that fails (`:1285-1299`); the
+files sitting in the root go too, at `:1308-1315`. `ApplyImage` calls it at
+`:880-885` under the comment `' Clean off old OS if running in PE`, and the DISM
+line follows at `:915-926` — same call-site shape at `:732-736` and `:1118-1122`.
+`Windows\`, `Program Files\`, `Users\` and `ProgramData\` are deleted by name,
+one `rd /s /q` at a time.
+
+**It is a deletion rather than a format because the run's own state is standing
+on the volume being cleaned.** The exclusion list is `LTIApply.wsf:1275-1277` —
+`minint`, `recycler`, `system volume information`, `deploy`, `drivers`,
+`_smstasksequence`, `smstslog`, `sysprep` — with a second guard at
+`:1257-1262`/`:1269` skipping anything under `OSDStateStorePath`, and a root-file
+skip for `MININT` at `:1309-1311`. Nothing is moved and nothing is renamed: the
+state folders simply stay where they are, and `ZTIUtility.vbs:1782-1839` finds
+them again afterwards by probing `<drive>:\MININT\SMSOSD\OSDLOGS` and
+`<drive>:\_SMSTaskSequence`. A format would take the task sequence's state, its
+logs and the staged WinPE with it — everything the leg needs in order to be the
+leg that comes back.
+
+**And the clean runs in WinPE, never from the running Windows.**
+`LTIApply.wsf:882` gates the whole thing on
+`If oEnvironment.Item("OSVersion") = "WinPE" then`, and a Refresh reaches that
+state because `Client.xml:106-112` reboots through `smsboot.exe /target:WinPE`
+once `LTIApply.wsf /PE` has staged the transport. You cannot delete `Windows\`
+from the Windows you are running.
+
+**So hold the partition table and the volume contents apart, because conflating
+them is the mistake this section exists to foreclose.** The partition table is
+not touched — it was already correct, since Windows was booting from it, and
+repartitioning would destroy the staged WinPE the run depends on to come back
+through. The volume contents *are* emptied, deliberately and by name. HDT
+follows both halves: `DiskPartition` stays in §4.3's resume-forbidden set for a
+Refresh exactly as for a capture, and for the identical reason — a resumed leg
+that reaches one has a state document lying about where the run had got to —
+while the emptying is a separate step doing a separate thing.
+
+**That separate step does not exist yet.** Nothing in
+`src/Hephaestus/Public/Steps/` empties a volume, so Refresh needs a
+clean-the-volume step type built. Its preserved set has to carry HDT's own state
+directory, `<volume>\HDT\`: `state.json` is mirrored there by
+`Invoke-HDTTaskSequence.ps1:897` and read back by `Start-HDTResume.ps1:87`, the
+staged boot WIM lives under `<volume>\HDT\Boot` (`Get-HDTLocalWinPePlan`), and
+the logs are beside them. Delete that directory and the run dies mid-flight, in
+the one place it cannot record why. The step is destructive, so it takes
+`SupportsShouldProcess`, and it refuses an ambiguous target rather than guessing
+a volume — the same refusal `DiskPartition` already makes about a disk.
+
+**It fails where MDT warns, and that divergence is deliberate.**
+`LTIApply.wsf:1297-1299` logs `"Unable to delete " & oFolder.Path` and carries
+on, so a locked folder survives into the new installation and nothing anywhere
+fails. HDT fails the step instead. The reasoning is the one already written into
+the resume guard, which fails rather than skips
+(`Invoke-HDTTaskSequence.ps1:556`, §4.3): a half-cleaned volume is a machine that
+looks deployed and is not, carrying a previous installation's `Program Files`
+into a new one, and the administrator who has to explain it a week later is
+reading a log that recorded the cause as a warning.
+
+**The rule it looks like it breaks is the delete rule, and it does not.**
+CLAUDE.md forbids building a delete target by enumerating a parent directory, and
+this step is exactly an enumerate-and-delete loop. That rule governs code running
+on a development host, where the parent enumerated could be the repository or the
+lab; this step runs in WinPE against a deployment target volume the run has
+already identified — for a Refresh, the partition Windows was running from, which
+MDT pins to `SystemDrive` at `ZTIUtility.vbs:3586-3593` unless
+`DestinationOSRefresh` says otherwise. The substitute for the rule it cannot
+satisfy literally is an assertion: the step establishes which volume it is
+standing on, and refuses if it cannot, before it deletes anything. That assertion
+is what the rule was protecting in the first place.
+
+**`ApplyImage` is the one entry that set has to lose, and only for a Refresh.**
+A capture survives the guard by never being visited — its `ApplyImage` sits
+*behind* the resume point, and the loop starts at `state.stepIndex`
+(`Invoke-HDTTaskSequence.ps1:543-545`). A Refresh's sits *ahead* of it: the
+machine resumes into the staged WinPE and only then applies, so the guard as
+written would refuse the step the leg exists to run. The exception is
+`ApplyImage` on a resumed leg of a `REFRESH` run and nothing else.
+`DiskPartition` keeps refusing under both, and the refusal message keeps its
+meaning.
+
+**Naming the danger that re-opens is what makes the `Writable = $false` above
+structural rather than tidy.** The guard exists to *disbelieve* `state.json` —
+that is why it runs ahead of the already-completed check. An exception keyed to
+something a corrupt state document could assert about itself would hand that
+document the key to the lock it is the reason for. So the exception keys on the
+deployment type the engine **derived** at the start of the leg, from the phase it
+is running in, which nothing on the disk can forge. `Templates/reference.yaml`
+already records that the guard "holds however the machine arrived" — one-shot
+boot entry, PXE, an ISO left in the drive, a technician pressing F12 — and that
+sentence stays true. The exception is about *what the run is*, not about how it
+got here.
+
+**BitLocker is suspended before the boot configuration is touched, and only on a
+Refresh.** A bare-metal machine has nothing to suspend; a Refresh runs on a
+production machine that is very likely encrypted, and arming a ramdisk boot entry
+changes the boot configuration the TPM measured. The next boot then lands in
+BitLocker recovery, on a machine nobody is standing in front of, wanting a key
+the technician did not bring. MDT does it as the step immediately before
+`LTIApply.wsf /PE`, inside its `DeploymentType equals REFRESH` group
+(`Client.xml:85-90`), and it does it through WMI rather than `manage-bde`:
+`Win32_EncryptableVolume.DisableKeyProtectors(0)`
+(`ZTIDisableBDEProtectors.wsf:88-96`). **That is a suspend, not a decrypt** —
+the volume stays encrypted and the protectors return on the next boot, which is
+why it costs seconds instead of hours; the decrypt branch in that script is for
+OS combinations HDT does not support. HDT has no equivalent today:
+`IBitLockerService` is `GetVolume`, `AddProtector`, `BackupProtector` and
+`Enable` (`New-HDTBitLockerService.ps1:36-37`), with no `Suspend` anywhere on it.
+Adding one is work Refresh requires; it is not designed here.
+
+**The transport already exists and Refresh does not rebuild it.** `BootToWinPE`
+(§4.2, §9.3) stages a WinPE under `<volume>\HDT\Boot`, arms a one-shot
+`bcdedit /bootsequence` entry at it, and removes both afterwards —
+`action: stage | arm | remove`, planned by `Get-HDTLocalWinPePlan` and issued
+through `Get-HDTBcdCommand`, wired into `Templates/reference.yaml:309`, `:314`
+and `:362`. It was built for capture, ported from `LTIApply.wsf`'s InstallPE and
+`ZTIBCDUtility.vbs`, and it was deliberately left **out** of the forbidden set so
+a resumed leg can tear down the mechanism that carried it there
+(`Get-HDTResumeForbiddenStepType.ps1:36-46`). Refresh is the second caller of
+exactly that, unchanged. PSD is no help here and it is worth saying so — it has
+no full-OS-to-WinPE path at all — so MDT is the only prior art.
+
+**Three checks MDT runs only on a Refresh, and HDT has none of them yet.**
+`ZTIValidate.wsf` refuses a downgrade (`:138-146`, "Performing a Refresh from a
+newer OS Version to an older OS Version is not supported"), refuses a target that
+is not the partition Windows is running from unless
+`DestinationOSRefresh=OKTOUSEOTHERDISKANDPARTITION` says otherwise (`:151-154`),
+and requires free space of the image size plus 150 MB plus 3 GB (`:231-256`) — a
+check it applies to `REFRESH` and explicitly skips for `NEWCOMPUTER`, because a
+machine that has just been given its partition table has the room by construction
+and a machine being refreshed has whatever its owner left on it.
+
+**And there is no confirmation screen.** MDT has nothing anywhere that asks "you
+are about to wipe this machine" — not `DeployWiz_Ready.xml` or its `.vbs`, not
+`DeployWiz_Validation.vbs`, not `DeployWiz_Definition_ENU.xml`, not
+`LiteTouch.wsf`. HDT adds none either. It is written down so the next reader
+takes it as decided rather than overlooked: the consent is choosing the sequence
+and starting the deployment, and a prompt arriving after that trains people to
+click through it.
 
 HDT-specific additions with no MDT equivalent: `HDTSecureBootEnabled`,
 `HDTTPMVersion`, `HDTBootMode` (`PXE` | `Media`), `HDTDiskLayout`,
@@ -2836,7 +3016,9 @@ The `scope` option is the one that matters operationally:
 
 Default is `usedSpaceOnly`, since HDT only ever deploys to a volume it just
 created (§1, wipe-and-load only) — the one scenario where it is unambiguously
-the right choice. The doc states the reasoning so an admin choosing `full` for a
+the right choice. **A Refresh is the exception**: §3.2's `REFRESH` applies over a
+partition that has been in service, whose free space has held plaintext, so
+`full` is the honest default there. The doc states the reasoning so an admin choosing `full` for a
 compliance reason is making an informed decision rather than guessing.
 
 Other behavior: key escrow to AD (`Backup-BitLockerKeyProtector`) or Entra
