@@ -56,7 +56,7 @@
 
         .EXAMPLE
             $fact = Get-HDTMachineFact -CimProvider (New-HDTCimProvider) `
-                -RegistryService (New-HDTRegistryService) -EnvironmentProvider (New-HDTEnvironmentProvider)
+                -RegistryService (New-HDTRegistryService) -EnvironmentProvider (New-HDTEnvironmentProvider) -Phase WinPE
             $resolution = Resolve-HDTVariable -Fact $fact
             Export-HDTVariableProvenance -Resolution $resolution -Path 'X:\HDT\Logs\Gather\provenance.json'
 

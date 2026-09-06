@@ -864,7 +864,12 @@ try {
 
     while ($true) {
         $attempt++
-        $fact = Get-HDTMachineFact -CimProvider $cim -RegistryService $registry -EnvironmentProvider $environment
+        # WinPE, HARD-CODED THE WAY EVERY OTHER -Phase IN THIS FILE IS. This
+        # payload is the WinPE entry point and nothing here can be on a full-OS
+        # leg yet; the full-OS entry point is M9's next item, and it is the one
+        # that will make this an argument rather than a constant.
+        $fact = Get-HDTMachineFact -CimProvider $cim -RegistryService $registry -EnvironmentProvider $environment `
+            -Phase WinPE
 
         # THE DECISION IS Get-HDTUsableAddress'S, AND IT USED TO BE HERE. Inline,
         # it cast a [string[]] to a string - which SPACE-joins - and then split

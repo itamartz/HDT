@@ -92,7 +92,7 @@
             $title = 'Task Sequence'
             $field = @()
             $fact = Get-HDTMachineFact -CimProvider (New-HDTCimProvider) `
-                -RegistryService (New-HDTRegistryService) -EnvironmentProvider (New-HDTEnvironmentProvider)
+                -RegistryService (New-HDTRegistryService) -EnvironmentProvider (New-HDTEnvironmentProvider) -Phase WinPE
             $resolved = Resolve-HDTVariable -Fact $fact
             $ask = Get-HDTWizardPage -Page @() -Variable $resolved.Variable
             Get-HDTWizardSequence -WorkspaceRoot 'Z:\Deploy'

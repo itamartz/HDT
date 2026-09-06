@@ -60,8 +60,11 @@ BeforeAll {
         }
     }
 
+    # THE PHASE IS A PARAMETER BECAUSE THE GATHER READS IT NOW. HDTDeploymentType
+    # is derived from the phase the engine started in, and the step hands the
+    # context's own phase to Get-HDTMachineFact rather than deciding for itself.
     $script:newContext = {
-        param([System.Collections.IDictionary] $Variable, [object] $Cim)
+        param([System.Collections.IDictionary] $Variable, [object] $Cim, [string] $Phase = 'WinPE')
 
         $fileSystem = New-HDTFakeFileSystem
         $clock = New-HDTFakeClock -UtcNow ([datetime]::new(2026, 8, 17, 12, 0, 0, [System.DateTimeKind]::Utc))
@@ -85,7 +88,7 @@ BeforeAll {
         $catalog = New-HDTServiceCatalog -FileSystem $fileSystem -Clock $clock -Cim $Cim `
             -Registry $registry -Environment $environment
 
-        $log = New-HDTLogContext -RunId 'run-gather' -Phase WinPE -LogPath 'X:\HDT\Logs' `
+        $log = New-HDTLogContext -RunId 'run-gather' -Phase $Phase -LogPath 'X:\HDT\Logs' `
             -FileSystem $fileSystem -Clock $clock -Level Debug
 
         $live = [System.Collections.Specialized.OrderedDictionary]::new([System.StringComparer]::OrdinalIgnoreCase)
@@ -93,7 +96,7 @@ BeforeAll {
             foreach ($key in @($Variable.Keys)) { $live[[string] $key] = $Variable[$key] }
         }
 
-        return (New-HDTExecutionContext -RunId 'run-gather' -Phase WinPE -WorkspaceRoot 'Z:\Deploy' `
+        return (New-HDTExecutionContext -RunId 'run-gather' -Phase $Phase -WorkspaceRoot 'Z:\Deploy' `
                 -Variable $live -Service $catalog -Log $log)
     }
 }
@@ -381,6 +384,41 @@ Describe 'Invoke-HDTGatherStep' {
             $record = @(Get-HDTLogRecord -FileSystem $script:fileSystem -Path 'X:\HDT\Logs\HDT.jsonl' -Event var.resolve)
 
             @($record | Where-Object { $_.message -match 'Win32_ComputerSystem' }) | Should -Not -BeNullOrEmpty
+        }
+    }
+
+    # THE STEP DOES NOT DECIDE THE PHASE, IT PASSES IT ON. HDTDeploymentType is
+    # derived from the phase the engine started in (DESIGN 3.2), and the
+    # execution context already carries that phase - it is what _HDTPhase and
+    # the log context are built from. A step that read $env:SystemDrive or the
+    # MiniNT key instead would be engine logic touching the machine, which
+    # rule 5 forbids and which no fake could contradict.
+    Context 'the phase the gather was run in' {
+
+        # BOTH LEGS IN ONE TABLE, because a step that ignored its context and
+        # always asked for WinPE would pass a test written only for the WinPE
+        # leg - and the symptom on the other one is a Refreshed machine
+        # tattooed NEWCOMPUTER.
+        It 'publishes the deployment type its context''s phase implies, both ways' {
+            $case = @(
+                @{ Phase = 'WinPE'; Expected = 'NEWCOMPUTER' }
+                @{ Phase = 'FullOS'; Expected = 'REFRESH' }
+            )
+
+            $wrong = @()
+            foreach ($current in $case) {
+                $context = & $script:newContext $null $script:cim $current.Phase
+                $step = & $script:newStep $null
+
+                [void] (Invoke-HDTGatherStep -Step $step -Context $context)
+
+                $actual = [string] $context.Variable['HDTDeploymentType']
+                if ($actual -cne $current.Expected) {
+                    $wrong += ('{0} gave {1}, expected {2}' -f $current.Phase, $actual, $current.Expected)
+                }
+            }
+
+            $wrong -join '; ' | Should -BeExactly ''
         }
     }
 }

@@ -128,7 +128,7 @@ Describe 'Get-HDTUsableAddress' {
 
             $script:gathered = Get-HDTMachineFact -CimProvider $cim `
                 -RegistryService (New-HDTFakeRegistryService) `
-                -EnvironmentProvider (New-HDTFakeEnvironmentProvider)
+                -EnvironmentProvider (New-HDTFakeEnvironmentProvider) -Phase WinPE
         }
 
         It 'is reading a machine with more than one address' {

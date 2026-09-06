@@ -126,13 +126,26 @@
         # UPGRADE - which is how one Client.xml serves bare metal and an
         # in-place refresh from the same file.
         #
-        # HDT IMPLEMENTS ONE OF THEM, and the variable exists anyway. A sequence
-        # written against it now needs no rewrite the day a refresh path lands;
-        # the alternative is a condition invented later and retrofitted onto
-        # every group that predates it. What it must NOT do is claim more than
-        # it does, which is why the description says so out loud.
-        @{ HDTName = 'HDTDeploymentType'; MdtName = 'DeploymentType'; Origin = 'engine'
-            Description = 'Which deployment scenario is running. This engine performs bare-metal installs only, so it is always NEWCOMPUTER; MDT also has REFRESH, REPLACE and UPGRADE, and those arrive with the steps that implement them.'
+        # HDT IMPLEMENTS TWO OF THEM, AND DERIVES WHICH FROM THE PHASE THE
+        # ENGINE STARTED IN: WinPE is a NEWCOMPUTER, the full OS is a REFRESH.
+        # MDT decides it on the same evidence in the same place
+        # (LiteTouch.wsf:373-387 tests SystemDrive = "X:") and re-derives it per
+        # task sequence (ZTIUtility.vbs:3339-3347) rather than trusting what was
+        # recorded earlier. REPLACE and UPGRADE are not offered: DESIGN 1 rules
+        # USMT out permanently, and a description naming a value this engine can
+        # never publish is a promise the map cannot keep.
+        #
+        # NOT WRITABLE, AND NOT BECAUSE OF THE PREFIX. Like HDTDeploymentMethod
+        # below it carries no underscore - MDT's name is DeploymentType and a
+        # step condition reads %HDTDeploymentType% - so this row says it instead.
+        # It is a fact about how the run STARTED, not a preference: an admin who
+        # declares REFRESH on a machine that booted WinPE does not get a Refresh,
+        # they get a run that lies about its own origin, and every symptom of
+        # that points somewhere else. No MDT wizard pane sets it either - all
+        # seventeen in DeployWiz_Definition_ENU.xml only read it inside a
+        # <Condition> - and HDT ships no page for it. DESIGN 3.2.
+        @{ HDTName = 'HDTDeploymentType'; MdtName = 'DeploymentType'; Origin = 'engine'; Writable = $false
+            Description = 'Which deployment scenario is running: NEWCOMPUTER when the engine started in WinPE, REFRESH when it started in the running full OS. Derived by the engine from the phase it started on, so it cannot disagree with how the run actually began. It is NOT settable in rules.yaml - an admin who declares REFRESH on a machine that booted WinPE gets a run that lies about its own origin, and every symptom of that points somewhere else. MDT also has REPLACE and UPGRADE; HDT has neither, because it restores no user state.'
         }
         # MDT CARRIES TWO VARIABLES HERE AND THEY ARE NOT THE SAME QUESTION.
         # DeploymentType (above) is WHAT is being done - NEWCOMPUTER, and a
@@ -450,14 +463,16 @@
         $secret = $false
         if ($entry.ContainsKey('Secret')) { $secret = [bool] $entry['Secret'] }
 
-        # ABSENT MEANS THE PREFIX RULE, which is what all but one row wants:
+        # ABSENT MEANS THE PREFIX RULE, which is what all but two rows want:
         # _HDT* is engine-owned and read-only, everything else is an
         # administrator's to set. A row that spells it out means it -
-        # HDTDeploymentMethod carries no underscore and is still not settable,
-        # because MDT's name has none and a step condition reads
-        # %HDTDeploymentMethod%. Assert-HDTRuleDocument refuses on this column
-        # rather than on a name, so the next engine-origin variable is refused
-        # the day its row lands.
+        # HDTDeploymentMethod and HDTDeploymentType carry no underscore and are
+        # still not settable, because MDT's names have none and a step condition
+        # reads %HDTDeploymentMethod% and %HDTDeploymentType%. Both are facts
+        # about how the run started rather than preferences.
+        # Assert-HDTRuleDocument refuses on this column rather than on a name,
+        # so the next engine-origin variable is refused the day its row lands -
+        # which is exactly how the second of these two arrived.
         $writable = (-not $entry.HDTName.StartsWith('_'))
         if ($entry.ContainsKey('Writable')) { $writable = [bool] $entry['Writable'] }
 

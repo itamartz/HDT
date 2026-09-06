@@ -274,8 +274,11 @@ Describe 'the value itself' {
         # THE ROADMAP'S EXPLICIT WARNING, MADE CHECKABLE. The two are different
         # questions: DeploymentType says WHAT is being done and a machine built
         # from a disc is still a bare-metal install; DeploymentMethod says HOW
-        # the content got here. Get-HDTMachineFact publishes the first as the
-        # constant NEWCOMPUTER and nothing about media may change it.
+        # the content got here. Get-HDTMachineFact derives the first from the
+        # phase the engine started in - WinPE here, so NEWCOMPUTER - and nothing
+        # about media may change it. The pairing runs the other way too: a
+        # Refresh is still UNC, because it is entered from a machine already on
+        # the network.
         foreach ($provider in @('Local', 'Smb')) {
             $resolved = Resolve-HDTVariable `
                 -EngineVariable @{ HDTDeploymentMethod = (Get-HDTDeploymentMethod -Provider $provider) } `

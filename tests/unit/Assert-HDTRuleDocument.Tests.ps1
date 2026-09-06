@@ -382,22 +382,80 @@ Describe 'Assert-HDTRuleDocument' {
             $accepted -join ', ' | Should -BeExactly ''
         }
 
-        # THE OTHER DIRECTION. A change that quietly refuses everything passes a
-        # test written only for the new refusal.
-        It 'still accepts HDTDeploymentType, which an admin may set' {
-            $yaml = "schemaVersion: 1`nrules:`n  - name: Scenario`n    set:`n      HDTDeploymentType: NEWCOMPUTER`n"
+        # THE SECOND MEMBER OF THE SET, AND WHY IT IS ONE. HDTDeploymentType is
+        # derived from the phase the engine started in - WinPE to NEWCOMPUTER,
+        # the full OS to REFRESH - exactly as MDT derives it from the system
+        # drive (LiteTouch.wsf:373-387) and re-derives it per sequence
+        # (ZTIUtility.vbs:3339-3347). No MDT wizard pane sets it and HDT ships no
+        # page for it either. An admin who declares REFRESH on a machine that
+        # booted WinPE does not get a Refresh; they get a run that lies about how
+        # it started, and every symptom of that points somewhere else.
+        #
+        # BOTH VALUES, because refusing only the one that is not today's default
+        # would let the other through on the leg where it matters most.
+        It 'refuses a rule that sets HDTDeploymentType, whichever value it declares' {
+            $accepted = @()
 
-            $record = InModuleScope Hephaestus -Parameters @{ Yaml = $yaml; Path = 'C:\ws\rules.yaml' } {
-                param($Yaml, $Path)
-                $captured = $null
-                try {
-                    $document = ConvertFrom-HDTYaml -Yaml $Yaml -Path $Path
-                    Assert-HDTRuleDocument -Document $document -Path $Path
-                } catch { $captured = $_ }
-                $captured
+            foreach ($value in @('NEWCOMPUTER', 'REFRESH')) {
+                $yaml = "schemaVersion: 1`nrules:`n  - name: Scenario`n    set:`n      HDTDeploymentType: {0}`n" -f $value
+
+                $record = InModuleScope Hephaestus -Parameters @{ Yaml = $yaml; Path = 'C:\ws\rules.yaml' } {
+                    param($Yaml, $Path)
+                    $captured = $null
+                    try {
+                        $document = ConvertFrom-HDTYaml -Yaml $Yaml -Path $Path
+                        Assert-HDTRuleDocument -Document $document -Path $Path
+                    } catch { $captured = $_ }
+                    $captured
+                }
+
+                if ($null -eq $record -or $record.Exception.Message -notlike '*HDTDeploymentType*') {
+                    $accepted += $value
+                }
             }
 
-            $record | Should -BeNullOrEmpty
+            $accepted -join ', ' | Should -BeExactly ''
+        }
+
+        # THE REFUSAL HAS TO FIT WHICHEVER NAME IT TURNED AWAY. The message was
+        # written for HDTDeploymentMethod alone and told an admin about MEDIA and
+        # boot images; read out over HDTDeploymentType it named a symptom that
+        # was not theirs. Asserted over the SET so the next member cannot inherit
+        # somebody else's story.
+        It 'explains the refusal in terms that fit every name it refuses' {
+            # THE COLUMN'S OWN SET, not the prefix's. An _HDT* name is turned
+            # away by the naming convention a few lines earlier and gets that
+            # message; these are the ones the Writable column refuses, and they
+            # are the ones that share one sentence.
+            $unsettable = @(Get-HDTVariableMap |
+                    Where-Object { -not $_.Writable -and -not $_.HDTName.StartsWith('_') } |
+                    Select-Object -ExpandProperty HDTName)
+
+            $unsettable.Count | Should -BeGreaterThan 1
+
+            $misleading = @()
+            foreach ($name in $unsettable) {
+                $yaml = "schemaVersion: 1`nrules:`n  - name: Overreach`n    set:`n      {0}: anything`n" -f $name
+
+                $record = InModuleScope Hephaestus -Parameters @{ Yaml = $yaml; Path = 'C:\ws\rules.yaml' } {
+                    param($Yaml, $Path)
+                    $captured = $null
+                    try {
+                        $document = ConvertFrom-HDTYaml -Yaml $Yaml -Path $Path
+                        Assert-HDTRuleDocument -Document $document -Path $Path
+                    } catch { $captured = $_ }
+                    $captured
+                }
+
+                $message = [string] $record.Exception.Message
+
+                # A message that names ANOTHER unsettable variable's value is
+                # telling this admin about somebody else's mistake.
+                if ($name -ne 'HDTDeploymentMethod' -and $message -like '*MEDIA*') { $misleading += $name }
+                if ($message -notlike '*Get-HDTVariableMap*') { $misleading += $name }
+            }
+
+            $misleading -join ', ' | Should -BeExactly ''
         }
 
         It 'still accepts an ordinary HDT name' {

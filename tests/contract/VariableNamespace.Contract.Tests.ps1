@@ -19,9 +19,15 @@ BeforeAll {
     $script:map = @(Get-HDTVariableMap)
 
     # Every variable that carries no underscore and is still not an
-    # administrator's to set. One entry today; see the two assertions that
-    # read it for why it is written down rather than derived.
-    $script:declaredUnsettable = @('HDTDeploymentMethod')
+    # administrator's to set. Two entries; see the two assertions that read it
+    # for why it is written down rather than derived.
+    #
+    # BOTH ARE FACTS ABOUT HOW THE RUN STARTED. HDTDeploymentMethod is the
+    # provider the boot image carries; HDTDeploymentType is the phase the engine
+    # started in. Neither is a preference, and an admin who declares one does
+    # not get the deployment they asked for - they get a run that lies about its
+    # own origin. DESIGN 3.2.
+    $script:declaredUnsettable = @('HDTDeploymentMethod', 'HDTDeploymentType')
 
     # The facts that come out of CIM. Everything else in the gathered set comes
     # from the environment (firmware_type, PROCESSOR_ARCHITECTURE) or from the
@@ -121,17 +127,25 @@ Describe 'HDT variable namespace contract' {
 
     # THE GUARD AGAINST THE MERGE. DeploymentType is WHAT is being done and a
     # media deployment is still NEWCOMPUTER; DeploymentMethod is HOW the
-    # machine got its content. Two rows, two MDT names, and neither
-    # description claiming to be the other.
-    It 'keeps HDTDeploymentType separate, writable, and mapped to MDT''s DeploymentType' {
+    # machine got its content, and a Refresh is still UNC. Two rows, two MDT
+    # names, and neither description claiming to be the other.
+    #
+    # BOTH ARE NOW ENGINE-OWNED, AND FOR THE SAME REASON. DeploymentType is
+    # derived from the phase the engine started in - WinPE to NEWCOMPUTER, full
+    # OS to REFRESH - exactly as MDT derives it from the system drive
+    # (LiteTouch.wsf:373-387). That makes it a fact rather than a preference, so
+    # the row carries Writable = $false the way DeploymentMethod's does.
+    It 'keeps HDTDeploymentType separate, engine-owned, and mapped to MDT''s DeploymentType' {
         $type = @($script:map | Where-Object { $_.HDTName -eq 'HDTDeploymentType' })
         $method = @($script:map | Where-Object { $_.HDTName -eq 'HDTDeploymentMethod' })
 
         $type.Count | Should -Be 1
         $method.Count | Should -Be 1
         $type[0].MdtName | Should -BeExactly 'DeploymentType'
-        $type[0].Writable | Should -BeTrue
+        $type[0].Origin | Should -BeExactly 'engine'
+        $type[0].Writable | Should -BeFalse
         $type[0].Description | Should -Match 'NEWCOMPUTER'
+        $type[0].Description | Should -Match 'REFRESH'
 
         $method[0].MdtName | Should -Not -BeExactly $type[0].MdtName
         $method[0].Description | Should -Not -Match 'NEWCOMPUTER'
@@ -198,7 +212,7 @@ Describe 'HDT variable namespace contract' {
             PROCESSOR_ARCHITECTURE = 'AMD64'
         }
 
-        $fact = Get-HDTMachineFact -CimProvider $cim -RegistryService $registry -EnvironmentProvider $environment
+        $fact = Get-HDTMachineFact -CimProvider $cim -RegistryService $registry -EnvironmentProvider $environment -Phase WinPE
         $name = @($script:map | Select-Object -ExpandProperty HDTName)
 
         @($fact.Keys).Count | Should -BeGreaterThan 0

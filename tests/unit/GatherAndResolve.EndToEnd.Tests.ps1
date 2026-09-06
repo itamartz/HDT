@@ -61,7 +61,7 @@ BeforeAll {
     # -- the run ---------------------------------------------------------------
 
     $script:fact = Get-HDTMachineFact -CimProvider $script:cim `
-        -RegistryService $script:registry -EnvironmentProvider $script:environment
+        -RegistryService $script:registry -EnvironmentProvider $script:environment -Phase WinPE
 
     $script:document = Import-HDTRuleDocument -Path $script:rulesPath -FileSystem $script:fileSystem
 

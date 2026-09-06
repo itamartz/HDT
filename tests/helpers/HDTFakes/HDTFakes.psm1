@@ -1305,7 +1305,7 @@ function New-HDTFakeRegistryService {
 
         .EXAMPLE
             $registry = New-HDTFakeRegistryService
-            Get-HDTMachineFact -RegistryService $registry -CimProvider $cim -EnvironmentProvider $environment
+            Get-HDTMachineFact -RegistryService $registry -CimProvider $cim -EnvironmentProvider $environment -Phase WinPE
 
             The BIOS machine case: no SecureBoot key at all, and
             HDTSecureBootEnabled resolves to $false instead of throwing.

@@ -71,7 +71,7 @@ function Get-HDTWizardSeed {
             $provider = New-HDTLocalContentProvider -Root 'Z:\Deploy'
             $ask = Import-HDTWizardDocument -Provider $provider
             $fact = Get-HDTMachineFact -CimProvider (New-HDTCimProvider) `
-                -RegistryService (New-HDTRegistryService) -EnvironmentProvider (New-HDTEnvironmentProvider)
+                -RegistryService (New-HDTRegistryService) -EnvironmentProvider (New-HDTEnvironmentProvider) -Phase WinPE
             $resolved = Resolve-HDTVariable -Fact $fact
             Get-HDTWizardSeed -Page $ask.Page -Variable $resolved.Variable
 
@@ -81,7 +81,7 @@ function Get-HDTWizardSeed {
             $provider = New-HDTLocalContentProvider -Root 'Z:\Deploy'
             $ask = Import-HDTWizardDocument -Provider $provider
             $fact = Get-HDTMachineFact -CimProvider (New-HDTCimProvider) `
-                -RegistryService (New-HDTRegistryService) -EnvironmentProvider (New-HDTEnvironmentProvider)
+                -RegistryService (New-HDTRegistryService) -EnvironmentProvider (New-HDTEnvironmentProvider) -Phase WinPE
             $resolved = Resolve-HDTVariable -Fact $fact
             $seed = Get-HDTWizardSeed -Page $ask.Page -Variable $resolved.Variable
             Show-HDTWizardShell -Page $ask.Page -Field @($seed)

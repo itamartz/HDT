@@ -61,7 +61,7 @@
 
         .EXAMPLE
             $fact = Get-HDTMachineFact -CimProvider (New-HDTCimProvider) `
-                -RegistryService (New-HDTRegistryService) -EnvironmentProvider (New-HDTEnvironmentProvider)
+                -RegistryService (New-HDTRegistryService) -EnvironmentProvider (New-HDTEnvironmentProvider) -Phase WinPE
             $resolved = Resolve-HDTVariable -Fact $fact
             $progress = New-HDTProgressHost
             $display = Start-HDTProgressDisplay -XamlPath 'X:\HDT\UI\HDTProgress.xaml' -Variable $resolved

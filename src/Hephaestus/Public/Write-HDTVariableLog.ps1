@@ -58,7 +58,7 @@
                 -WorkspaceRoot 'C:\HDTLab\Share' -Variable ([ordered] @{}) `
                 -Service (New-HDTServiceCatalog -FileSystem (New-HDTFileSystem) -Clock $clock) -Log $log
             $fact = Get-HDTMachineFact -CimProvider (New-HDTCimProvider) `
-                -RegistryService (New-HDTRegistryService) -EnvironmentProvider (New-HDTEnvironmentProvider)
+                -RegistryService (New-HDTRegistryService) -EnvironmentProvider (New-HDTEnvironmentProvider) -Phase WinPE
             $resolution = Resolve-HDTVariable -Fact $fact
             Write-HDTVariableLog -Context $context -Resolution $resolution
 

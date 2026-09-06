@@ -48,7 +48,7 @@
         .EXAMPLE
             $provider = New-HDTLocalContentProvider -Root 'C:\HDTLab\Share'
             $fact = Get-HDTMachineFact -CimProvider (New-HDTCimProvider) `
-                -RegistryService (New-HDTRegistryService) -EnvironmentProvider (New-HDTEnvironmentProvider)
+                -RegistryService (New-HDTRegistryService) -EnvironmentProvider (New-HDTEnvironmentProvider) -Phase WinPE
             $resolved = Resolve-HDTVariable -Fact $fact
             $wizard = Import-HDTWizardDocument -Provider $provider
             if ($null -eq $wizard) { }   # no wizard on this share

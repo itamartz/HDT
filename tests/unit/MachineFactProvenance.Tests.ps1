@@ -58,6 +58,10 @@ Describe 'Get-HDTMachineFact -Provenance' {
                 EnvironmentProvider = $script:environment
                 Provenance          = $script:bag
                 Clock               = $script:clock
+                # THE PHASE IS MANDATORY, so the default belongs here rather
+                # than in every caller below. -Extra @{ Phase = 'FullOS' } is
+                # how the refresh leg is asked for.
+                Phase               = 'WinPE'
             }
 
             if ($null -ne $Extra) {
@@ -76,7 +80,7 @@ Describe 'Get-HDTMachineFact -Provenance' {
             # reading exactly the same thing.
             $withBag = & $script:gather $null
             $without = Get-HDTMachineFact -CimProvider $script:cim -RegistryService $script:registry `
-                -EnvironmentProvider $script:environment
+                -EnvironmentProvider $script:environment -Phase WinPE
 
             @($withBag.Keys) | Should -Be @($without.Keys)
             $withBag['HDTModel'] | Should -BeExactly $without['HDTModel']
@@ -86,7 +90,7 @@ Describe 'Get-HDTMachineFact -Provenance' {
             # The parameter is optional because most callers do not want it, and
             # a gatherer that required one would make every caller carry it.
             { Get-HDTMachineFact -CimProvider $script:cim -RegistryService $script:registry `
-                    -EnvironmentProvider $script:environment } | Should -Not -Throw
+                    -EnvironmentProvider $script:environment -Phase WinPE } | Should -Not -Throw
         }
 
         It 'records a row for every fact it produced' {
@@ -125,13 +129,27 @@ Describe 'Get-HDTMachineFact -Provenance' {
             $script:bag['HDTIsUEFI'].Source | Should -BeExactly 'environment'
         }
 
-        It 'says a constant is a constant rather than pretending it was gathered' {
-            # HDTDeploymentType is 'NEWCOMPUTER' because this engine performs
-            # bare-metal installs only. Reporting it as though a machine had been
-            # asked would be a lie in the one file that exists to stop lies.
-            $null = & $script:gather $null
+        It 'names the phase it read rather than pretending a machine was asked' {
+            # HDTDeploymentType STOPPED BEING A CONSTANT. It is derived from the
+            # phase the engine started in - WinPE to NEWCOMPUTER, full OS to
+            # REFRESH - so the provenance has to say which phase produced it or
+            # a REFRESH on a machine that booted WinPE has no explanation
+            # anywhere. Reporting it as a reading off the hardware would be a lie
+            # in the one file that exists to stop lies.
+            $null = & $script:gather @{ Phase = 'FullOS' }
 
-            $script:bag['HDTDeploymentType'].Source | Should -BeExactly 'constant'
+            $script:bag['HDTDeploymentType'].Source | Should -BeExactly 'engine'
+            $script:bag['HDTDeploymentType'].Property | Should -BeExactly 'Phase'
+            [string] $script:bag['HDTDeploymentType'].Raw | Should -BeExactly 'FullOS'
+            $script:bag['HDTDeploymentType'].Determined | Should -BeTrue
+        }
+
+        It 'records the phase it was actually given, not the one it usually gets' {
+            # THE OTHER LEG. A provenance row hard-coding 'WinPE' would pass the
+            # assertion above only because it happened to be asked for FullOS.
+            $null = & $script:gather @{ Phase = 'WinPE' }
+
+            [string] $script:bag['HDTDeploymentType'].Raw | Should -BeExactly 'WinPE'
         }
 
         It 'shows the working behind a derived fact' {

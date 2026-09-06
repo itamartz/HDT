@@ -110,7 +110,7 @@ BeforeAll {
 
     $cim = & $script:newCim
     $script:fact = Get-HDTMachineFact -CimProvider $cim `
-        -RegistryService (New-HDTFakeRegistryService) -EnvironmentProvider (New-HDTFakeEnvironmentProvider)
+        -RegistryService (New-HDTFakeRegistryService) -EnvironmentProvider (New-HDTFakeEnvironmentProvider) -Phase WinPE
 
     $script:resolution = Resolve-HDTVariable -Fact $script:fact `
         -CommandLine ([ordered] @{ HDTComputerName = 'PC-%HDTNothingSuppliesThis%' })

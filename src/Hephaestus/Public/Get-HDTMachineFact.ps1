@@ -53,6 +53,14 @@
             An IEnvironmentProvider, used for firmware_type and the processor
             architecture variables.
 
+        .PARAMETER Phase
+            WinPE or FullOS - the leg the engine started on, and the only thing
+            HDTDeploymentType is derived from: WinPE gives NEWCOMPUTER, FullOS
+            gives REFRESH. It is declared rather than probed, because this
+            command touches nothing itself; the caller already holds the answer
+            as _HDTPhase. Mandatory, so a full-OS caller cannot forget it and
+            publish NEWCOMPUTER on a Refresh.
+
         .OUTPUTS
             System.Collections.Specialized.OrderedDictionary. Ordered so a
             facts.json diff stays readable, case-insensitive so a hand-written
@@ -62,24 +70,26 @@
             $fact = Get-HDTMachineFact `
                 -CimProvider (New-HDTCimProvider) `
                 -RegistryService (New-HDTRegistryService) `
-                -EnvironmentProvider (New-HDTEnvironmentProvider)
+                -EnvironmentProvider (New-HDTEnvironmentProvider) `
+                -Phase WinPE
             $fact['HDTModel']
 
-            Gathers from the live machine through the real adapters.
+            Gathers from the live machine through the real adapters, on the
+            WinPE leg - so HDTDeploymentType comes back NEWCOMPUTER.
 
         .EXAMPLE
             $service = @{
                 CimProvider         = New-HDTCimProvider
                 RegistryService     = New-HDTRegistryService
                 EnvironmentProvider = New-HDTEnvironmentProvider
+                Phase               = 'FullOS'
             }
 
             $fact = Get-HDTMachineFact @service
-            @($fact.Keys | Where-Object { $_ -like 'HDTIs*' }) |
-                ForEach-Object { '{0} = {1}' -f $_, $fact[$_] }
+            $fact['HDTDeploymentType']
 
-            The yes-or-no facts a rule matches on - HDTIsLaptop, HDTIsVirtual,
-            HDTIsUefi - read off this machine.
+            REFRESH. The same gather run from the running Windows rather than
+            from a boot, which is the only thing that decides the scenario.
 
             THERE IS NO BARE CALL, AND THAT IS THE POINT. All three adapters are
             mandatory with no default, so `Get-HDTMachineFact` on its own does
@@ -112,6 +122,25 @@
         [Parameter(Mandatory = $true)]
         [ValidateNotNull()]
         [object] $EnvironmentProvider,
+
+        # WHICH LEG THIS IS, AND HDTDeploymentType FALLS OUT OF IT. WinPE means
+        # NEWCOMPUTER, the full OS means REFRESH - MDT decides it on exactly this
+        # evidence, testing oEnv("SystemDrive") = "X:" at LiteTouch.wsf:373-387
+        # and re-deriving it per task sequence at ZTIUtility.vbs:3339-3347.
+        #
+        # DECLARED, NOT PROBED. There is no MiniNT registry read and no
+        # $env:SystemDrive test in here, because engine logic takes injected
+        # facts (constraint 5) and this file touches nothing itself - the whole
+        # point of the three adapters above. The caller already knows which leg
+        # it is on: it is what New-HDTExecutionContext publishes as _HDTPhase and
+        # what Get-HDTLogPath has taken by the same name since phase 03.
+        #
+        # AND MANDATORY, so a full-OS caller cannot forget it and silently
+        # publish NEWCOMPUTER on a Refresh. Every symptom of that would point
+        # somewhere else.
+        [Parameter(Mandatory = $true)]
+        [ValidateSet('WinPE', 'FullOS')]
+        [string] $Phase,
 
         # WHERE EACH FACT CAME FROM, AND WHICH ONES THE MACHINE COULD NOT ANSWER.
         # A dictionary the CALLER owns and this fills in - the same shape
@@ -421,12 +450,31 @@
     $fact['HDTSystemSKU'] = $systemSku
     $fact['HDTMemory'] = $memoryMegabyte
     $fact['HDTArchitecture'] = $architecture
-    # MDT SETS DeploymentType IN ZTIGather AND GATES WHOLE GROUPS ON IT. This
-    # engine performs bare-metal installs only, so there is one value - and it
-    # is written anyway, so a sequence can be conditioned on it now rather than
-    # every group predating the refresh path having to be retrofitted later.
-    # See Get-HDTVariableMap for the rest of MDT's set.
-    $fact['HDTDeploymentType'] = 'NEWCOMPUTER'
+    # MDT SETS DeploymentType IN ZTIGather AND GATES WHOLE GROUPS ON IT - which
+    # is how one Client.xml serves bare metal and a refresh from the same file.
+    #
+    # DERIVED FROM THE PHASE, NOT DECLARED BY AN ADMINISTRATOR. Started in
+    # WinPE, this is a NEWCOMPUTER; started in the full OS, it is a REFRESH.
+    # MDT decides it on the same evidence in the same place - LiteTouch.wsf
+    # :373-387 writes NEWCOMPUTER when SystemDrive is the RAM disk and REFRESH
+    # when it is not - and re-derives it per task sequence at
+    # ZTIUtility.vbs:3339-3347 rather than trusting what was recorded earlier.
+    #
+    # SO IT IS A FACT ABOUT HOW THE RUN STARTED, NOT A PREFERENCE, which is why
+    # its Get-HDTVariableMap row carries Writable = $false and rules.yaml may not
+    # set it. An admin who declares REFRESH on a machine that booted WinPE does
+    # not get a Refresh - they get a run that lies about its own origin, and
+    # every symptom of that points somewhere else. No MDT wizard pane sets it
+    # either: all seventeen in DeployWiz_Definition_ENU.xml only read it inside
+    # a <Condition>. DESIGN 3.2.
+    #
+    # NO 'else' AND NO DEFAULT. The ValidateSet is the whole set of legs, so a
+    # third one added there without a branch here publishes an empty deployment
+    # type and a test walking the ValidateSet fails the day it lands.
+    $deploymentType = 'REFRESH'
+    if ($Phase -eq 'WinPE') { $deploymentType = 'NEWCOMPUTER' }
+
+    $fact['HDTDeploymentType'] = $deploymentType
     $fact['HDTIsUEFI'] = [bool] $isUefi
     $fact['HDTSecureBootEnabled'] = [bool] $secureBootEnabled
     $fact['HDTTPMVersion'] = $tpmVersion
@@ -448,8 +496,10 @@
     #
     # THE SOURCE VOCABULARY IS SHARED WITH Gather\devices.json AND THE STEP'S
     # LOG: a CIM class is named by its class name, and the two non-CIM sources
-    # are 'registry' and 'environment'. 'constant' is the third, and it is said
-    # out loud rather than dressed up as a reading.
+    # are 'registry' and 'environment'. 'engine' is the third - a value this
+    # toolkit derives rather than reads off the machine, spelled the way
+    # Get-HDTVariableMap's Origin column already spells it - and it is said out
+    # loud rather than dressed up as a reading.
 
     if ($null -ne $Provenance) {
         # DETERMINED IS NOT "TRUTHY". False is an answer - SecureBoot off is a
@@ -497,11 +547,14 @@
             'Win32_ComputerSystem.TotalPhysicalMemory reported no memory'
         & $note 'HDTArchitecture' 'environment' 'PROCESSOR_ARCHITECTURE' $architectureRaw (& $said $architecture) ''
 
-        # SAID TO BE A CONSTANT, because it is. This engine performs bare-metal
-        # installs only, so there is one value - and reporting it as though a
-        # machine had been asked would be a lie in the one place that exists to
-        # stop them.
-        & $note 'HDTDeploymentType' 'constant' 'NEWCOMPUTER' 'NEWCOMPUTER' $true ''
+        # IT STOPPED BEING A CONSTANT, SO IT STOPPED SAYING IT WAS ONE. The
+        # source is the engine and the property is the phase it was told it
+        # started in; Raw is that phase, so a log reading REFRESH says WHICH leg
+        # produced it. 'engine' is the word Get-HDTVariableMap's Origin column
+        # already uses for a value this toolkit publishes rather than reads, and
+        # the alternative - naming a CIM class or the registry - would be a lie
+        # in the one place that exists to stop them.
+        & $note 'HDTDeploymentType' 'engine' 'Phase' $Phase $true ''
 
         & $note 'HDTIsUEFI' 'environment' 'firmware_type' $firmwareType (& $said $firmwareType) `
             'the firmware_type environment variable was not set, so UEFI could not be confirmed'

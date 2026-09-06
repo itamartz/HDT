@@ -370,6 +370,29 @@ Describe 'Invoke-HDTTattooStep' {
 
     Context 'the two questions a tattoo answers about how a machine was built' {
 
+        # STAMPS WHATEVER THE ENGINE DERIVED, over the SET of values it can
+        # derive rather than over the one that was the only value for eight
+        # milestones. A stamp that hard-coded NEWCOMPUTER - or one that fell
+        # over on REFRESH - would leave the tattoo saying a Refreshed machine
+        # was built from bare metal, which is the one question the tattoo exists
+        # to answer a year later.
+        It 'stamps every deployment type the engine can derive' {
+            $wrong = @()
+
+            foreach ($type in @('NEWCOMPUTER', 'REFRESH')) {
+                $script:variable['HDTDeploymentType'] = $type
+
+                Invoke-HDTTattooStep -Step (& $script:newStep 'Tattoo' $null) -Context $script:context | Out-Null
+
+                $value = & $script:written $script:registry $script:defaultPath
+                $actual = [string] $value['DeploymentType']
+
+                if ($actual -cne $type) { $wrong += ('{0} stamped as {1}' -f $type, $actual) }
+            }
+
+            $wrong -join '; ' | Should -BeExactly ''
+        }
+
         It 'stamps MEDIA and NEWCOMPUTER together, because they are different questions' {
             # A MACHINE BUILT FROM A DISC IS STILL A BARE-METAL INSTALL. The
             # ROADMAP warns about exactly this pairing: a reader who saw MEDIA

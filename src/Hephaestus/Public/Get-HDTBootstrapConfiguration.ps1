@@ -92,7 +92,7 @@
             $fs = New-HDTFileSystem
             $path = 'X:\HDT\bootstrap.json'
             $fact = Get-HDTMachineFact -CimProvider (New-HDTCimProvider) `
-                -RegistryService (New-HDTRegistryService) -EnvironmentProvider (New-HDTEnvironmentProvider)
+                -RegistryService (New-HDTRegistryService) -EnvironmentProvider (New-HDTEnvironmentProvider) -Phase WinPE
             $resolved = Resolve-HDTVariable -Fact $fact
             $bootstrap = Get-HDTBootstrapConfiguration -Path 'X:\HDT\bootstrap.json'
             $bootstrap.DeployRoot

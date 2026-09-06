@@ -115,7 +115,7 @@ Describe 'Get-HDTMachineFact' {
     Context 'the captured physical machine' {
 
         BeforeEach {
-            $script:fact = Get-HDTMachineFact -CimProvider $script:cim -RegistryService $script:registry -EnvironmentProvider $script:environment
+            $script:fact = Get-HDTMachineFact -CimProvider $script:cim -RegistryService $script:registry -EnvironmentProvider $script:environment -Phase WinPE
         }
 
         It 'returns an ordered dictionary' {
@@ -185,7 +185,7 @@ Describe 'Get-HDTMachineFact' {
                     })
             }
 
-            $fact = Get-HDTMachineFact -CimProvider $cim -RegistryService $script:registry -EnvironmentProvider $script:environment
+            $fact = Get-HDTMachineFact -CimProvider $cim -RegistryService $script:registry -EnvironmentProvider $script:environment -Phase WinPE
 
             $fact['HDTMake'] | Should -BeExactly 'LENOVO'
             $fact['HDTModel'] | Should -BeExactly '82RF'
@@ -206,7 +206,7 @@ Describe 'Get-HDTMachineFact' {
                     })
             }
 
-            $fact = Get-HDTMachineFact -CimProvider $cim -RegistryService $script:registry -EnvironmentProvider $script:environment
+            $fact = Get-HDTMachineFact -CimProvider $cim -RegistryService $script:registry -EnvironmentProvider $script:environment -Phase WinPE
 
             $fact['HDTMake'] | Should -BeExactly $expected
         }
@@ -222,7 +222,7 @@ Describe 'Get-HDTMachineFact' {
                     })
             }
 
-            $fact = Get-HDTMachineFact -CimProvider $cim -RegistryService $script:registry -EnvironmentProvider $script:environment
+            $fact = Get-HDTMachineFact -CimProvider $cim -RegistryService $script:registry -EnvironmentProvider $script:environment -Phase WinPE
 
             $fact['HDTModel'] | Should -BeExactly $expected
         }
@@ -239,7 +239,7 @@ Describe 'Get-HDTMachineFact' {
                     })
             }
 
-            Get-HDTMachineFact -CimProvider $cim -RegistryService $script:registry -EnvironmentProvider $script:environment | Out-Null
+            Get-HDTMachineFact -CimProvider $cim -RegistryService $script:registry -EnvironmentProvider $script:environment -Phase WinPE | Out-Null
 
             @($cim.Operations | Where-Object { $_.Arguments[1] -eq 'Win32_BaseBoard' }).Count | Should -Be 1
         }
@@ -249,13 +249,13 @@ Describe 'Get-HDTMachineFact' {
 
         It 'reports HDTIsLaptop true for chassis type 10' {
             # The captured machine is a laptop, chassis type 10.
-            $fact = Get-HDTMachineFact -CimProvider $script:cim -RegistryService $script:registry -EnvironmentProvider $script:environment
+            $fact = Get-HDTMachineFact -CimProvider $script:cim -RegistryService $script:registry -EnvironmentProvider $script:environment -Phase WinPE
 
             $fact['HDTIsLaptop'] | Should -BeTrue
         }
 
         It 'reports HDTIsDesktop false for chassis type 10' {
-            $fact = Get-HDTMachineFact -CimProvider $script:cim -RegistryService $script:registry -EnvironmentProvider $script:environment
+            $fact = Get-HDTMachineFact -CimProvider $script:cim -RegistryService $script:registry -EnvironmentProvider $script:environment -Phase WinPE
 
             $fact['HDTIsDesktop'] | Should -BeFalse
             $fact['HDTIsServer'] | Should -BeFalse
@@ -266,7 +266,7 @@ Describe 'Get-HDTMachineFact' {
                 Win32_SystemEnclosure = @([pscustomobject] @{ ChassisTypes = @(3) })
             }
 
-            $fact = Get-HDTMachineFact -CimProvider $cim -RegistryService $script:registry -EnvironmentProvider $script:environment
+            $fact = Get-HDTMachineFact -CimProvider $cim -RegistryService $script:registry -EnvironmentProvider $script:environment -Phase WinPE
 
             $fact['HDTIsDesktop'] | Should -BeTrue
             $fact['HDTIsLaptop'] | Should -BeFalse
@@ -277,7 +277,7 @@ Describe 'Get-HDTMachineFact' {
                 Win32_SystemEnclosure = @([pscustomobject] @{ ChassisTypes = @(23) })
             }
 
-            $fact = Get-HDTMachineFact -CimProvider $cim -RegistryService $script:registry -EnvironmentProvider $script:environment
+            $fact = Get-HDTMachineFact -CimProvider $cim -RegistryService $script:registry -EnvironmentProvider $script:environment -Phase WinPE
 
             $fact['HDTIsServer'] | Should -BeTrue
             $fact['HDTIsDesktop'] | Should -BeFalse
@@ -287,7 +287,7 @@ Describe 'Get-HDTMachineFact' {
         It 'reports every chassis flag false when Win32_SystemEnclosure has no instances' {
             $cim = New-HDTFactCimProvider -Override @{ Win32_SystemEnclosure = @() }
 
-            $fact = Get-HDTMachineFact -CimProvider $cim -RegistryService $script:registry -EnvironmentProvider $script:environment
+            $fact = Get-HDTMachineFact -CimProvider $cim -RegistryService $script:registry -EnvironmentProvider $script:environment -Phase WinPE
 
             $fact['HDTIsDesktop'] | Should -BeFalse
             $fact['HDTIsLaptop'] | Should -BeFalse
@@ -299,7 +299,7 @@ Describe 'Get-HDTMachineFact' {
             # looks like, and it must degrade rather than throw.
             $cim = New-HDTFactCimProvider -Exclude 'Win32_SystemEnclosure'
 
-            $fact = Get-HDTMachineFact -CimProvider $cim -RegistryService $script:registry -EnvironmentProvider $script:environment
+            $fact = Get-HDTMachineFact -CimProvider $cim -RegistryService $script:registry -EnvironmentProvider $script:environment -Phase WinPE
 
             $fact['HDTIsDesktop'] | Should -BeFalse
             $fact['HDTIsLaptop'] | Should -BeFalse
@@ -310,7 +310,7 @@ Describe 'Get-HDTMachineFact' {
     Context 'asset tag' {
 
         It 'reports HDTAssetTag from SMBIOSAssetTag' {
-            $fact = Get-HDTMachineFact -CimProvider $script:cim -RegistryService $script:registry -EnvironmentProvider $script:environment
+            $fact = Get-HDTMachineFact -CimProvider $script:cim -RegistryService $script:registry -EnvironmentProvider $script:environment -Phase WinPE
 
             $fact['HDTAssetTag'] | Should -BeExactly 'FIXTURE-ASSET-0001'
         }
@@ -320,7 +320,7 @@ Describe 'Get-HDTMachineFact' {
                 Win32_SystemEnclosure = @([pscustomobject] @{ ChassisTypes = @(10); SMBIOSAssetTag = '  0123456789  ' })
             }
 
-            $fact = Get-HDTMachineFact -CimProvider $cim -RegistryService $script:registry -EnvironmentProvider $script:environment
+            $fact = Get-HDTMachineFact -CimProvider $cim -RegistryService $script:registry -EnvironmentProvider $script:environment -Phase WinPE
 
             $fact['HDTAssetTag'] | Should -BeExactly '0123456789'
         }
@@ -330,7 +330,7 @@ Describe 'Get-HDTMachineFact' {
                 Win32_SystemEnclosure = @([pscustomobject] @{ ChassisTypes = @(10); SMBIOSAssetTag = '    ' })
             }
 
-            $fact = Get-HDTMachineFact -CimProvider $cim -RegistryService $script:registry -EnvironmentProvider $script:environment
+            $fact = Get-HDTMachineFact -CimProvider $cim -RegistryService $script:registry -EnvironmentProvider $script:environment -Phase WinPE
 
             $fact['HDTAssetTag'] | Should -BeExactly ''
         }
@@ -343,7 +343,7 @@ Describe 'Get-HDTMachineFact' {
                 Win32_SystemEnclosure = @([pscustomobject] @{ ChassisTypes = @(10) })
             }
 
-            $fact = Get-HDTMachineFact -CimProvider $cim -RegistryService $script:registry -EnvironmentProvider $script:environment
+            $fact = Get-HDTMachineFact -CimProvider $cim -RegistryService $script:registry -EnvironmentProvider $script:environment -Phase WinPE
 
             $fact['HDTAssetTag'] | Should -BeExactly ''
         }
@@ -351,7 +351,7 @@ Describe 'Get-HDTMachineFact' {
         It 'reports an empty HDTAssetTag when Win32_SystemEnclosure is absent' {
             $cim = New-HDTFactCimProvider -Exclude 'Win32_SystemEnclosure'
 
-            $fact = Get-HDTMachineFact -CimProvider $cim -RegistryService $script:registry -EnvironmentProvider $script:environment
+            $fact = Get-HDTMachineFact -CimProvider $cim -RegistryService $script:registry -EnvironmentProvider $script:environment -Phase WinPE
 
             $fact['HDTAssetTag'] | Should -BeExactly ''
         }
@@ -360,7 +360,7 @@ Describe 'Get-HDTMachineFact' {
     Context 'firmware, architecture and secure boot' {
 
         It 'reports HDTIsUEFI true when firmware_type is UEFI' {
-            $fact = Get-HDTMachineFact -CimProvider $script:cim -RegistryService $script:registry -EnvironmentProvider $script:environment
+            $fact = Get-HDTMachineFact -CimProvider $script:cim -RegistryService $script:registry -EnvironmentProvider $script:environment -Phase WinPE
 
             $fact['HDTIsUEFI'] | Should -BeTrue
         }
@@ -368,7 +368,7 @@ Describe 'Get-HDTMachineFact' {
         It 'reports HDTIsUEFI false when firmware_type is BIOS' {
             $environment = New-HDTFakeEnvironmentProvider -Variable @{ firmware_type = 'BIOS'; PROCESSOR_ARCHITECTURE = 'AMD64' }
 
-            $fact = Get-HDTMachineFact -CimProvider $script:cim -RegistryService $script:registry -EnvironmentProvider $environment
+            $fact = Get-HDTMachineFact -CimProvider $script:cim -RegistryService $script:registry -EnvironmentProvider $environment -Phase WinPE
 
             $fact['HDTIsUEFI'] | Should -BeFalse
         }
@@ -376,13 +376,13 @@ Describe 'Get-HDTMachineFact' {
         It 'reports HDTIsUEFI false when firmware_type is not set' {
             $environment = New-HDTFakeEnvironmentProvider -Variable @{ PROCESSOR_ARCHITECTURE = 'AMD64' }
 
-            $fact = Get-HDTMachineFact -CimProvider $script:cim -RegistryService $script:registry -EnvironmentProvider $environment
+            $fact = Get-HDTMachineFact -CimProvider $script:cim -RegistryService $script:registry -EnvironmentProvider $environment -Phase WinPE
 
             $fact['HDTIsUEFI'] | Should -BeFalse
         }
 
         It 'reports HDTArchitecture x64 for AMD64' {
-            $fact = Get-HDTMachineFact -CimProvider $script:cim -RegistryService $script:registry -EnvironmentProvider $script:environment
+            $fact = Get-HDTMachineFact -CimProvider $script:cim -RegistryService $script:registry -EnvironmentProvider $script:environment -Phase WinPE
 
             $fact['HDTArchitecture'] | Should -BeExactly 'x64'
         }
@@ -396,7 +396,7 @@ Describe 'Get-HDTMachineFact' {
                 firmware_type          = 'UEFI'
             }
 
-            $fact = Get-HDTMachineFact -CimProvider $script:cim -RegistryService $script:registry -EnvironmentProvider $environment
+            $fact = Get-HDTMachineFact -CimProvider $script:cim -RegistryService $script:registry -EnvironmentProvider $environment -Phase WinPE
 
             $fact['HDTArchitecture'] | Should -BeExactly 'x64'
         }
@@ -404,13 +404,13 @@ Describe 'Get-HDTMachineFact' {
         It 'upper-cases an architecture it does not translate' {
             $environment = New-HDTFakeEnvironmentProvider -Variable @{ PROCESSOR_ARCHITECTURE = 'arm64'; firmware_type = 'UEFI' }
 
-            $fact = Get-HDTMachineFact -CimProvider $script:cim -RegistryService $script:registry -EnvironmentProvider $environment
+            $fact = Get-HDTMachineFact -CimProvider $script:cim -RegistryService $script:registry -EnvironmentProvider $environment -Phase WinPE
 
             $fact['HDTArchitecture'] | Should -BeExactly 'ARM64'
         }
 
         It 'reports HDTSecureBootEnabled true when UEFISecureBootEnabled is 1' {
-            $fact = Get-HDTMachineFact -CimProvider $script:cim -RegistryService $script:registry -EnvironmentProvider $script:environment
+            $fact = Get-HDTMachineFact -CimProvider $script:cim -RegistryService $script:registry -EnvironmentProvider $script:environment -Phase WinPE
 
             $fact['HDTSecureBootEnabled'] | Should -BeTrue
         }
@@ -420,7 +420,7 @@ Describe 'Get-HDTMachineFact' {
                 'HKLM:\SYSTEM\CurrentControlSet\Control\SecureBoot\State' = @{ UEFISecureBootEnabled = 0 }
             }
 
-            $fact = Get-HDTMachineFact -CimProvider $script:cim -RegistryService $registry -EnvironmentProvider $script:environment
+            $fact = Get-HDTMachineFact -CimProvider $script:cim -RegistryService $registry -EnvironmentProvider $script:environment -Phase WinPE
 
             $fact['HDTSecureBootEnabled'] | Should -BeFalse
         }
@@ -429,7 +429,7 @@ Describe 'Get-HDTMachineFact' {
             # A BIOS machine has no such key. Absence is a fact, not a failure.
             $registry = New-HDTFakeRegistryService
 
-            $fact = Get-HDTMachineFact -CimProvider $script:cim -RegistryService $registry -EnvironmentProvider $script:environment
+            $fact = Get-HDTMachineFact -CimProvider $script:cim -RegistryService $registry -EnvironmentProvider $script:environment -Phase WinPE
 
             $fact['HDTSecureBootEnabled'] | Should -BeFalse
         }
@@ -439,7 +439,7 @@ Describe 'Get-HDTMachineFact' {
 
         It 'reports HDTTPMVersion 2.0 from the SpecVersion of Win32_Tpm' {
             # SpecVersion is '2.0, 0, 1.38'; only the first component is the spec.
-            $fact = Get-HDTMachineFact -CimProvider $script:cim -RegistryService $script:registry -EnvironmentProvider $script:environment
+            $fact = Get-HDTMachineFact -CimProvider $script:cim -RegistryService $script:registry -EnvironmentProvider $script:environment -Phase WinPE
 
             $fact['HDTTPMVersion'] | Should -BeExactly '2.0'
         }
@@ -449,7 +449,7 @@ Describe 'Get-HDTMachineFact' {
             # TPM at all.
             $cim = New-HDTFactCimProvider -WithoutTpmNamespace
 
-            $fact = Get-HDTMachineFact -CimProvider $cim -RegistryService $script:registry -EnvironmentProvider $script:environment
+            $fact = Get-HDTMachineFact -CimProvider $cim -RegistryService $script:registry -EnvironmentProvider $script:environment -Phase WinPE
 
             $fact['HDTTPMVersion'] | Should -BeNullOrEmpty
         }
@@ -457,7 +457,7 @@ Describe 'Get-HDTMachineFact' {
         It 'does not throw when the microsofttpm namespace is absent' {
             $cim = New-HDTFactCimProvider -WithoutTpmNamespace
 
-            { Get-HDTMachineFact -CimProvider $cim -RegistryService $script:registry -EnvironmentProvider $script:environment } |
+            { Get-HDTMachineFact -CimProvider $cim -RegistryService $script:registry -EnvironmentProvider $script:environment -Phase WinPE } |
                 Should -Not -Throw
         }
     }
@@ -475,7 +475,7 @@ Describe 'Get-HDTMachineFact' {
             $enabled = @($adapter | Where-Object { $_.IPEnabled } | Sort-Object -Property Index)
             $expected = @($enabled | ForEach-Object { $_.MACAddress } | Where-Object { $null -ne $_ })
 
-            $fact = Get-HDTMachineFact -CimProvider $script:cim -RegistryService $script:registry -EnvironmentProvider $script:environment
+            $fact = Get-HDTMachineFact -CimProvider $script:cim -RegistryService $script:registry -EnvironmentProvider $script:environment -Phase WinPE
 
             @($fact['HDTMacAddress']).Count | Should -Be $expected.Count
             @($fact['HDTMacAddress']).Count | Should -BeLessThan $adapter.Count
@@ -486,7 +486,7 @@ Describe 'Get-HDTMachineFact' {
             $enabled = @($adapter | Where-Object { $_.IPEnabled } | Sort-Object -Property Index)
             $expected = @($enabled | ForEach-Object { $_.IPAddress } | Where-Object { $null -ne $_ })
 
-            $fact = Get-HDTMachineFact -CimProvider $script:cim -RegistryService $script:registry -EnvironmentProvider $script:environment
+            $fact = Get-HDTMachineFact -CimProvider $script:cim -RegistryService $script:registry -EnvironmentProvider $script:environment -Phase WinPE
 
             @($fact['HDTIPAddress']).Count | Should -Be $expected.Count
         }
@@ -496,7 +496,7 @@ Describe 'Get-HDTMachineFact' {
             $enabled = @($adapter | Where-Object { $_.IPEnabled } | Sort-Object -Property Index)
             $expected = @($enabled | ForEach-Object { $_.DefaultIPGateway } | Where-Object { $null -ne $_ })
 
-            $fact = Get-HDTMachineFact -CimProvider $script:cim -RegistryService $script:registry -EnvironmentProvider $script:environment
+            $fact = Get-HDTMachineFact -CimProvider $script:cim -RegistryService $script:registry -EnvironmentProvider $script:environment -Phase WinPE
 
             @($fact['HDTDefaultGateway']).Count | Should -Be $expected.Count
             @($fact['HDTDefaultGateway']).Count | Should -BeLessThan $enabled.Count
@@ -505,7 +505,7 @@ Describe 'Get-HDTMachineFact' {
         It 'includes 10.20.30.1 in HDTDefaultGateway' {
             # The value DESIGN 3.3's 'Lab subnet' rule matches. Plan 02-03's
             # end-to-end demonstration depends on it.
-            $fact = Get-HDTMachineFact -CimProvider $script:cim -RegistryService $script:registry -EnvironmentProvider $script:environment
+            $fact = Get-HDTMachineFact -CimProvider $script:cim -RegistryService $script:registry -EnvironmentProvider $script:environment -Phase WinPE
 
             @($fact['HDTDefaultGateway']) | Should -Contain '10.20.30.1'
         }
@@ -515,7 +515,7 @@ Describe 'Get-HDTMachineFact' {
             $enabled = @($adapter | Where-Object { $_.IPEnabled } | Sort-Object -Property Index)
             $expected = @($enabled | ForEach-Object { $_.MACAddress } | Where-Object { $null -ne $_ })
 
-            $fact = Get-HDTMachineFact -CimProvider $script:cim -RegistryService $script:registry -EnvironmentProvider $script:environment
+            $fact = Get-HDTMachineFact -CimProvider $script:cim -RegistryService $script:registry -EnvironmentProvider $script:environment -Phase WinPE
 
             @($fact['HDTMacAddress']) | Should -Be $expected
         }
@@ -531,7 +531,7 @@ Describe 'Get-HDTMachineFact' {
                     })
             }
 
-            $fact = Get-HDTMachineFact -CimProvider $cim -RegistryService $script:registry -EnvironmentProvider $script:environment
+            $fact = Get-HDTMachineFact -CimProvider $cim -RegistryService $script:registry -EnvironmentProvider $script:environment -Phase WinPE
 
             @($fact['HDTMacAddress']).Count | Should -Be 0
             @($fact['HDTIPAddress']).Count | Should -Be 0
@@ -541,7 +541,7 @@ Describe 'Get-HDTMachineFact' {
         It 'returns empty arrays when Win32_NetworkAdapterConfiguration is absent' {
             $cim = New-HDTFactCimProvider -Exclude 'Win32_NetworkAdapterConfiguration'
 
-            $fact = Get-HDTMachineFact -CimProvider $cim -RegistryService $script:registry -EnvironmentProvider $script:environment
+            $fact = Get-HDTMachineFact -CimProvider $cim -RegistryService $script:registry -EnvironmentProvider $script:environment -Phase WinPE
 
             @($fact['HDTMacAddress']).Count | Should -Be 0
             @($fact['HDTIPAddress']).Count | Should -Be 0
@@ -552,7 +552,7 @@ Describe 'Get-HDTMachineFact' {
     Context 'virtual machines' {
 
         It 'reports HDTIsVM false for the captured physical machine' {
-            $fact = Get-HDTMachineFact -CimProvider $script:cim -RegistryService $script:registry -EnvironmentProvider $script:environment
+            $fact = Get-HDTMachineFact -CimProvider $script:cim -RegistryService $script:registry -EnvironmentProvider $script:environment -Phase WinPE
 
             $fact['HDTIsVM'] | Should -BeFalse
         }
@@ -563,7 +563,7 @@ Describe 'Get-HDTMachineFact' {
                 Win32_ComputerSystemProduct = @(Get-HDTFactFixture -Directory $script:vmFixturePath -ClassName 'Win32_ComputerSystemProduct')
             }
 
-            $fact = Get-HDTMachineFact -CimProvider $cim -RegistryService $script:registry -EnvironmentProvider $script:environment
+            $fact = Get-HDTMachineFact -CimProvider $cim -RegistryService $script:registry -EnvironmentProvider $script:environment -Phase WinPE
 
             $fact['HDTIsVM'] | Should -BeTrue
         }
@@ -578,7 +578,7 @@ Describe 'Get-HDTMachineFact' {
                     })
             }
 
-            $fact = Get-HDTMachineFact -CimProvider $cim -RegistryService $script:registry -EnvironmentProvider $script:environment
+            $fact = Get-HDTMachineFact -CimProvider $cim -RegistryService $script:registry -EnvironmentProvider $script:environment -Phase WinPE
 
             $fact['HDTIsVM'] | Should -BeTrue
         }
@@ -593,7 +593,7 @@ Describe 'Get-HDTMachineFact' {
                     })
             }
 
-            $fact = Get-HDTMachineFact -CimProvider $cim -RegistryService $script:registry -EnvironmentProvider $script:environment
+            $fact = Get-HDTMachineFact -CimProvider $cim -RegistryService $script:registry -EnvironmentProvider $script:environment -Phase WinPE
 
             $fact['HDTIsVM'] | Should -BeTrue
         }
@@ -604,7 +604,7 @@ Describe 'Get-HDTMachineFact' {
         It 'queries each CIM class exactly once, in a fixed order' {
             # The DESIGN 12.2.1 assertion in full: not only what came back, but
             # what the code under test asked for and in what order.
-            Get-HDTMachineFact -CimProvider $script:cim -RegistryService $script:registry -EnvironmentProvider $script:environment | Out-Null
+            Get-HDTMachineFact -CimProvider $script:cim -RegistryService $script:registry -EnvironmentProvider $script:environment -Phase WinPE | Out-Null
 
             @($script:cim.Operations | ForEach-Object { $_.Arguments[1] }) | Should -Be @(
                 'Win32_ComputerSystem',
@@ -618,7 +618,7 @@ Describe 'Get-HDTMachineFact' {
         }
 
         It 'queries Win32_Tpm in the microsofttpm namespace' {
-            Get-HDTMachineFact -CimProvider $script:cim -RegistryService $script:registry -EnvironmentProvider $script:environment | Out-Null
+            Get-HDTMachineFact -CimProvider $script:cim -RegistryService $script:registry -EnvironmentProvider $script:environment -Phase WinPE | Out-Null
 
             $tpmQuery = @($script:cim.Operations | Where-Object { $_.Arguments[1] -eq 'Win32_Tpm' })
 
@@ -627,7 +627,7 @@ Describe 'Get-HDTMachineFact' {
         }
 
         It 'reads the SecureBoot state through the registry service, not the real registry' {
-            Get-HDTMachineFact -CimProvider $script:cim -RegistryService $script:registry -EnvironmentProvider $script:environment | Out-Null
+            Get-HDTMachineFact -CimProvider $script:cim -RegistryService $script:registry -EnvironmentProvider $script:environment -Phase WinPE | Out-Null
 
             @($script:registry.Operations).Count | Should -BeGreaterThan 0
             @($script:registry.Operations | ForEach-Object { $_.Arguments[0] }) |
@@ -635,7 +635,7 @@ Describe 'Get-HDTMachineFact' {
         }
 
         It 'reads firmware_type through the environment provider' {
-            Get-HDTMachineFact -CimProvider $script:cim -RegistryService $script:registry -EnvironmentProvider $script:environment | Out-Null
+            Get-HDTMachineFact -CimProvider $script:cim -RegistryService $script:registry -EnvironmentProvider $script:environment -Phase WinPE | Out-Null
 
             @($script:environment.Operations | ForEach-Object { $_.Arguments[0] }) | Should -Contain 'firmware_type'
         }
@@ -643,7 +643,7 @@ Describe 'Get-HDTMachineFact' {
         It 'does not produce HDTBootMode' {
             # Phase 05 owns it: only the boot path knows whether the machine came
             # from PXE or from media, and it is not a hardware fact.
-            $fact = Get-HDTMachineFact -CimProvider $script:cim -RegistryService $script:registry -EnvironmentProvider $script:environment
+            $fact = Get-HDTMachineFact -CimProvider $script:cim -RegistryService $script:registry -EnvironmentProvider $script:environment -Phase WinPE
 
             @($fact.Keys) | Should -Not -Contain 'HDTBootMode'
             @($fact.Keys) | Should -Not -Contain 'HDTComputerName'
@@ -652,13 +652,13 @@ Describe 'Get-HDTMachineFact' {
 
         It 'does not produce any _HDT variable' {
             # DESIGN 3.2: _HDT* is engine-owned. The gatherer must not claim one.
-            $fact = Get-HDTMachineFact -CimProvider $script:cim -RegistryService $script:registry -EnvironmentProvider $script:environment
+            $fact = Get-HDTMachineFact -CimProvider $script:cim -RegistryService $script:registry -EnvironmentProvider $script:environment -Phase WinPE
 
             @($fact.Keys | Where-Object { $_.StartsWith('_') }).Count | Should -Be 0
         }
 
         It 'names every fact with the HDT prefix' {
-            $fact = Get-HDTMachineFact -CimProvider $script:cim -RegistryService $script:registry -EnvironmentProvider $script:environment
+            $fact = Get-HDTMachineFact -CimProvider $script:cim -RegistryService $script:registry -EnvironmentProvider $script:environment -Phase WinPE
 
             @($fact.Keys | Where-Object { -not $_.StartsWith('HDT') }).Count | Should -Be 0
         }
@@ -684,20 +684,95 @@ Describe 'Get-HDTMachineFact' {
 
 Describe 'the deployment scenario' {
 
-    # MDT SETS DeploymentType IN ZTIGather and gates whole groups on it. HDT
-    # gathers it in the same place, and today it has one value - see
-    # Get-HDTVariableMap for why it exists anyway.
+    # MDT SETS DeploymentType IN ZTIGather AND GATES WHOLE GROUPS ON IT, and it
+    # decides the value on exactly this evidence: LiteTouch.wsf:373-387 tests
+    # oEnv("SystemDrive") = "X:" and writes NEWCOMPUTER when the drive is the RAM
+    # disk, REFRESH when it is not, and ZTIUtility.vbs:3339-3347 re-derives it
+    # per task sequence rather than trusting what was recorded earlier.
+    #
+    # SO IT IS A FACT ABOUT HOW THE RUN STARTED, NOT A PREFERENCE - DESIGN 3.2.
+    # The phase is DECLARED by the caller rather than probed here, because engine
+    # logic takes injected facts (CLAUDE.md rule 5): there is no MiniNT registry
+    # read and no $env:SystemDrive test in this file, and a test proving that is
+    # in the "touches nothing itself" Context above.
 
     BeforeEach {
-        $script:scenario = Get-HDTMachineFact -CimProvider $script:cim `
-            -RegistryService $script:registry -EnvironmentProvider $script:environment
+        $script:cim = New-HDTFakeCimProvider `
+            -FixturePath $script:cimFixturePath `
+            -NamespaceFixturePath @{ $script:tpmNamespace = $script:tpmFixturePath }
+
+        $script:environment = New-HDTFakeEnvironmentProvider -Variable @{
+            firmware_type          = 'UEFI'
+            PROCESSOR_ARCHITECTURE = 'AMD64'
+        }
+
+        $script:registry = New-HDTFakeRegistryService -Value @{
+            'HKLM:\SYSTEM\CurrentControlSet\Control\SecureBoot\State' = @{ UEFISecureBootEnabled = 1 }
+        }
     }
 
     It 'is gathered, so a sequence can condition on it' {
-        $script:scenario.Contains('HDTDeploymentType') | Should -BeTrue
+        $fact = Get-HDTMachineFact -CimProvider $script:cim `
+            -RegistryService $script:registry -EnvironmentProvider $script:environment -Phase WinPE
+
+        $fact.Contains('HDTDeploymentType') | Should -BeTrue
     }
 
-    It 'says NEWCOMPUTER, which is the only scenario this engine performs' {
-        [string] $script:scenario['HDTDeploymentType'] | Should -BeExactly 'NEWCOMPUTER'
+    # BOTH WAYS IN ONE TABLE, because one of them passing is not the pair
+    # passing. A derivation that ignored its argument and returned NEWCOMPUTER
+    # would pass a test written only for the WinPE leg.
+    It 'derives the type from the phase the engine started in, both ways' {
+        $case = @(
+            @{ Phase = 'WinPE'; Expected = 'NEWCOMPUTER' }
+            @{ Phase = 'FullOS'; Expected = 'REFRESH' }
+        )
+
+        $wrong = @()
+        foreach ($current in $case) {
+            $fact = Get-HDTMachineFact -CimProvider $script:cim `
+                -RegistryService $script:registry -EnvironmentProvider $script:environment `
+                -Phase $current.Phase
+
+            $actual = [string] $fact['HDTDeploymentType']
+            if ($actual -cne $current.Expected) {
+                $wrong += ('{0} gave {1}, expected {2}' -f $current.Phase, $actual, $current.Expected)
+            }
+        }
+
+        $wrong -join '; ' | Should -BeExactly ''
+    }
+
+    # AGAINST THE SET OF PHASES, READ OFF THE COMMAND ITSELF. A third phase
+    # added to the ValidateSet with no derivation behind it would publish an
+    # empty deployment type, and the two-row table above would not notice.
+    It 'answers for every phase the parameter accepts' {
+        $accepted = @((Get-Command -Name Get-HDTMachineFact).Parameters['Phase'].Attributes |
+                Where-Object { $_ -is [System.Management.Automation.ValidateSetAttribute] } |
+                ForEach-Object { $_.ValidValues })
+
+        $accepted.Count | Should -BeGreaterThan 1
+
+        $blank = @()
+        foreach ($phase in $accepted) {
+            $fact = Get-HDTMachineFact -CimProvider $script:cim `
+                -RegistryService $script:registry -EnvironmentProvider $script:environment -Phase $phase
+
+            if ([string]::IsNullOrWhiteSpace([string] $fact['HDTDeploymentType'])) { $blank += $phase }
+        }
+
+        $blank -join ', ' | Should -BeExactly ''
+    }
+
+    # NO DEFAULT, DELIBERATELY. A full-OS caller that forgot the parameter would
+    # otherwise publish NEWCOMPUTER on a Refresh, and every symptom of that
+    # points somewhere else. Same shape as Get-HDTLogPath's -Phase.
+    It 'refuses to gather without being told which phase it started in' {
+        $phase = (Get-Command -Name Get-HDTMachineFact).Parameters['Phase']
+
+        $mandatory = @($phase.Attributes |
+                Where-Object { $_ -is [System.Management.Automation.ParameterAttribute] } |
+                ForEach-Object { $_.Mandatory })
+
+        $mandatory | Should -Contain $true
     }
 }

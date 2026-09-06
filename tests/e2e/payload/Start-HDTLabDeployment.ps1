@@ -205,7 +205,7 @@ try {
     # -- 3. facts, then rules -------------------------------------------------
 
     & $say 'gathering machine facts'
-    $fact = Get-HDTMachineFact -CimProvider $cim -RegistryService $registry -EnvironmentProvider $environment
+    $fact = Get-HDTMachineFact -CimProvider $cim -RegistryService $registry -EnvironmentProvider $environment -Phase WinPE
     & $say ("{0} facts gathered; model '{1}', UEFI {2}, memory {3} MB" -f
         $fact.Count, [string] $fact['HDTModel'], [string] $fact['HDTIsUEFI'], [string] $fact['HDTMemory'])
 

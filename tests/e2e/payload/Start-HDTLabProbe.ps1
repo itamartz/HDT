@@ -156,7 +156,7 @@ if ($probe['engineLoaded']) {
     try {
         $fact = Get-HDTMachineFact -CimProvider (New-HDTCimProvider) `
             -RegistryService (New-HDTRegistryService) `
-            -EnvironmentProvider (New-HDTEnvironmentProvider)
+            -EnvironmentProvider (New-HDTEnvironmentProvider) -Phase WinPE
 
         $probe['factCount'] = @($fact.Keys).Count
 

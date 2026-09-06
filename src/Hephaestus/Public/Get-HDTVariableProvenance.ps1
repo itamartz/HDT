@@ -34,7 +34,7 @@
 
         .EXAMPLE
             $fact = Get-HDTMachineFact -CimProvider (New-HDTCimProvider) `
-                -RegistryService (New-HDTRegistryService) -EnvironmentProvider (New-HDTEnvironmentProvider)
+                -RegistryService (New-HDTRegistryService) -EnvironmentProvider (New-HDTEnvironmentProvider) -Phase WinPE
             $result = Resolve-HDTVariable -Fact $fact
             Get-HDTVariableProvenance -Resolution $result |
                 Format-Table Order, Name, Value, Source, Rule -AutoSize

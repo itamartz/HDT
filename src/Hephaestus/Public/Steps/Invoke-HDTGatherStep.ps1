@@ -163,8 +163,14 @@ function Invoke-HDTGatherStep {
     $provenance = [ordered] @{}
 
     try {
+        # THE PHASE COMES FROM THE CONTEXT, WHICH ALREADY KNOWS IT. It is what
+        # New-HDTExecutionContext published as _HDTPhase before the first step
+        # ran, and HDTDeploymentType is derived from it - WinPE to NEWCOMPUTER,
+        # the full OS to REFRESH (DESIGN 3.2). Deciding it here instead would
+        # mean reading $env:SystemDrive or the MiniNT key from inside engine
+        # logic, which constraint 5 forbids and which no fake could contradict.
         $fact = Get-HDTMachineFact -CimProvider $cim -RegistryService $registry -EnvironmentProvider $environment `
-            -Provenance $provenance -Clock $Context.Service.Clock
+            -Phase $Context.Phase -Provenance $provenance -Clock $Context.Service.Clock
     } catch {
         $message = [string] $_.Exception.Message
 
