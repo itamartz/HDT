@@ -339,6 +339,74 @@
         $saveArgument['MirrorPath'] = $MirrorStatePath
     }
 
+    # -- a full-OS leg mirrors where the WinPE leg will look -----------------
+    #
+    # THE OTHER DIRECTION OF THE REBOOT, AND IT HAD NO MIRROR AT ALL.
+    #
+    # Every leg mirrors its checkpoint to <volume>\HDT\state.json, because that
+    # is the one path Get-HDTResumeCandidate scans - it has no other way to tell
+    # a booted WinPE that a run is already in progress. Until M9 the ONLY code
+    # that set that mirror was the log relocation below, which is gated on the
+    # WinPE phase.
+    #
+    # THAT GATE WAS RIGHT FOR WHAT IT WAS WRITTEN FOR, and it stays exactly as
+    # it is. A WinPE leg logs to X:, a RAM disk that does not survive the
+    # restart, so its log has to MOVE the moment a step publishes a volume - and
+    # the mirror rode along on that move because it is the same trigger and the
+    # same information. A full-OS leg was excluded from the relocation for a
+    # reason that is still true: its log is ALREADY on the OS volume, and
+    # Get-HDTLogPath ignores a -TargetVolume there rather than pointing the logs
+    # at a letter that no longer means what it meant in WinPE. Nothing below
+    # starts relocating a full-OS log.
+    #
+    # WHAT A FULL-OS LEG NEEDS IS THE MIRROR WITHOUT THE MOVE, and there was no
+    # path through this function that gave it one. A Refresh (DESIGN 3.2) starts
+    # in the running Windows and reboots into a WinPE it staged onto its own
+    # disk; nothing arms that leg and nothing hands it a path, so it FINDS the
+    # run by scanning for <letter>:\HDT\state.json. A leg one that wrote only
+    # C:\HDT\Logs\state.json left nothing there, the scan answered None, and the
+    # WinPE leg would have minted a fresh run at step 1 - on a machine whose
+    # deployment was half done.
+    #
+    # THE VOLUME IS TAKEN FROM THE LOG ROOT, which is the same idiom the
+    # relocation uses (GetPathRoot of the path actually reached) and for the
+    # same reason: the mirror and the log then cannot disagree about which
+    # volume this leg is standing on. In the full OS that root IS the OS volume
+    # by construction - Get-HDTLogPath -Phase FullOS returns <SystemDrive>\HDT\
+    # Logs - so there is no second source of truth and no drive letter guessed,
+    # which is what SPIKES S9.1 forbids.
+    #
+    # IT IS SET HERE RATHER THAN AFTER A STEP, because there is nothing to wait
+    # for. The WinPE branch waits because the volume does not exist until a step
+    # formats one; a full-OS leg is RUNNING from its volume, so the mirror can
+    # exist from the very first checkpoint - and a leg that dies before its
+    # first step still leaves a findable account of itself.
+    #
+    # IT ALSO COVERS THE FULL-OS LEG OF AN ORDINARY NEWCOMPUTER RUN, and that is
+    # a fix rather than a side effect. The WinPE leg mirrors to C:\HDT\state.json
+    # and then reboots; the full-OS leg that followed never touched that copy
+    # again, so it stayed frozen at 'Running' for the life of the machine. The
+    # next WinPE boot read it as a run that had not been written to for weeks and
+    # answered Ambiguous. Now the leg that finishes the run finishes the mirror.
+    #
+    # A CALLER WHO NAMED ONE IS NOT OVERRULED, exactly as below.
+    # [IO.Path]::Combine and never Join-Path: Join-Path resolves the drive and
+    # throws DriveNotFound on a letter this process has not mounted, which is
+    # every letter under a fake, so the line could not be tested at all.
+    if (-not $PSBoundParameters.ContainsKey('MirrorStatePath') -and
+        [string] $Context.Phase -eq 'FullOS') {
+
+        $logVolumeRoot = [System.IO.Path]::GetPathRoot($logRoot)
+
+        # A LOG ROOT WITH NO DRIVE ROOT IS NOT A VOLUME. GetPathRoot returns ''
+        # for a relative path, and Combine would then produce 'HDT\state.json' -
+        # relative, resolved against whatever the current directory happens to
+        # be. Better no mirror than one nothing can find.
+        if (-not [string]::IsNullOrWhiteSpace($logVolumeRoot)) {
+            $saveArgument['MirrorPath'] = [System.IO.Path]::Combine($logVolumeRoot, 'HDT\state.json')
+        }
+    }
+
     $outcome = New-Object -TypeName System.Collections.ArrayList
     $failedStep = $null
     $runStatus = 'Succeeded'
@@ -505,6 +573,24 @@
         $state.phase = [string] $Context.Phase
     }
 
+    # WHAT THE RUN IS, AS OPPOSED TO WHICH LEG THIS IS - READ ONCE, HERE.
+    #
+    # The phase above genuinely changes leg to leg and is updated to match. This
+    # does not: it was decided on the run's first leg and carried in the
+    # document ever since (New-HDTRunState, DESIGN 3.2). It is read here rather
+    # than inside the loop because it cannot change while the loop runs, and a
+    # per-step read would invite somebody to make it changeable.
+    #
+    # PROPERTY-EXISTENCE CHECKED, NOT ASSUMED. Under Set-StrictMode -Version
+    # Latest, reading a property a document does not carry is a terminating
+    # error - and a state document written by an engine older than the
+    # deploymentType field does not carry one. That absence is safe: it unlocks
+    # nothing, so an older document loses a permission rather than gaining one.
+    $runDeploymentType = ''
+    if ($null -ne $state.PSObject.Properties['deploymentType']) {
+        $runDeploymentType = [string] $state.deploymentType
+    }
+
     try {
         $registry = $StepType
         if ($null -eq $registry) {
@@ -553,7 +639,18 @@
             #    go on to capture whatever happens to be on the disk. A resumed
             #    leg that reaches one of these has a defect in it, and this is
             #    how anybody finds out.
-            if ($Resumed -and (Test-HDTResumeStepForbidden -Step $step)) {
+            #
+            #    AND THE RUN'S OWN TYPE IS PART OF THE QUESTION, WHICH IS THE
+            #    ONE PLACE THE GUARD GIVES GROUND. A Refresh's ApplyImage sits
+            #    AHEAD of the resume point rather than behind it - the machine
+            #    boots into the WinPE it staged and only then applies - so
+            #    refusing it would refuse the step the leg exists to run
+            #    (DESIGN 3.2). Get-HDTResumePermittedStepType holds that
+            #    exception and states plainly what keying it to a value in the
+            #    same document as stepIndex costs. DiskPartition is refused for
+            #    every deployment type without exception, so the worst a forged
+            #    state document buys is an image apply, never a formatted disk.
+            if ($Resumed -and (Test-HDTResumeStepForbidden -Step $step -DeploymentType $runDeploymentType)) {
                 $reason = "step {0} '{1}' is a {2} step and this leg is RESUMING a task sequence that is already in progress. A resumed leg runs on a machine that has already been deployed, so a step that formats a disk or overwrites the Windows volume would destroy the installation this run exists to finish. HDT refuses rather than skipping, because a resumed leg that reaches this step means its state document is wrong about where the run had got to - and that is worth stopping for. If this machine really should be deployed from the beginning, delete its state document and boot it again." -f $index, $stepName, $stepTypeName
 
                 Update-HDTRunStateStep -State $state -Index $index -Status Failed -Message $reason -Leg ([int] $state.leg) | Out-Null

@@ -90,12 +90,18 @@ BeforeAll {
     }
 
     $script:call = {
-        param([object] $Disk, [object] $FileSystem, [int] $MaxAgeHour = 12)
+        param([object] $Disk, [object] $FileSystem, [int] $MaxAgeHour = 12, [string] $Phase = 'WinPE')
 
         $argument = @{
             Disk       = $Disk
             FileSystem = $FileSystem
             Clock      = (New-HDTFakeClock -UtcNow $script:now)
+
+            # THE LEG THIS START IS ON, AND IT IS MANDATORY ON THE COMMAND.
+            # WinPE is what every case below is about and what this command was
+            # built for, so it is the helper's default; the full-OS start has a
+            # context of its own at the end of this file.
+            Phase      = $Phase
         }
         if ($PSBoundParameters.ContainsKey('MaxAgeHour')) { $argument['MaxAgeHour'] = $MaxAgeHour }
 
@@ -337,6 +343,102 @@ Describe 'Get-HDTResumeCandidate' {
             $disk = New-HDTFakeDiskService -Volume @() -Failure @{ GetVolume = 'the disk subsystem did not answer' }
 
             (& $script:call $disk (New-HDTFakeFileSystem)).Action | Should -Be 'Ambiguous'
+        }
+    }
+
+    Context 'a start in the full OS' {
+
+        # THE HIJACK, AND IT IS WHAT THE FULL-OS ENTRY POINT COST.
+        #
+        # Until M9 this scan only ever ran in WinPE, where X: is excluded and
+        # every other volume belongs to the machine being deployed. A Refresh
+        # starts the same file from the RUNNING WINDOWS, so the scan now reaches
+        # C:\HDT\state.json - the document that machine's PREVIOUS HDT
+        # deployment left behind.
+        #
+        # Succeeded and Failed are already handled and already right: a finished
+        # run is not a run in progress. The two that are wrong are the ones that
+        # are still marked Running, because that machine's last deployment died
+        # or was interrupted:
+        #
+        #   fresh Running    Resume     - and the Refresh the operator just
+        #                                 launched silently continues somebody
+        #                                 else's half-finished sequence, at its
+        #                                 step index, against its variable bag.
+        #   stale Running    Ambiguous  - and the operator's deliberate act is
+        #                                 refused outright by a document about a
+        #                                 run that ended weeks ago.
+        #
+        # BOTH ARE WRONG FOR THE SAME REASON: A START IS NOT A RESUME. A run
+        # that is STARTING in the full OS was launched by a person standing at
+        # the machine; a run RESUMING into the full OS was sent there by its own
+        # reboot, and that arrives through Start-HDTResume.ps1, which the reboot
+        # armed and which never consults this scan. Only the second is evidence
+        # that a run is in progress.
+        #
+        # AND THE OLD DOCUMENT IS LEFT WHERE IT IS. Nothing here deletes or
+        # rewrites it: it is the only account of what happened to this machine
+        # last time, and the reason it is not being resumed is a sentence in a
+        # log rather than a missing file.
+
+        It 'does not resume a previous deployment that is still marked Running' {
+            $fileSystem = New-HDTFakeFileSystem -File @{
+                'C:\HDT\state.json' = (& $script:stateJson)
+            }
+
+            (& $script:call (& $script:diskWith @('C')) $fileSystem 12 'FullOS').Action | Should -Be 'None'
+        }
+
+        It 'does not refuse the start over a stale one either' {
+            $fileSystem = New-HDTFakeFileSystem -File @{
+                'C:\HDT\state.json' = (& $script:stateJson 'Running' $script:now.AddHours(-40))
+            }
+
+            (& $script:call (& $script:diskWith @('C')) $fileSystem 12 'FullOS').Action | Should -Be 'None'
+        }
+
+        # A DOCUMENT THAT WILL NOT PARSE IS NOT A REASON TO REFUSE A START
+        # EITHER, and it is the case that would otherwise strand a machine: the
+        # previous deployment crashed mid-write, and the only way to redeploy
+        # the machine would be to find and delete a file by hand.
+        It 'is not stopped by a previous document it cannot read' {
+            $fileSystem = New-HDTFakeFileSystem -File @{
+                'C:\HDT\state.json' = '{ "schemaVersion": 1, "runId": '
+            }
+
+            (& $script:call (& $script:diskWith @('C')) $fileSystem 12 'FullOS').Action | Should -Be 'None'
+        }
+
+        # THE EVIDENCE SURVIVES THE DECISION. An administrator asking why this
+        # machine minted a new run when there was a state document sitting on it
+        # gets the answer and the path, at the point the decision was made.
+        It 'names the document it found and left alone' {
+            $fileSystem = New-HDTFakeFileSystem -File @{
+                'C:\HDT\state.json' = (& $script:stateJson)
+            }
+
+            $decision = & $script:call (& $script:diskWith @('C')) $fileSystem 12 'FullOS'
+
+            [string] $decision.Reason | Should -Match 'C:\\HDT\\state.json'
+            @($decision.Candidate) | Should -Contain 'C:\HDT\state.json'
+        }
+
+        It 'still answers None on a machine that carries no document at all' {
+            (& $script:call (& $script:diskWith @('C')) (New-HDTFakeFileSystem) 12 'FullOS').Action |
+                Should -Be 'None'
+        }
+
+        # AND THE WinPE LEG OF THAT SAME REFRESH STILL RESUMES. The machine
+        # stages a WinPE, reboots into it, and comes back to find the document
+        # the leg before it wrote - which is the run in progress this command
+        # exists to find. A fix that made the scan answer None everywhere would
+        # take the Refresh's second leg with it.
+        It 'still resumes a live run when the leg is WinPE' {
+            $fileSystem = New-HDTFakeFileSystem -File @{
+                'C:\HDT\state.json' = (& $script:stateJson)
+            }
+
+            (& $script:call (& $script:diskWith @('X', 'C')) $fileSystem 12 'WinPE').Action | Should -Be 'Resume'
         }
     }
 }

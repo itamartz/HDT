@@ -162,15 +162,42 @@ function Invoke-HDTGatherStep {
     # property it came from and whether the machine actually determined it.
     $provenance = [ordered] @{}
 
+    # WHAT THE RUN IS, WHICH IS NOT THE SAME QUESTION AS WHICH LEG THIS IS.
+    #
+    # THIS STEP RE-GATHERS MID-SEQUENCE, WHICH IS THE POINT OF IT - the machine
+    # a sequence finishes on is not the one it started on (DESIGN 3.2.1). But
+    # the deployment type is not a fact about the machine and does not change
+    # when the machine does: it was decided on the run's first leg and lives on
+    # the state document from then on (New-HDTRunState, DESIGN 3.2).
+    #
+    # WITHOUT THIS, A REFRESH IS RENAMED BY ITS OWN Gather STEP. Its second leg
+    # runs in WinPE; a re-derivation from the leg would overwrite REFRESH with
+    # NEWCOMPUTER in the live variable bag, and hand the resume guard the one
+    # answer that refuses the ApplyImage the leg exists to run. MDT's rule is
+    # derive-only-when-nothing-has-said-yet (LiteTouch.wsf:373-387), and this is
+    # the same rule at the second place that asks.
+    #
+    # PROPERTY-EXISTENCE CHECKED, NOT ASSUMED. A context may carry no state at
+    # all (New-HDTExecutionContext -State defaults to null), and a document
+    # written by an engine older than the field carries no deploymentType.
+    # Either way the answer is empty, which means "derive from the phase" - the
+    # behaviour this step has always had.
+    $runDeploymentType = ''
+    if ($null -ne $Context.State -and $null -ne $Context.State.PSObject.Properties['deploymentType']) {
+        $runDeploymentType = [string] $Context.State.deploymentType
+    }
+
     try {
         # THE PHASE COMES FROM THE CONTEXT, WHICH ALREADY KNOWS IT. It is what
         # New-HDTExecutionContext published as _HDTPhase before the first step
         # ran, and HDTDeploymentType is derived from it - WinPE to NEWCOMPUTER,
-        # the full OS to REFRESH (DESIGN 3.2). Deciding it here instead would
-        # mean reading $env:SystemDrive or the MiniNT key from inside engine
-        # logic, which constraint 5 forbids and which no fake could contradict.
+        # the full OS to REFRESH (DESIGN 3.2) - unless the run already knows
+        # what it is, which is what -DeploymentType above carries. Deciding
+        # either here instead would mean reading $env:SystemDrive or the MiniNT
+        # key from inside engine logic, which constraint 5 forbids and which no
+        # fake could contradict.
         $fact = Get-HDTMachineFact -CimProvider $cim -RegistryService $registry -EnvironmentProvider $environment `
-            -Phase $Context.Phase -Provenance $provenance -Clock $Context.Service.Clock
+            -Phase $Context.Phase -DeploymentType $runDeploymentType -Provenance $provenance -Clock $Context.Service.Clock
     } catch {
         $message = [string] $_.Exception.Message
 

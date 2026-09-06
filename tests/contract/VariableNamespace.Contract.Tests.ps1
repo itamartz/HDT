@@ -35,7 +35,8 @@ BeforeAll {
     # Class.Property origin.
     $script:cimSourcedFact = @(
         'HDTMake', 'HDTModel', 'HDTProduct', 'HDTSerialNumber', 'HDTUUID',
-        'HDTSystemSKU', 'HDTMemory', 'HDTTPMVersion', 'HDTAssetTag',
+        'HDTSystemSKU', 'HDTMemory', 'HDTTPMVersion', 'HDTOSCurrentVersion',
+        'HDTAssetTag',
         'HDTIsDesktop', 'HDTIsLaptop', 'HDTIsServer', 'HDTIsVM',
         'HDTMacAddress', 'HDTIPAddress', 'HDTDefaultGateway'
     )
@@ -255,7 +256,7 @@ Describe 'HDT variable namespace contract' {
                 'SerialNumber', 'UUID', 'Product', 'SystemSKU', 'IsDesktop',
                 'IsLaptop', 'IsServer', 'IsVM', 'Architecture', 'IsUEFI',
                 'Memory', 'MacAddress', 'IPAddress', 'DefaultGateway',
-                'TimeZoneName')) {
+                'TimeZoneName', 'OSCurrentVersion')) {
             $mdt | Should -Contain $documented
         }
     }

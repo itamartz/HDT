@@ -462,6 +462,62 @@ Describe 'Get-HDTMachineFact' {
         }
     }
 
+    Context 'the running operating system' {
+
+        # MDT'S OSCurrentVersion, GATHERED THE WAY MDT GATHERS IT: ZTIGather.wsf
+        # GetOSVersion runs "select * from Win32_OperatingSystem" and takes
+        # .Version (:295-300). It is what ZTIValidate's downgrade refusal
+        # compares an image against (:138-146), and it is the only fact a
+        # Refresh's downgrade guard can be built on - the machine has to be able
+        # to say which Windows it is running before it can be told that the
+        # image is older.
+
+        It 'reports HDTOSCurrentVersion from the Version of Win32_OperatingSystem' {
+            $fact = Get-HDTMachineFact -CimProvider $script:cim -RegistryService $script:registry -EnvironmentProvider $script:environment -Phase WinPE
+
+            $fact['HDTOSCurrentVersion'] | Should -BeExactly '10.0.26100'
+        }
+
+        It 'carries the build, which is the only component that moves' {
+            # Every Windows since Windows 10 reports major.minor 10.0, Windows 11
+            # included - which is why MDT's own major/minor comparison cannot
+            # tell them apart, and why the fact has to carry the whole version.
+            $fact = Get-HDTMachineFact -CimProvider $script:cim -RegistryService $script:registry -EnvironmentProvider $script:environment -Phase WinPE
+
+            ([version] $fact['HDTOSCurrentVersion']).Build | Should -Be 26100
+        }
+
+        It 'reports HDTOSCurrentVersion null when the class is absent' {
+            # WinPE reports itself oddly and an image without the class reports
+            # nothing at all. Absent is a fact, not a failure - the guard that
+            # reads it refuses loudly on a Refresh, which is where it matters.
+            $cim = New-HDTFactCimProvider -Exclude 'Win32_OperatingSystem'
+
+            $fact = Get-HDTMachineFact -CimProvider $cim -RegistryService $script:registry -EnvironmentProvider $script:environment -Phase WinPE
+
+            $fact['HDTOSCurrentVersion'] | Should -BeNullOrEmpty
+        }
+
+        It 'does not throw when the class is absent' {
+            $cim = New-HDTFactCimProvider -Exclude 'Win32_OperatingSystem'
+
+            { Get-HDTMachineFact -CimProvider $cim -RegistryService $script:registry -EnvironmentProvider $script:environment -Phase WinPE } |
+                Should -Not -Throw
+        }
+
+        It 'records why it could not say, rather than leaving it blank' {
+            $cim = New-HDTFactCimProvider -Exclude 'Win32_OperatingSystem'
+            $provenance = [ordered] @{}
+
+            [void] (Get-HDTMachineFact -CimProvider $cim -RegistryService $script:registry -EnvironmentProvider $script:environment -Phase WinPE -Provenance $provenance)
+
+            $row = $provenance['HDTOSCurrentVersion']
+
+            $row.Determined | Should -BeFalse
+            $row.Reason | Should -Not -BeNullOrEmpty
+        }
+    }
+
     Context 'network' {
 
         # The fixture is re-read inside each It rather than cached in a
@@ -613,7 +669,8 @@ Describe 'Get-HDTMachineFact' {
                 'Win32_BIOS',
                 'Win32_SystemEnclosure',
                 'Win32_NetworkAdapterConfiguration',
-                'Win32_Tpm'
+                'Win32_Tpm',
+                'Win32_OperatingSystem'
             )
         }
 

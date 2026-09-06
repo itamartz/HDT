@@ -52,6 +52,13 @@
         "FullOS"
       ]
     },
+    "deploymentType": {
+      "description": "What the run IS, decided on its first leg and carried from there: NEWCOMPUTER from a WinPE start, REFRESH from a full-OS one. The phase is re-derived every leg; this is not, because a Refresh's second leg runs in WinPE and re-deriving would rename the run mid-flight. Optional, not required, for the reason logLevel is: a document written before this key existed belongs to a run that is still going, and an absent value unlocks nothing.",
+      "enum": [
+        "NEWCOMPUTER",
+        "REFRESH"
+      ]
+    },
     "leg": {
       "description": "1-based, incremented on every resume.",
       "type": "integer",

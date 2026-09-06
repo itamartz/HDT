@@ -16,6 +16,9 @@ This builds it, in memory. It has NO -FileSystem
               sequenceId     the sequence's id from sequence.yaml
               status         Running | Succeeded | Failed
               phase          WinPE | FullOS
+              deploymentType NEWCOMPUTER | REFRESH - WHAT THE RUN IS, decided
+                             on this, its first leg, and read back by every leg
+                             after it rather than re-derived
               leg            1-based, incremented on every resume
               seq            the last JSONL seq written - how the
                              monotonic counter survives a reboot
@@ -223,6 +226,29 @@ This builds it, in memory. It has NO -FileSystem
             sequenceId         = $SequenceId
             status             = 'Running'
             phase              = $Phase
+
+            # WHAT THE RUN IS, WRITTEN DOWN ONCE SO NOTHING HAS TO GUESS AGAIN.
+            #
+            # THE PHASE IS RE-DERIVED EVERY LEG; THIS IS NOT. A Refresh starts
+            # in the full OS - SystemDrive C:, so REFRESH - stages a WinPE,
+            # reboots, and comes back with SystemDrive at X:. A leg that
+            # re-derived would call that same run a NEWCOMPUTER, mid-flight, at
+            # the exact moment the resume guard is asking - because REFRESH is
+            # the one value that unlocks ApplyImage there (DESIGN 3.2).
+            #
+            # MDT DOES EXACTLY THIS AND NO MORE. LiteTouch.wsf:373-387 fills the
+            # value in only when nothing has set it yet
+            # (`ElseIf oEnvironment.Item("DeploymentType") = ""`), and it lives
+            # in the run's persisted environment from then on. state.json is
+            # HDT's equivalent of that environment: it is the only thing that
+            # crosses the reboot.
+            #
+            # DERIVED THROUGH THE SHARED MAPPING RATHER THAN INLINE. The same
+            # answer goes into the variable bag as HDTDeploymentType, and a
+            # second copy of the rule here is how a run comes to be a REFRESH in
+            # its log and a NEWCOMPUTER in its checkpoint.
+            deploymentType     = Get-HDTDeploymentType -Phase $Phase
+
             leg                = 1
             seq                = [long] 0
 

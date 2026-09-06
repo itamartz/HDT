@@ -207,6 +207,10 @@
         @{ HDTName = 'HDTTPMVersion'; MdtName = $null; Origin = 'Win32_Tpm.SpecVersion'
             Description = 'TPM specification version such as 2.0, or null where no TPM is present or readable.'
         }
+
+        @{ HDTName = 'HDTOSCurrentVersion'; MdtName = 'OSCurrentVersion'; Origin = 'Win32_OperatingSystem.Version'
+            Description = 'The version of Windows running on this machine now, such as 10.0.26100, or null where the class could not be read. A Refresh refuses an image older than this; the build is carried because every Windows since 10 reports major.minor 10.0.'
+        }
         @{ HDTName = 'HDTIsDesktop'; MdtName = 'IsDesktop'; Origin = 'Win32_SystemEnclosure.ChassisTypes'
             Description = 'True for a desktop chassis type.'
         }
