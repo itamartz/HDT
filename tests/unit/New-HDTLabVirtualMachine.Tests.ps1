@@ -444,6 +444,41 @@ Describe 'Remove-HDTLabVirtualMachine' {
             $guard[0].Extent.StartOffset | Should -BeLessThan $destructive[0].Extent.StartOffset
         }
 
+        It 'refuses an unstamped VM before ShouldProcess, so -WhatIf cannot preview a removal it would never do' {
+            # THE DEFECT THIS EXISTS FOR, found on 2026-09-06 by running the
+            # command rather than reading it: every other test in this Context
+            # asserts AST OFFSETS, and by that measure the guard was already
+            # correct - it sat before Stop-VM in the source. But it sat AFTER
+            # the ShouldProcess early return, and -WhatIf returns there. So
+            #
+            #   Remove-HDTLabVirtualMachine -Name 'HDT-WSUS-01' -WhatIf
+            #
+            # printed 'What if: Performing the operation "Stop and remove the
+            # HDT lab VM" on target "HDT-WSUS-01"' and exited 0, telling an
+            # operator that a dry run would destroy the lab's WSUS server.
+            #
+            # The destructive path was never actually unprotected. That is what
+            # makes it dangerous rather than harmless: a safety command whose
+            # PREVIEW contradicts its own guarantee teaches the person reading
+            # it to distrust the guarantee, and -WhatIf is exactly what a
+            # careful operator runs first.
+            $ast = & $script:parseTool 'Remove-HDTLabVirtualMachine'
+            $ast | Should -Not -BeNullOrEmpty
+
+            $guard = @(& $script:namedCall $ast 'Test-HDTLabVmStamped')[0]
+            $guard | Should -Not -BeNullOrEmpty
+
+            $shouldProcess = @($ast.FindAll({
+                        param($node)
+                        $node -is [System.Management.Automation.Language.InvokeMemberExpressionAst] -and
+                        ([string] $node.Member.Value) -eq 'ShouldProcess'
+                    }, $true) |
+                    Sort-Object { $_.Extent.StartOffset })
+
+            $shouldProcess.Count | Should -BeGreaterThan 0 -Because 'the command declares SupportsShouldProcess'
+            $guard.Extent.StartOffset | Should -BeLessThan $shouldProcess[0].Extent.StartOffset -Because 'a refusal that -WhatIf can skip is not a refusal'
+        }
+
         It 'names the stamp in its refusal message' {
             # The person reading the failure has to be able to tell a protected
             # machine from a typo, so the message says what the VM is missing.

@@ -60,11 +60,23 @@ function Remove-HDTLabVirtualMachine {
     # Before anything, and belt and braces on top of the HDT-* rule.
     Assert-HDTLabVmName -Name $Name
 
-    if (-not $PSCmdlet.ShouldProcess($Name, 'Stop and remove the HDT lab VM')) {
-        return
-    }
-
+    # THE LOOKUP AND THE STAMP GUARD COME BEFORE ShouldProcess, DELIBERATELY,
+    # and it cost a defect to learn why (2026-09-06). They used to sit after it.
+    # ShouldProcess returns $false under -WhatIf, the command returned there,
+    # and the guard below was never reached - so
+    #
+    #   Remove-HDTLabVirtualMachine -Name 'HDT-WSUS-01' -WhatIf
+    #
+    # answered 'What if: Performing the operation "Stop and remove the HDT lab
+    # VM" on target "HDT-WSUS-01"'. The real removal was always refused; only
+    # the PREVIEW lied, which is worse than it sounds, because -WhatIf is what
+    # a careful operator runs before the real thing and what they will believe.
+    #
+    # A REFUSAL IS NOT AN EFFECT, so it does not belong behind ShouldProcess.
+    # ShouldProcess asks "may I do this?"; this asks "is this mine to do at
+    # all?", and the answer to the second is the same in a dry run.
     $vm = @(Hyper-V\Get-VM -Name $Name -ErrorAction SilentlyContinue)
+
     if ($vm.Count -eq 0) {
         Write-Verbose ("no VM named '{0}' to remove" -f $Name)
     } else {
@@ -83,7 +95,19 @@ function Remove-HDTLabVirtualMachine {
             throw ("'{0}' carries no HDTTestTools stamp in its Notes, so this repository did not create it and will not remove it - whatever its name says. A VM the harness made is stamped '{1}' the moment it is made; this one is somebody's own machine that happens to match HDT-*. Remove it by hand if that is really what you meant (PROJECT.md, 'Hyper-V lab safety rules', rule 1)." -f
                 $Name, (Get-HDTLabVmStamp))
         }
+    }
 
+    # AND ONLY NOW MAY IT ASK. Everything above this line decides whether the
+    # VM is ours to touch at all; everything below it has an effect - the VM,
+    # its disks, and the folder under C:\HDTLab\vms. One gate covers all three,
+    # which is why it is here and not inside the branch above: the folder
+    # delete at the bottom runs even for a VM that no longer exists, and a
+    # -WhatIf that skipped only the Hyper-V half would still delete the disks.
+    if (-not $PSCmdlet.ShouldProcess($Name, 'Stop and remove the HDT lab VM')) {
+        return
+    }
+
+    if ($vm.Count -gt 0) {
         if ($vm[0].State -ne 'Off') {
             Hyper-V\Stop-VM -Name $Name -TurnOff -Force -Confirm:$false
         }
