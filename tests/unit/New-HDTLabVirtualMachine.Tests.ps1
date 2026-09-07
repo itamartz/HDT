@@ -543,7 +543,22 @@ Describe 'every lab helper' {
     It 'never writes an unfiltered Hyper-V pipeline' {
         # PROJECT.md rule 1: never 'Get-VM | Remove-VM' or any unfiltered
         # pipeline. Every Get-VM in a lab helper names a VM.
-        $labTool = @(Get-ChildItem -Path $script:toolRoot -Filter '*HDTLab*.ps1')
+        #
+        # ONE EXCEPTION, BY NAME AND WITH ITS REASON. Get-HDTLabProtectedVm
+        # enumerates every VM on the host on purpose: the lab-safety assertion
+        # is "we left every VM we do not own exactly as we found it", and you
+        # cannot prove that without listing them. The rule is about a pipeline
+        # that ACTS - that command acts on nothing, returns records, and is the
+        # only reason the E2E suites no longer hand-roll the same read six
+        # times over.
+        #
+        # It is allow-listed HERE rather than exempted in the scan, so the
+        # exception is one reviewed line instead of a loophole every future
+        # helper can use.
+        $allowed = @('Get-HDTLabProtectedVm.ps1')
+
+        $labTool = @(Get-ChildItem -Path $script:toolRoot -Filter '*HDTLab*.ps1' |
+                Where-Object { $allowed -notcontains $_.Name })
 
         $violation = @()
         foreach ($file in $labTool) {

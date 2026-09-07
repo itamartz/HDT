@@ -126,18 +126,14 @@ BeforeAll {
         # builds next without anyone remembering to add its name. The unfiltered
         # Get-VM is READ-ONLY and is the one exception PROJECT.md rule 1 allows:
         # you cannot prove you left the other VMs alone without listing them.
-        return @(Hyper-V\Get-VM -ErrorAction SilentlyContinue |
-                Where-Object { $_.Name -notlike 'HDT-*' } |
-                Sort-Object Name |
-                ForEach-Object {
-                    [pscustomobject] @{
-                        Name   = [string] $_.Name
-                        State  = [string] $_.State
-                        Memory = [long] $_.MemoryStartup
-                        Switch = (@(Hyper-V\Get-VMNetworkAdapter -VMName $_.Name -ErrorAction SilentlyContinue |
-                                    ForEach-Object { [string] $_.SwitchName }) -join ',')
-                    }
-                })
+        # ONE PLACE NOW, AND IT REPORTS READABILITY SEPARATELY.
+        # Get-HDTLabProtectedVm calls Get-VM with -ErrorAction Stop and says
+        # whether the enumeration SUCCEEDED, which is the question this guard
+        # always meant to ask. SilentlyContinue here used to turn "Hyper-V is
+        # not there" into the same empty array as "there is nothing outside
+        # HDT-*", and the count guard below was invented to paper over exactly
+        # that ambiguity - then failed on a dedicated CI runner for being one.
+        return (Get-HDTLabProtectedVm).Protected
     }
 
     $script:protectedBefore = & $script:snapshotProtected
@@ -1007,14 +1003,21 @@ Describe 'it boots into Windows' -Tag 'E2E' -Skip:$skipDeployment {
 
 Describe 'the lab is unharmed' -Tag 'E2E' {
 
-    It 'had something to protect in the first place' {
+    It 'could read Hyper-V, so the comparison below is a comparison' {
         # ASSERTED SEPARATELY, AND ON PURPOSE. Comparing an empty snapshot with
         # an empty snapshot passes while checking nothing, which is exactly what
         # happened when this file named two VMs that had been retired. An empty
         # host is a finding, not a pass.
-        @($script:protectedBefore).Count | Should -BeGreaterThan 0 -Because (
-            'this host had no VM outside HDT-* when the run started, so the ' +
-            'lab-safety comparison below has nothing to compare')
+        #
+        # CORRECTED 2026-09-07: it demanded the protected set be NON-EMPTY,
+        # which is false of a dedicated CI runner - a host whose only VMs are
+        # the ones this suite creates. GHRUNNER01 failed this for being exactly
+        # what it is. The danger was never an empty list, it was an UNREADABLE
+        # one, and Get-HDTLabProtectedVm can tell them apart because it calls
+        # Get-VM with -ErrorAction Stop rather than swallowing the failure.
+        (Get-HDTLabProtectedVm).Readable | Should -BeTrue -Because (
+            'Hyper-V could not be enumerated, so the snapshot this suite ' +
+            'compares against is meaningless rather than empty')
     }
 
     It 'left every VM it does not own exactly as it found it' {

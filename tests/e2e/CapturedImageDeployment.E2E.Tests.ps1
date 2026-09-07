@@ -122,21 +122,40 @@ BeforeAll {
     # Get-VM returns, and without StrictMode the wrong one is $null, [long]
     # $null is 0, and the snapshot compares 0 with 0 (helpers README 12).
     $script:snapshotProtected = {
-        return @(Hyper-V\Get-VM -ErrorAction SilentlyContinue |
-                Where-Object { $_.Name -notlike 'HDT-*' } |
-                Sort-Object Name |
-                ForEach-Object {
-                    [pscustomobject] @{
-                        Name   = [string] $_.Name
-                        State  = [string] $_.State
-                        Memory = [long] $_.MemoryStartup
-                        Switch = (@(Hyper-V\Get-VMNetworkAdapter -VMName $_.Name -ErrorAction SilentlyContinue |
-                                    ForEach-Object { [string] $_.SwitchName }) -join ',')
-                    }
-                })
+        # ONE PLACE NOW, AND IT REPORTS READABILITY SEPARATELY.
+        # Get-HDTLabProtectedVm calls Get-VM with -ErrorAction Stop, so an
+        # unreadable Hyper-V is distinguishable from a host with nothing
+        # outside HDT-* - which SilentlyContinue here made identical.
+        return (Get-HDTLabProtectedVm).Protected
     }
 
     $script:protectedBefore = & $script:snapshotProtected
+
+    # -- WHAT THE SHARE HELD BEFORE THIS SUITE TOUCHED IT ------------------
+    #
+    # THE SAME LESSON AS THE VM SNAPSHOT ABOVE, LEARNED THE SAME WAY. These
+    # suites used to assert that named content EXISTED at the end -
+    # TaskSequences\PNP-TEST, Captures\REF-CAPTURE.wim - which is a claim about
+    # the author's lab rather than about anything the code did. It cannot tell
+    # "this suite deleted it" from "it was never on this host", so it fails on a
+    # CI runner, and on 2026-09-07 it did. It had also gone stale here: the
+    # capture WIM was promoted into the OS catalog and Captures\ is empty, so
+    # the assertion was false on the machine it was written for.
+    #
+    # A BEFORE/AFTER SET IS THE CLAIM THAT WAS MEANT. Nothing that was on the
+    # share when this started may be missing when it ends. That holds on any
+    # host, says something about this suite rather than about the lab, and still
+    # catches the accident worth catching - a teardown that deletes somebody
+    # else's sequence.
+    $script:shareContentBefore = @(
+        foreach ($area in 'TaskSequences', 'Captures', 'OperatingSystems', 'Applications') {
+            $root = Join-Path -Path $script:shareRoot -ChildPath $area
+            if (Test-Path -LiteralPath $root -PathType Container) {
+                Get-ChildItem -LiteralPath $root -ErrorAction SilentlyContinue |
+                    ForEach-Object { '{0}\{1}' -f $area, $_.Name }
+            }
+        }
+    ) | Sort-Object
 
     # -- READING A MACHINE'S IDENTITY OUT OF A SOFTWARE HIVE ---------------
     #
@@ -787,6 +806,17 @@ Describe 'the lab is unharmed' -Tag 'E2E' {
             'no VM outside HDT-*')
     }
 
+    It 'could read Hyper-V, so the comparison below is a comparison' {
+        # THE ANTI-VACUOUS GUARD, ASKED THE RIGHT WAY. Comparing an empty
+        # snapshot with an empty snapshot passes while checking nothing (SPIKES
+        # S9.14). What must be proven is that the snapshot could be TAKEN - not
+        # that it had rows, which is false of a dedicated CI runner whose only
+        # VMs are the ones a suite creates.
+        (Get-HDTLabProtectedVm).Readable | Should -BeTrue -Because (
+            'Hyper-V could not be enumerated, so the snapshot this suite ' +
+            'compares against is meaningless rather than empty')
+    }
+
     It 'left every VM it does not own exactly as it found it' {
         $after = & $script:snapshotProtected
 
@@ -806,19 +836,28 @@ Describe 'the lab is unharmed' -Tag 'E2E' {
                 Where-Object { [string] $_.Path -eq $script:mountRoot }) | Should -BeNullOrEmpty
     }
 
-    It 'left the share''s other task sequences alone' {
-        # REF-DEPLOY is this file's own and is refreshed every run. Nothing else
-        # under TaskSequences\ is written, and the two that have to survive are
-        # named here because other tests depend on them.
-        Test-Path -LiteralPath (Join-Path -Path $script:shareRoot -ChildPath 'TaskSequences\PNP-TEST\sequence.yaml') |
-            Should -BeTrue
-        Test-Path -LiteralPath (Join-Path -Path $script:shareRoot -ChildPath 'TaskSequences\REF-CAPTURE\sequence.yaml') |
-            Should -BeTrue
-    }
+    It 'removed nothing the share already held' {
+        # THE CLAIM THAT SURVIVES LEAVING THIS LAPTOP. It used to name
+        # PNP-TEST and REF-CAPTURE and assert they existed, which is a fact
+        # about the author's share rather than about this suite - false on a CI
+        # runner, and false here too once the capture WIM moved into the OS
+        # catalog. Comparing against what was there when the run STARTED says
+        # the thing worth saying: this suite took nothing away.
+        $after = @(
+            foreach ($area in 'TaskSequences', 'Captures', 'OperatingSystems', 'Applications') {
+                $root = Join-Path -Path $script:shareRoot -ChildPath $area
+                if (Test-Path -LiteralPath $root -PathType Container) {
+                    Get-ChildItem -LiteralPath $root -ErrorAction SilentlyContinue |
+                        ForEach-Object { '{0}\{1}' -f $area, $_.Name }
+                }
+            }
+        ) | Sort-Object
 
-    It 'left the captured WIM where the capture put it' {
-        Test-Path -LiteralPath (Join-Path -Path $script:shareRoot -ChildPath 'Captures\REF-CAPTURE.wim') -PathType Leaf |
-            Should -BeTrue
+        $missing = @($script:shareContentBefore | Where-Object { $after -notcontains $_ })
+
+        $missing | Should -BeNullOrEmpty -Because (
+            'these were on the share when the run started and are gone now: ' +
+            ($missing -join ', '))
     }
 
     It 'took its per-machine override back off the share' {

@@ -628,14 +628,34 @@ Describe 'the lab is unharmed' -Tag 'E2E' -Skip:$skipUpdate {
 
         # NOT empty-against-empty. A snapshot with nothing in it would compare
         # equal to another empty one and hold while checking nothing.
-        @($script:vmBefore).Count | Should -BeGreaterThan 0 -Because 'the lab runs at least the WSUS server this file talks to'
+        #
+        # BUT THE THING TO ASSERT IS THAT HYPER-V WAS READ, NOT THAT IT HAD
+        # ROWS. This file used to demand the snapshot be non-empty "because the
+        # lab runs at least the WSUS server this file talks to" - true here,
+        # false on a dedicated CI runner whose only VMs are the ones a suite
+        # creates, and GHRUNNER01 failed the same assertion in three sibling
+        # suites on 2026-09-07 for being correctly set up.
+        (Get-HDTLabProtectedVm).Readable | Should -BeTrue -Because (
+            'Hyper-V could not be enumerated, so this comparison is ' +
+            'meaningless rather than empty')
 
         ($after | ConvertTo-Json -Depth 3) | Should -Be ($script:vmBefore | ConvertTo-Json -Depth 3)
     }
 
-    It 'left the WSUS server running, having only ever read from it' {
-        $wsus = @($script:vmBefore | Where-Object { [string] $_.State -eq 'Running' })
-        $wsus.Count | Should -BeGreaterThan 0
+    It 'could not have touched a VM outside HDT-*, whatever host it ran on' {
+        # THE WSUS SERVER IS REACHED OVER HTTP, so it need not be a VM on this
+        # host at all. This used to assert the snapshot contained a running VM,
+        # which is true on the lab laptop - where HDT-WSUS-01 sits beside the
+        # target - and false anywhere else, including a CI runner reaching the
+        # same server across a subnet.
+        #
+        # ASSERTED FROM THE GUARD, NOT FROM THE HOST. Every VM this file creates
+        # or removes goes through New-/Remove-HDTLabVirtualMachine, and
+        # Assert-HDTLabVmName refuses a wildcard and anything not named HDT-*.
+        # That claim holds on any machine, which is the point.
+        { Assert-HDTLabVmName -Name 'SomeOtherVm' } | Should -Throw
+        { Assert-HDTLabVmName -Name 'HDTNoDash' } | Should -Throw
+        { Assert-HDTLabVmName -Name 'HDT-*' } | Should -Throw
     }
 
     It 'took its per-machine override back off the share' {

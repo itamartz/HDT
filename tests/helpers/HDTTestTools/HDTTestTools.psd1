@@ -22,6 +22,7 @@
         'Get-HDTLabMemoryBudget',
         'Get-HDTLabMemoryUse',
         'Get-HDTLabOfflineComputerName',
+        'Get-HDTLabProtectedVm',
         'Get-HDTLabVmStamp',
         'Get-HDTLogRecord',
         'Get-HDTMdtDependency',

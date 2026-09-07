@@ -82,6 +82,29 @@ BeforeAll {
                     ForEach-Object { [string] $_.Text }) -join ' ')
     }
 
+    # THE SNAPSHOT MOVED, SO THE ASSERTIONS ABOUT IT FOLLOW IT.
+    #
+    # The suite used to build the protected-VM snapshot inline, and two
+    # assertions below read that code out of THIS file. On 2026-09-07 the six
+    # copies of that snapshot became one command - Get-HDTLabProtectedVm - so
+    # the filter and the property name now live there. Pointing these at the
+    # helper keeps both guarantees (SPIKES S9.14 is still the reason for the
+    # MemoryStartup one); asserting the suite CALLS it keeps the rest.
+    $script:helperPath = Join-Path -Path (Split-Path -Parent (Split-Path -Parent $PSScriptRoot)) `
+        -ChildPath 'tests/helpers/HDTTestTools/tools/Get-HDTLabProtectedVm.ps1'
+
+    $script:helperCode = ''
+    if (Test-Path -LiteralPath $script:helperPath -PathType Leaf) {
+        $helperToken = $null
+        $helperError = $null
+        [void] [System.Management.Automation.Language.Parser]::ParseFile(
+            $script:helperPath, [ref] $helperToken, [ref] $helperError)
+
+        $script:helperCode = (@($helperToken |
+                    Where-Object { $_.Kind -ne 'Comment' } |
+                    ForEach-Object { [string] $_.Text }) -join ' ')
+    }
+
     $script:commandNamed = {
         param([string] $Name)
 
@@ -271,7 +294,10 @@ Describe 'the M4 E2E, parsed' -Skip:(-not $script:e2eExists) {
             # literal strings for two VMs that were retired on 2026-08-29, and a
             # suite that names the machines it protects protects nothing the day
             # one of them goes away. Do not put names back.
-            $script:codeOnly | Should -Match "notlike\s+'HDT-"
+            # ASSERTED WHERE THE CODE NOW IS: the suite calls the helper, and
+            # the helper does the filtering.
+            $script:codeOnly | Should -Match 'Get-HDTLabProtectedVm'
+            $script:helperCode | Should -Match "notlike\s+'HDT-"
         }
 
         It 'reads MemoryStartup and not MemoryStartupBytes off the snapshot' {
@@ -279,8 +305,8 @@ Describe 'the M4 E2E, parsed' -Skip:(-not $script:e2eExists) {
             # -MemoryStartupBytes PARAMETER. Reading the parameter name off the
             # object gave $null, [long] $null is 0, and the assertion that
             # protects the user's live lab compared 0 with 0 for six green runs.
-            $script:codeOnly | Should -Match 'MemoryStartup\b'
-            $script:codeOnly | Should -Not -Match '\$_\.MemoryStartupBytes'
+            $script:helperCode | Should -Match 'MemoryStartup\b'
+            $script:helperCode | Should -Not -Match '\$_\.MemoryStartupBytes'
         }
 
         It 'asserts them identical in an AfterAll' {

@@ -89,17 +89,11 @@ BeforeAll {
     # whatever is built next without anyone remembering to add its name. The
     # unfiltered Get-VM is READ-ONLY and is the one exception PROJECT.md rule 1
     # allows: you cannot prove you left the other VMs alone without listing them.
-    $script:protectedBefore = @(Hyper-V\Get-VM -ErrorAction SilentlyContinue |
-            Where-Object { $_.Name -notlike 'HDT-*' } |
-            Sort-Object Name |
-            ForEach-Object {
-                [pscustomobject] @{
-                    Name = [string] $_.Name; State = [string] $_.State
-                    Memory = [long] $_.MemoryStartup
-                    Switch = (@(Hyper-V\Get-VMNetworkAdapter -VMName $_.Name -ErrorAction SilentlyContinue |
-                                ForEach-Object { [string] $_.SwitchName }) -join ',')
-                }
-            })
+    # ONE PLACE NOW. Get-HDTLabProtectedVm calls Get-VM with -ErrorAction Stop,
+    # so "Hyper-V could not be read" and "this host has nothing outside HDT-*"
+    # stop being the same empty array - the ambiguity that failed four
+    # assertions on a dedicated CI runner on 2026-09-07.
+    $script:protectedBefore = (Get-HDTLabProtectedVm).Protected
 
     $script:probe = $null
     $script:probeRaw = ''
@@ -481,18 +475,16 @@ Describe 'the engine inside WinPE' -Tag 'E2E' -Skip:$skipSmoke {
 
     Context 'the lab is unharmed' {
 
+        It 'could read Hyper-V, so the comparison below is a comparison' {
+            # Proving the snapshot could be TAKEN, not that it had rows: a
+            # dedicated CI runner legitimately has no VM outside HDT-*.
+            (Get-HDTLabProtectedVm).Readable | Should -BeTrue -Because (
+                'Hyper-V could not be enumerated, so the comparison below is ' +
+                'meaningless rather than empty')
+        }
+
         It 'left every VM it does not own exactly as it found it' {
-            $after = @(Hyper-V\Get-VM -ErrorAction SilentlyContinue |
-                    Where-Object { $_.Name -notlike 'HDT-*' } |
-                    Sort-Object Name |
-                    ForEach-Object {
-                        [pscustomobject] @{
-                            Name = [string] $_.Name; State = [string] $_.State
-                            Memory = [long] $_.MemoryStartup
-                            Switch = (@(Hyper-V\Get-VMNetworkAdapter -VMName $_.Name -ErrorAction SilentlyContinue |
-                                        ForEach-Object { [string] $_.SwitchName }) -join ',')
-                        }
-                    })
+            $after = (Get-HDTLabProtectedVm).Protected
 
             # THE COUNT FIRST, so an empty host reads as "there was nothing to
             # protect" rather than as "nothing was harmed".
