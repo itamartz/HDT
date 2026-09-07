@@ -1,0 +1,152 @@
+# THE MACHINE A REFRESH NEEDS BEFORE IT CAN START: ALREADY DEPLOYED, ALREADY
+# ENCRYPTED.
+#
+# Every other e2e sequence on this share starts at a bare disk. This one exists
+# because M9's exit criterion cannot: "a real machine already running Windows,
+# deployed without touching its boot media" needs a real machine already running
+# Windows, and there is no way to assert your way to one. So
+# Refresh.E2E.Tests.ps1 runs this sequence FIRST, on a bare VM with a virtual
+# TPM, and what it leaves behind is the subject of the test rather than any part
+# of its evidence.
+#
+# IT IS THE SETUP AND NOT THE EXPERIMENT, which is why it is as short as a
+# bootable, encrypted Windows can be made. No applications, no Windows Update,
+# no driver injection, no certificates - every one of those is proven somewhere
+# else in this folder and every one of them is minutes this file would spend
+# before the run under test even begins. What is here is the shortest path to a
+# machine that (a) boots Windows on its own, (b) has BitLocker protection ON
+# with a TPM protector, and (c) was laid out by HDT.
+#
+# (c) IS NOT DECORATION. refresh.yaml declares HDTSystemVolume: S because
+# uefi-standard lays out S/W/R, and its own comment says a machine partitioned
+# by something else "very likely does not" answer to that letter. Seeding the
+# machine with HDT's own layout is what makes the Refresh under test the
+# ordinary case rather than the awkward one - and if the letter turns out not to
+# survive into the WinPE leg anyway, that is a finding about refresh.yaml and
+# not an artifact of a hand-built starting state.
+#
+# layout: uefi-standard RATHER THAN A PARTITION TABLE, and client.yaml names the
+# escape hatch in as many words: "delete the table and write 'layout:
+# uefi-standard' in its place". The table in client.yaml exists so the console's
+# grid has rows to edit. This file has no editor and one requirement - the S/W/R
+# letters - so it names the layout that guarantees them.
+#
+# THE ENCRYPTION IS THE WHOLE POINT OF THE SETUP. A Refresh of an unencrypted
+# machine passes the transport and proves nothing at all about the suspend
+# (09-VERIFICATION, gap 3: "the only one for which a green suite is actively
+# misleading"). So EnableBitLocker below runs with wait: true - the machine must
+# be encrypted BEFORE it powers off, not encrypting in the background while the
+# harness reads manage-bde and gets an answer that has not settled.
+#
+# %Variable% AND $Variable ARE THE SAME THING to the engine, exactly as in
+# client.yaml.
+
+schemaVersion: 1
+id: REFRESH-SEED
+name: Seed a machine for the Refresh e2e
+version: 1.0.0
+description: >
+  Deploys Windows 11 to a bare VM with HDT's standard UEFI layout and turns
+  BitLocker on with a TPM protector, so that Refresh.E2E.Tests.ps1 has an
+  encrypted, running installation to replace. Not a product sequence.
+
+variables:
+  HDTOSImage: Win11-LTSC-2024
+  HDTOSImageIndex: 1
+
+steps:
+
+  # ------------------------------------------------------------ Initialization
+  - group: Initialization
+    runIn: WinPE
+    steps:
+      - name: Gather local only
+        type: Gather
+
+  # ---------------------------------------------------------------- Validation
+  - group: Validation
+    runIn: WinPE
+    steps:
+      # client.yaml's numbers. minRamMB is 2048 rather than 4096 because a 4 GB
+      # machine reports slightly under 4096 - the firmware keeps some of it.
+      - name: Validate
+        type: Validate
+        minRamMB: 2048
+        minDiskGB: 60
+
+  # ---------------------------------------------------------------- Preinstall
+  - group: Preinstall
+    runIn: WinPE
+    steps:
+      # S, W AND R, WHICH IS THE ONE THING THIS SEQUENCE HAS TO GET RIGHT.
+      # Get-HDTDiskLayout's uefi-standard rows carry DriveLetter S on the ESP, W
+      # on Windows and R on the recovery partition, and refresh.yaml's
+      # HDTSystemVolume default is S because of it.
+      - name: Format and Partition Disk (UEFI)
+        type: DiskPartition
+        diskNumber: 0
+        wipe: true
+        layout: uefi-standard
+
+  # ------------------------------------------------------------------- Install
+  - group: Install
+    runIn: WinPE
+    steps:
+      - name: Install Operating System
+        type: ApplyImage
+        os: "%HDTOSImage%"
+        index: "%HDTOSImageIndex%"
+        target: "%HDTOSVolume%"
+        timeoutMinutes: 60
+
+  # --------------------------------------------------------------- Postinstall
+  - group: Postinstall
+    runIn: WinPE
+    steps:
+      - name: Apply Windows Settings
+        type: ApplyUnattend
+        template: unattend.xml
+
+      - name: Configure Boot
+        type: ConfigureBoot
+
+      - name: Restart into Windows
+        type: Restart
+
+  # ------------------------------------------------------------- State Restore
+  - group: State Restore
+    runIn: FullOS
+    steps:
+      # PROOF THE MACHINE ACTUALLY BOOTED, before anything is asked of it. A
+      # live registry is the one thing a deployment that never started cannot
+      # produce, and the Refresh under test needs a machine that boots on its
+      # own more than it needs anything else this sequence does.
+      - name: Tattoo
+        type: Tattoo
+
+      # AND THE STARTING STATE ITSELF.
+      #
+      # wait: true, WHICH IS THE OPPOSITE OF client.yaml AND DELIBERATE. There
+      # the deployment is over and nothing needs to wait; here the next thing
+      # that happens is a harness reading manage-bde and deciding whether the
+      # machine it is about to refresh was encrypted. A protection status read
+      # while encryption is still running is a race, and the run it would
+      # invalidate costs an hour and a half.
+      #
+      # usedSpaceOnly ON A FRESHLY APPLIED VOLUME is a few minutes rather than
+      # the hour a full-volume pass would take on an 80 GB disk - and every
+      # untouched block on it is zero, so there is nothing there to protect.
+      #
+      # THE PROTECTOR IS A PLAIN TPM, and the vTPM the harness enables on the VM
+      # is what makes that possible. It is also the protector the criterion is
+      # about: a TPM protector is the one that measures the boot path, so it is
+      # the one an armed ramdisk boot entry can send into recovery.
+      - name: Enable BitLocker
+        type: EnableBitLocker
+        scope: usedSpaceOnly
+        method: XtsAes256
+        protector: tpm
+        escrow: none
+        recoveryPassword: true
+        wait: true
+        timeoutMinutes: 45

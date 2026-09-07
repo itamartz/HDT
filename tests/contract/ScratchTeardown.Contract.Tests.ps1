@@ -49,6 +49,12 @@ BeforeAll {
         'C:\HDTLab\scratch\e2e-refapp'           # M7 application round trip, leg 1: HDT.jsonl and refapp-*.png
         'C:\HDTLab\scratch\e2e-refdep'           # M7 application round trip, leg 2: HDT.jsonl and refdep-*.png
         'C:\HDTLab\scratch\e2e-wsusupdate'       # WSUS patching: HDT.jsonl and wsus-*.png
+
+        # M9 Refresh. The only evidence a BitLocker recovery prompt ever leaves
+        # is refresh-04-after-arm-Neither.png - the machine writes nothing to
+        # any volume in that state - so this root is not merely convenient, it
+        # is the whole diagnosis for the criterion most likely to fail.
+        'C:\HDTLab\scratch\e2e-refresh'          # M9 Refresh: LAYOUT-BEFORE/AFTER.json, MANAGE-BDE-BEFORE.txt, RESULT-*.json, state-*.json, refresh-*.png
     )
 }
 

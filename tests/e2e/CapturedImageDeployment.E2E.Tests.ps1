@@ -816,8 +816,22 @@ Describe 'the lab is unharmed' -Tag 'E2E' {
             Should -BeExactly ($script:protectedBefore | ConvertTo-Json -Depth 3)
     }
 
-    It 'left every HDT VM powered off' {
-        $running = @(Hyper-V\Get-VM -Name 'HDT-*' -ErrorAction SilentlyContinue |
+    It 'left the machine IT created powered off' {
+        # THIS SUITE'S OWN VM, NOT EVERY HDT-* ON THE HOST, and the difference
+        # is the whole assertion. It used to ask whether every VM matching the
+        # prefix was off, which is a claim about the lab rather than about this
+        # file - and on 2026-09-07 it failed for the sole reason that the lab
+        # was in use: HDT-WSUS-01 and HDT-WDS-01 are the lab's own servers, and
+        # HDT-M6-DC01 is a domain controller another suite built, STAMPED, kept
+        # on purpose with HDT_KEEP_LAB_VM and running a deployment at the time.
+        # None of the three is this suite's business and all three are supposed
+        # to be up. It passed on other days by luck.
+        #
+        # A suite can only be responsible for the machine it made, and a name
+        # that has already been removed by the AfterAll returns nothing here -
+        # which is the pass, and is what "left it powered off" means once the
+        # teardown has also taken it away.
+        $running = @(Hyper-V\Get-VM -Name $script:vmName -ErrorAction SilentlyContinue |
                 Where-Object { $_.State -ne 'Off' } | ForEach-Object { [string] $_.Name })
 
         $running | Should -BeNullOrEmpty -Because ($running -join ', ')
