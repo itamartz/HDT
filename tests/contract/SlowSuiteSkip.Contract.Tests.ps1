@@ -16,13 +16,28 @@
 #
 # 04-VERIFICATION asked for this guard and it was never written; phase 05 then
 # adds three more slow files with skip conditions. It exists now, before them.
+#
+# IT SCANS EVERY SUITE, AND THE NAME IS HISTORICAL. It began at
+# tests/integration and tests/e2e because those are the files nobody runs on an
+# ordinary day - but nothing in the rule is about slowness. The trap is
+# Pester's, and it is sprung by any file that computes a skip condition:
+# tests/contract is full of them (every *Schema.Contract.Tests.ps1 skips itself
+# when Test-Json is absent, which is on the 5.1 leg, which is the gate), and
+# tests/unit has its own. Scanning two directories left 524 of the repository's
+# 580 test files unjudged, and the two it did scan were the two least likely to
+# be edited.
+#
+# THE FIXTURES ARE NOT SCANNED, DELIBERATELY. tests/fixtures/slowskip holds
+# files that violate on purpose - the bait the last test below points the
+# scanner at - so including that tree would make this contract permanently red
+# for the one reason that is not a defect.
 
 BeforeAll {
     $script:repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
     Import-Module -Name (Join-Path -Path $script:repoRoot -ChildPath 'tests/helpers/HDTTestTools/HDTTestTools.psd1') -Force -ErrorAction Stop
 
     $script:slowSuiteFile = @(
-        foreach ($suite in @('tests/integration', 'tests/e2e')) {
+        foreach ($suite in @('tests/unit', 'tests/contract', 'tests/integration', 'tests/e2e')) {
             $path = Join-Path -Path $script:repoRoot -ChildPath $suite
             if (Test-Path -LiteralPath $path -PathType Container) {
                 Get-ChildItem -LiteralPath $path -Filter '*.ps1' -File -Recurse |
@@ -32,23 +47,29 @@ BeforeAll {
     )
 }
 
-Describe 'no slow suite reads a BeforeDiscovery variable from BeforeAll' {
+Describe 'no test file reads a BeforeDiscovery variable from BeforeAll' {
 
-    It 'finds the slow suites to judge' {
+    It 'finds every suite to judge' {
         # A contract that scans nothing passes for the wrong reason
         # (tests/helpers/README.md section 12) - and SPIKES S9.15b records that
         # the usual guard for it, @($x).Count -gt 0, is satisfied by $null,
         # because @($null).Count is 1. So this names files that must be in the
         # set: coercion cannot fabricate those.
-        @($script:slowSuiteFile).Count | Should -BeGreaterThan 3
+        @($script:slowSuiteFile).Count | Should -BeGreaterThan 400
 
         $name = @($script:slowSuiteFile | ForEach-Object { Split-Path -Leaf $_ })
         $name | Should -Contain 'ImageService.Integration.Tests.ps1'
         $name | Should -Contain 'SmbContentProvider.Integration.Tests.ps1'
         $name | Should -Contain 'Deployment.E2E.Tests.ps1'
+
+        # AND THE SUITES THAT RUN EVERY DAY. The rule is not about slowness -
+        # see the header - and a scan that stopped at the slow suites left 524
+        # of the repository's 580 test files unjudged.
+        $name | Should -Contain 'Assert-HDTRuleDocument.Tests.ps1'
+        $name | Should -Contain 'AppSchema.Contract.Tests.ps1'
     }
 
-    It 'reports no violation across tests/integration and tests/e2e' {
+    It 'reports no violation across tests/unit, tests/contract, tests/integration and tests/e2e' {
         $violation = @(Get-HDTSlowSuiteSkipViolation -Path $script:slowSuiteFile)
 
         $detail = ($violation | ForEach-Object { '{0}({1}): ${2}' -f $_.Path, $_.Line, $_.Variable }) -join "`n"
@@ -61,7 +82,7 @@ Describe 'no slow suite reads a BeforeDiscovery variable from BeforeAll' {
     }
 
     It 'still bites on the deliberate fixture' {
-        # The assertion above passes for a repository with no slow suites at all,
+        # The assertion above passes for a repository with no test files at all,
         # so the scanner is pointed at a file that is known to violate.
         $bait = Join-Path -Path $script:repoRoot -ChildPath 'tests/fixtures/slowskip/DiscoveryReadInBeforeAll.ps1'
 
