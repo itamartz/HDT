@@ -786,25 +786,17 @@ Describe 'the machine it built' -Tag 'E2E' -Skip:$skipDeploy {
 
 Describe 'the lab is unharmed' -Tag 'E2E' {
 
-    It 'could see the host''s virtual machines at all' {
-        # THE VACUITY GUARD, POINTED AT SOMETHING THAT IS TRUE HERE.
-        #
-        # The comparison below is empty-against-empty on THIS host, because on
-        # 2026-08-31 it carried no VM outside HDT-* - and an assertion that the
-        # protected set is non-empty is therefore one that can never pass, which
-        # is a red mark that teaches nobody anything. What actually has to be
-        # ruled out is the OTHER reason a snapshot comes back empty: an
-        # enumeration that returned nothing because it could not read Hyper-V at
-        # all. So the guard is on the unfiltered read, which this file makes
-        # exactly once and only to prove it left the others alone.
-        #
-        # The moment a non-HDT VM exists on this host, the comparison below
-        # starts carrying real content without a line of this file changing.
-        @(Hyper-V\Get-VM -ErrorAction SilentlyContinue).Count | Should -BeGreaterThan 0 -Because (
-            'Get-VM answered with nothing at all, so the snapshot below is empty ' +
-            'because Hyper-V could not be read rather than because the host has ' +
-            'no VM outside HDT-*')
-    }
+    # THE VACUITY GUARD LIVED HERE AND ASKED ONE QUESTION TOO NARROW.
+    #
+    # It used to assert that the UNFILTERED Get-VM returned at least one row,
+    # having already spotted - correctly - that demanding a non-empty PROTECTED
+    # set can never pass on a host with no VM outside HDT-*. But a total of zero
+    # is legitimate too: on a dedicated runner the only VMs are the ones a suite
+    # makes, and by the time this assertion runs the suite has torn its own down.
+    # GHRUNNER01 failed it on 2026-09-07 for exactly that.
+    #
+    # Readable answers it properly - Get-VM threw, or it did not - so the
+    # assertion below replaces this one rather than sitting beside it.
 
     It 'could read Hyper-V, so the comparison below is a comparison' {
         # THE ANTI-VACUOUS GUARD, ASKED THE RIGHT WAY. Comparing an empty

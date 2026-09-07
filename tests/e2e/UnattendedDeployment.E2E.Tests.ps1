@@ -168,6 +168,7 @@ BeforeAll {
     $script:rawJsonl = ''
     $script:relocatedJsonl = ''
     $script:relocatedFirstByte = @()
+    $script:relocatedState = $null
     $script:relocatedRecord = @()
     $script:logFirstByte = @()
     $script:state = $null
@@ -624,6 +625,16 @@ variables:
                             $script:relocatedFirstByte = @([System.IO.File]::ReadAllBytes($path) |
                                     Select-Object -First 4)
                         }
+
+                        # AND THE STATE DOCUMENT'S CONTENT, not just the fact of
+                        # it. Under MEDIA there is no copy on the deploy root to
+                        # read, and 'completed all five steps' reads step
+                        # statuses out of this file - so existence alone left
+                        # that assertion with nothing and a working deployment
+                        # looked like a silent one.
+                        if ($relative -eq 'HDT\state.json') {
+                            $script:relocatedState = ConvertFrom-Json ([System.IO.File]::ReadAllText($path))
+                        }
                     }
                 }
             }
@@ -672,6 +683,10 @@ variables:
 
                 if (@($script:logFirstByte).Count -eq 0) {
                     $script:logFirstByte = @($script:relocatedFirstByte)
+                }
+
+                if ($null -eq $script:state -and $null -ne $script:relocatedState) {
+                    $script:state = $script:relocatedState
                 }
 
                 Write-Information ("the share carried no run folder, so the evidence was read off the deployed volume instead - which is what HDTDeploymentMethod MEDIA produces") -InformationAction Continue

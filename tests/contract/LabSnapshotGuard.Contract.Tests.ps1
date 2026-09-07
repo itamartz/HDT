@@ -41,6 +41,19 @@ BeforeAll {
         '@\(\$script:protectedBefore\)\.Count\s*\|\s*Should\s+-BeGreaterThan\s+0'
         '@\(\$script:vmBefore\)\.Count\s*\|\s*Should\s+-BeGreaterThan\s+0'
         '\(Get-HDTLabProtectedVm\)\.Protected\.Count\s*\|\s*Should\s+-BeGreaterThan\s+0'
+
+        # THE VARIANT THIS CONTRACT MISSED THE FIRST TIME, and it is here
+        # because missing it cost a second red CI run. One suite had already
+        # spotted that demanding a non-empty PROTECTED set can never pass on a
+        # host with no VM outside HDT-*, and moved its guard to the UNFILTERED
+        # count instead. That is closer but still wrong: a total of zero is
+        # legitimate on a dedicated runner, whose only VMs are the ones the
+        # suite makes and which it tears down before this assertion runs.
+        #
+        # Readable is the only form that distinguishes "Get-VM threw" from
+        # "Get-VM returned nothing", so a COUNT of any Hyper-V read is banned
+        # as a pass condition, not just a count of the protected subset.
+        '@\(Hyper-V\\Get-VM[^)]*\)\.Count\s*\|\s*Should\s+-BeGreaterThan\s+0'
     )
 }
 
