@@ -368,6 +368,44 @@ all.
   cannot be proven by a build succeeding — it needs a **Generation 2 VM with
   Secure Boot on**, actually booting the rebuilt media.
 
+  **Where this actually stands, 2026-09-07 — the swap is implemented and
+  measured, and it is not yet a working fix.** It was boot-tested on Generation 2
+  Hyper-V and the result was the opposite of the intended one (SPIKES **S20.2**):
+
+  | Run | Secure Boot | Result |
+  |---|---|---|
+  | swapped media (boot manager SVN 9.0) | **On** | **FAIL — `0xc0430001`**, Windows Boot Manager recovery screen |
+  | the same ISO | Off | PASS — WinPE reached |
+  | **unswapped ADK media (SVN 3.0)** | **On** | **PASS — WinPE reached** |
+
+  `0xc0430001` is `STATUS_SECUREBOOT_ROLLBACK_DETECTED`. The firmware *accepted*
+  the swapped boot manager; the **boot manager** then refused the next stage,
+  because the built `boot.wim`'s `winload.efi` is `10.0.26100.1` against a boot
+  manager of `10.0.28000.342`. `winload.efi` carries no
+  `BOOTMGRSECURITYVERSIONNUMBER` at all, so this is a rollback check on the OS
+  loader and not the SVN floor — which is why it is gated on Secure Boot and why
+  the identical media boots with it off.
+
+  So, precisely:
+
+  - **Implemented and measured:** `-BootLoaderPath` on `Update-HDTBootImage` and
+    `New-HDTPxePayload`, both delivery paths, opt-in and **not defaulted on**.
+  - **Guarded, so it cannot silently ship non-booting media:**
+    `Assert-HDTBootLoaderServicingLevel` refuses a replacement boot manager whose
+    servicing level runs ahead of the image's own `winload.efi`, naming the
+    rollback check rather than the symptom. The version is recorded in the boot
+    image manifest as `osLoader` so the PXE path — which never mounts the WIM —
+    can apply the same check.
+  - **NOT a working Secure Boot fix, and M4 does not claim one.** The remaining
+    work is the **OS loader**: the WinPE image has to be *serviced* so its
+    `winload.efi` comes up to the boot manager's level, rather than two files
+    being copied over a media tree. See S20.2 for what that takes.
+  - **The 7.0 floor is unproven on this platform.** The control run means
+    Hyper-V's `MicrosoftWindows` Secure Boot template does not enforce it here.
+    It is very likely still real on physical hardware with an updated DBX, so the
+    feature stays — but Hyper-V cannot reproduce the problem it is for, and can
+    reproduce a problem it causes.
+
 **One thing M4 shipped late, in 05-06, because it was the phase's own unanswered
 question.** M2 above asked whether WinPE needs `wpeutil reboot` rather than
 `shutdown.exe` and named phase 05 as the owner; five plans went by with it open

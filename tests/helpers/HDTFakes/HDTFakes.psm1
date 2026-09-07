@@ -5567,6 +5567,14 @@ class HDTFakeBootImageService {
     # What AddDriver reports back. The manifest records it (DESIGN 5.1).
     [object[]] $Driver
 
+    # THE VERSION OF THE winload.efi MountImage SEEDS INTO THE MOUNT. Real,
+    # not invented: 10.0.26100.1 is what the ADK's WinPE image carries and what
+    # the boot image that failed 0xc0430001 on a Gen 2 VM actually held (SPIKES
+    # S20.2). Update-HDTBootImage reads it to refuse a bootloader swap whose
+    # replacement boot manager is from a newer servicing level, so the fake has
+    # to carry a version at all or the guard cannot be exercised at all.
+    [string] $OsLoaderVersion = '10.0.26100.1'
+
     # Method name -> the message that method throws, as
     # System.InvalidOperationException - the type the real adapter throws when a
     # DISM cmdlet or oscdimg fails.
@@ -5705,6 +5713,15 @@ class HDTFakeBootImageService {
         # not an operation the code under test performed and would otherwise show
         # up in the shared journal as a CreateDirectory nobody made.
         $this.FileSystem.SeedDirectory([System.IO.Path]::Combine($key, 'Windows\System32'))
+
+        # AND THE OS LOADER, because a real mounted WinPE has one and the
+        # builder now reads it. A fake that modelled an empty Windows\System32
+        # would let a swap that produces non-booting media pass every test here
+        # - which is precisely the defect S20.2 records, so the fake is the
+        # place it has to stop being possible.
+        $winload = [System.IO.Path]::Combine($key, 'Windows\System32\Boot\winload.efi')
+        $this.FileSystem.SeedFile($winload, 'MZ WinPE OS loader')
+        $this.FileSystem.SeedVersion($winload, $this.OsLoaderVersion)
     }
 
     [void] DismountImage([string] $MountPath, [bool] $Save) {
@@ -5881,6 +5898,13 @@ function New-HDTFakeBootImageService {
             System.InvalidOperationException carries - the type the real adapter
             throws when a DISM cmdlet or oscdimg fails.
 
+        .PARAMETER OsLoaderVersion
+            The file version MountImage gives the seeded
+            Windows\System32\Boot\winload.efi. Defaults to 10.0.26100.1, which
+            is what the ADK's WinPE image really carries. Raise it to model a
+            SERVICED boot image - the one thing that would make a Secure Boot
+            bootloader swap legitimate (SPIKES S20.2).
+
         .PARAMETER Journal
             The shared cross-service operation journal. When supplied, every
             recorded call is appended to it in addition to $Operations, numbered
@@ -5927,11 +5951,16 @@ function New-HDTFakeBootImageService {
         [hashtable] $Failure,
 
         [Parameter()]
+        [ValidateNotNullOrEmpty()]
+        [string] $OsLoaderVersion = '10.0.26100.1',
+
+        [Parameter()]
         [AllowNull()]
         [System.Collections.ArrayList] $Journal
     )
 
     $fake = [HDTFakeBootImageService]::new()
+    $fake.OsLoaderVersion = $OsLoaderVersion
     $fake.Journal = $Journal
 
     $fake.FileSystem = $FileSystem

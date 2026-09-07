@@ -132,6 +132,34 @@
         .PARAMETER AdkRoot
             An explicit ADK root, which wins over the registry.
 
+        .PARAMETER BootLoaderPath
+            A folder holding bootmgr.efi and bootmgfw.efi from a FULLY PATCHED
+            Windows - '%SystemRoot%\Boot\EFI' on a patched build host. Both are
+            copied over the media tree after the ADK tree is staged and before
+            the ISO is burned, so the ISO and the WIM carry loaders a Secure Boot
+            machine will accept.
+
+            Omitted, nothing is swapped and the build behaves as it always has.
+            NOT a Windows install media: its copies carry the same revoked
+            Secure Version Number the ADK's do. See SPIKES S20.
+
+            ⚠ IT IS NOT YET A WORKING FIX, AND THAT WAS MEASURED ON HARDWARE.
+            Three Generation 2 Hyper-V runs, 2026-09-07 (SPIKES S20.2):
+
+              swapped media, Secure Boot ON    FAIL - 0xc0430001
+              the same ISO,  Secure Boot OFF   PASS - WinPE reached
+              unswapped ADK, Secure Boot ON    PASS - WinPE reached
+
+            0xc0430001 is STATUS_SECUREBOOT_ROLLBACK_DETECTED. The firmware
+            ACCEPTED the swapped boot manager; the boot manager then refused the
+            OS loader behind it, because the boot image's own winload.efi is
+            10.0.26100.1 against a boot manager of 10.0.28000.342. So the swap
+            alone turns working Secure Boot media into media that does not boot,
+            and the build now REFUSES that combination rather than shipping it.
+            The complete fix is to service the WinPE image so its winload.efi
+            comes up with the boot manager; until then this parameter is only
+            useful against an image that has been.
+
         .PARAMETER BootImageService
             An IBootImageService. Defaults to the real adapter.
 
@@ -186,6 +214,12 @@
             Update-HDTBootImage -WorkspaceRoot 'C:\HDTLab\Share' -OptionalComponent 'WinPE-FMAPI'
 
             The required six plus one, overriding workspace.yaml for this build.
+
+        .EXAMPLE
+            Update-HDTBootImage -WorkspaceRoot 'C:\HDTLab\Share' -BootLoaderPath "$env:SystemRoot\Boot\EFI"
+
+            The same build with the ADK's revoked bootloaders replaced, so a
+            Generation 2 machine with Secure Boot enabled will start the media.
     #>
     [CmdletBinding(SupportsShouldProcess = $true)]
     [OutputType([pscustomobject])]
@@ -261,6 +295,23 @@
         [Parameter()]
         [AllowEmptyString()]
         [string] $AdkRoot = '',
+
+        # THE SECURE BOOT SWAP, AND IT IS OPT-IN. SPIKES S20: every bootloader
+        # the ADK ships carries Secure Version Number 3.0 against an enforced
+        # floor of 7.0, so a fully patched machine with Secure Boot on refuses
+        # this media before WinPE loads - a firmware Security Violation screen
+        # and nothing in any log, because HDT never ran.
+        #
+        # OPT-IN RATHER THAN A GUESSED DEFAULT. The right folder is a fully
+        # patched Windows's own %SystemRoot%\Boot\EFI, and whether THIS build
+        # host is fully patched is not something the builder can know. A default
+        # that silently swapped in whatever the build host happened to have
+        # would make the artifact depend on the machine that made it, which is
+        # the one property a reproducible boot image must not have. Named
+        # explicitly, the folder is a decision somebody recorded.
+        [Parameter()]
+        [AllowEmptyString()]
+        [string] $BootLoaderPath = '',
 
         [Parameter()]
         [AllowNull()]
@@ -738,6 +789,27 @@
     }
 
     # =====================================================================
+    # 4a2. THE SECURE BOOT LOADERS, PLANNED HERE AND COPIED AT STEP 6b
+    # =====================================================================
+    #
+    # DECIDED BEFORE ANYTHING IS WRITTEN, for the same reason the background
+    # above and the publish probe below are: a folder that cannot do the job is
+    # knowable now, and finding out three minutes into a mount is finding out
+    # too late. Get-HDTBootLoaderSource is pure, so this costs two TestPath
+    # calls and refuses in one sentence that names the cause.
+
+    $bootLoaderRow = @()
+
+    if (-not [string]::IsNullOrWhiteSpace($BootLoaderPath)) {
+        try {
+            $bootLoaderRow = @(Get-HDTBootLoaderSource -BootLoaderPath $BootLoaderPath -Target Media `
+                    -Architecture $buildArchitecture -FileSystem $FileSystem)
+        } catch {
+            $PSCmdlet.ThrowTerminatingError($_)
+        }
+    }
+
+    # =====================================================================
     # 4b. THE SCRATCH DIRECTORIES - the first thing that writes
     # =====================================================================
 
@@ -756,6 +828,7 @@
             DriverCount    = 0
             DurationSecond = [double] 0
             Skipped        = [string[]] @()
+            BootLoader     = [pscustomobject[]] @()
         }
     }
 
@@ -785,6 +858,41 @@
     # step 16 puts the exported WIM there as boot.wim.
     $mediaSources = [System.IO.Path]::Combine($mediaPath, 'sources')
     $FileSystem.CreateDirectory($mediaSources)
+
+    # =====================================================================
+    # 6b. THE SECURE BOOT BOOTLOADER SWAP
+    # =====================================================================
+    #
+    # AFTER THE ADK TREE, OR THE ADK'S OWN COPY LANDS ON TOP OF THE GOOD ONE.
+    # BEFORE THE ISO, because New-HDTBootIso burns whatever this tree holds and
+    # needs no change of its own - which is also why the WIM is unaffected: the
+    # loaders live in the media tree, not inside boot.wim.
+    #
+    # WHAT IT FIXES, so the log says it and not just "copied 2 files": the ADK's
+    # bootmgr.efi and EFI\Boot\bootx64.efi carry Secure Version Number 3.0
+    # against an enforced floor of 7.0 (CVE-2023-24932). The firmware refuses
+    # them before WinPE loads, so the failure is a Security Violation screen and
+    # there is no log to read afterwards. Turning Secure Boot off is the lab
+    # answer; this is the fleet one.
+
+    if (@($bootLoaderRow).Count -gt 0) {
+        $Progress.Report(6, $stepTotal, 'Replacing the ADK bootloaders for Secure Boot',
+            ('{0} loader(s) from {1}' -f @($bootLoaderRow).Count, $BootLoaderPath))
+
+        foreach ($loader in @($bootLoaderRow)) {
+            $loaderDestination = [System.IO.Path]::Combine($mediaPath, [string] $loader.Destination)
+
+            $FileSystem.CreateDirectory([System.IO.Path]::GetDirectoryName($loaderDestination))
+            $FileSystem.CopyItem([string] $loader.Source, $loaderDestination)
+
+            # THE VALUE AND WHERE IT CAME FROM, at Info volume through the
+            # verbose stream this command already uses: an administrator holding
+            # a machine that refused to boot needs to see which loader went in
+            # without rebuilding anything.
+            Write-Verbose ("Secure Boot loader: '{0}' version {1} from '{2}' replaces the ADK's copy at media\{3} (the ADK ships Secure Version Number 3.0 and the enforced floor is 7.0)." -f
+                [string] $loader.Name, [string] $loader.Version, [string] $loader.Source, [string] $loader.Destination)
+        }
+    }
 
     # =====================================================================
     # 7-15. THE MOUNT. Everything from here is inside a try that discards it.
@@ -840,6 +948,82 @@
 
         $BootImageService.MountImage($scratchWim, 1, $mountPath)
         $mounted = $true
+
+        # -- 7b. THE SECURE BOOT SERVICING CHECK -----------------------------
+        #
+        # THE ONE REFUSAL THAT COSTS A MOUNT, and it costs one because the fact
+        # it needs is INSIDE the image. Everything else this command can refuse -
+        # a missing loader, a locked ISO, a certificate that is not there - is
+        # knowable before step 7 and is refused there.
+        #
+        # WHAT IT IS FOR, measured on hardware and not inferred (SPIKES S20.2).
+        # -BootLoaderPath as first shipped turned WORKING Secure Boot media into
+        # media that does not boot, silently. Three Generation 2 Hyper-V runs on
+        # 2026-09-07:
+        #
+        #   swapped media (boot manager SVN 9.0), Secure Boot ON   FAIL 0xc0430001
+        #   swapped media (the same ISO),         Secure Boot OFF  PASS
+        #   unswapped ADK media (SVN 3.0),        Secure Boot ON   PASS
+        #
+        # The firmware ACCEPTED the swapped boot manager - the control run says
+        # so, and it also says this host's Secure Boot template does not enforce
+        # the 7.0 floor at all. What refused it was the BOOT MANAGER, on the next
+        # stage: this image's winload.efi is 10.0.26100.1 and the swapped boot
+        # manager is 10.0.28000.342, and a boot manager will not start an OS
+        # loader from an older servicing level while Secure Boot is on.
+        # 0xc0430001 is STATUS_SECUREBOOT_ROLLBACK_DETECTED.
+        #
+        # BOTH NAMES ARE PROBED, because the layout is the image's and not ours.
+        # A WinPE image carries Windows\System32\Boot\winload.efi; a full
+        # Windows carries the same file at Windows\System32\winload.efi as well.
+        # Reading whichever is there beats asserting a path.
+        #
+        # PROBED ON EVERY BUILD, NOT ONLY ON A SWAP, because the manifest records
+        # it and New-HDTPxePayload reads it back: that command can swap the same
+        # loaders into a TFTP tree and has no way to mount the WIM it stages. Two
+        # calls through IFileSystem is the whole cost.
+        $osLoaderPath = ''
+        $osLoaderVersion = ''
+
+        foreach ($candidate in @(
+                [System.IO.Path]::Combine($mountPath, 'Windows\System32\Boot\winload.efi'),
+                [System.IO.Path]::Combine($mountPath, 'Windows\System32\winload.efi'))) {
+
+            if ($FileSystem.TestPath($candidate)) {
+                $osLoaderPath = $candidate
+                $osLoaderVersion = [string] $FileSystem.GetVersion($candidate)
+                break
+            }
+        }
+
+        if (@($bootLoaderRow).Count -gt 0) {
+            $Progress.Report(7, $stepTotal, 'Checking the Secure Boot servicing levels',
+                'comparing the replacement boot manager against the image''s own winload.efi')
+
+            if ([string]::IsNullOrEmpty($osLoaderPath)) {
+                # NOT A PASS. A boot image with no OS loader in it is either not
+                # a boot image or not a layout this check understands, and either
+                # way the swap cannot be shown to be safe - which for a feature
+                # whose failure mode is a machine that will not start has to stop
+                # the build rather than shrug.
+                throw (New-HDTErrorRecord -TargetObject $mountPath -Category ObjectNotFound `
+                        -Message ("the Secure Boot bootloader swap cannot be proved safe, so it is refused: no winload.efi was found in the mounted boot image. Looked at 'Windows\System32\Boot\winload.efi' and 'Windows\System32\winload.efi' under '{0}'. The swap replaces the BOOT MANAGER, and a boot manager refuses to start an OS loader from an older servicing level while Secure Boot is on (0xc0430001, STATUS_SECUREBOOT_ROLLBACK_DETECTED) - so the OS loader's version is the one fact this decision turns on. Build without -BootLoaderPath to skip the swap entirely. See .planning/SPIKES.md, S20.2." -f $mountPath))
+            }
+
+            # THE VALUE AND WHERE IT CAME FROM (CLAUDE.md, logging). An
+            # administrator reading this a week later has to be able to see the
+            # two numbers that were compared without rebuilding anything.
+            Write-Verbose ("Secure Boot servicing check: the OS loader inside this image is '{0}', version {1}. It is compared against each replacement boot manager, because a boot manager will not start an OS loader older than itself while Secure Boot is on." -f
+                $osLoaderPath, $osLoaderVersion)
+
+            Assert-HDTBootLoaderServicingLevel -BootLoaderRow $bootLoaderRow `
+                -OsLoaderVersion $osLoaderVersion -OsLoaderPath $osLoaderPath
+
+            foreach ($loader in @($bootLoaderRow)) {
+                Write-Verbose ("Secure Boot servicing check: '{0}' version {1} is not a rollback over the image's OS loader {2} - the swap may proceed." -f
+                    [string] $loader.Name, [string] $loader.Version, $osLoaderVersion)
+            }
+        }
 
         # -- 8. the components, each followed by its language pack -----------
 
@@ -1707,6 +1891,11 @@
 
     $finishedUtc = $Clock.GetUtcNow()
 
+    # THE OS LOADER, RECORDED WHETHER OR NOT ANYTHING WAS SWAPPED. See step 7b:
+    # New-HDTPxePayload judges its own bootloader swap against this number, and
+    # it cannot mount the image to read it for itself.
+    $osLoaderRecord = @{ Path = $osLoaderPath; Version = $osLoaderVersion }
+
     $manifestText = New-HDTBootImageManifest -BuildId $buildId -BuiltUtc $builtUtc -BuiltOn $env:COMPUTERNAME `
         -EngineVersion (Get-HDTModuleVersion) -WorkspaceId ([string] $workspace.Id) `
         -Architecture $buildArchitecture -Language $buildLanguage `
@@ -1720,6 +1909,7 @@
         -Startnet $startnet `
         -TimeZone ([string] $workspace.BootImage.TimeZone) `
         -TimeZoneDaylight $timeZoneDaylight `
+        -OsLoader $osLoaderRecord `
         -CredentialRecord @{
         Username            = $credentialUserName
         Embedded            = $embedCredential
@@ -1756,5 +1946,11 @@
         DriverCount    = @($driver).Count
         DurationSecond = [double] ($finishedUtc - $startedUtc).TotalSeconds
         Skipped        = [string[]] @($skipped)
+
+        # WHAT WAS SWAPPED, EMPTY WHEN NOTHING WAS. A caller that cannot tell a
+        # Secure-Boot-corrected image from an uncorrected one has to boot a
+        # machine to find out, and the machine that answers is the one that
+        # refuses.
+        BootLoader     = [pscustomobject[]] @($bootLoaderRow)
     }
 }

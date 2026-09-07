@@ -2063,24 +2063,166 @@ and it deserves its own verification.
 > DBX/SVN attribution above. A claim that work is tracked is worth exactly as
 > much as the tracking entry.
 
+### S20.1 — the SVN, read directly. `signtool` was never needed ✅
+
+Date: 2026-09-07. The section below used to say "nobody has read the SVN of the
+`10.0.28000.342` loader" and named `signtool` — which is not installed here — as
+the reason. **`signtool` cannot read it either.** The SVN is not in the
+Authenticode signature at all: the only signature-level difference between the
+ADK's copies and the patched ones is that the patched pair carry an extra
+authenticated attribute, `1.3.6.1.4.1.311.10.3.28` (Platform Manifest Binary
+ID), and **all six files are signed by Microsoft Windows Production PCA 2011**,
+which is the trap S20 already warns about.
+
+**Where it actually lives**, from Rufus's own `IsRevokedBySvn` in `src/hash.c`:
+a **four-byte `RT_RCDATA` (type `#10`) resource named
+`BOOTMGRSECURITYVERSIONNUMBER`**, high word major, low word minor. The enforced
+minimum is the `BOOTMGRSECURITYVERSIONNUMBER,0x70000` line in Rufus's
+`db_sbat_level_txt` — an SBAT-style entry, which is why the changelog files
+Windows SVN alongside Linux SBAT. Walk the PE resource directory for that name
+and read the `uint32`; no external tool is involved.
+
+Read that way on this host, every candidate:
+
+| File | ProductVersion | Resource value | SVN |
+|---|---|---|---|
+| ADK WinPE `Media\bootmgr.efi` | 10.0.26100.1085 | `0x30000` | **3.0** |
+| ADK WinPE `Media\EFI\Boot\bootx64.efi` | 10.0.26100.1085 | `0x30000` | **3.0** |
+| `C:\HDTLab\media\Win11-LTSC-2024\bootmgr.efi` | 10.0.26100.1041 | `0x30000` | **3.0** |
+| `C:\HDTLab\media\Win11-LTSC-2024\efi\boot\bootx64.efi` | 10.0.26100.1041 | `0x30000` | **3.0** |
+| `C:\HDTLab\media\WS2025-Std\bootmgr.efi` | 10.0.26100.1041 | `0x30000` | **3.0** |
+| `C:\HDTLab\media\WS2025-Std\efi\boot\bootx64.efi` | 10.0.26100.1041 | `0x30000` | **3.0** |
+| `C:\Windows\Boot\EFI\bootmgr.efi` | 10.0.28000.342 | `0x90000` | **9.0** ✅ |
+| `C:\Windows\Boot\EFI\bootmgfw.efi` | 10.0.28000.342 | `0x90000` | **9.0** ✅ |
+
+**Three things this settles, and one it does not.**
+
+- **The floor is 7.0 and the patched loader is 9.0**, not 7.0 — it clears the
+  minimum with room, so this source does not go stale on the next bump.
+- **S20's inference from the build number was right**, and now it is measured:
+  a boot manager whose build (28000) outruns its OS build (26100) is the
+  post-revocation one.
+- **The install media is confirmed useless for this**, by measurement rather
+  than by version arithmetic. Both staged trees read `0x30000` — the same
+  revoked value the ADK ships. Anyone reaching for `C:\HDTLab\media` is
+  reaching for a file that is already refused.
+- **It says nothing about whether the swapped media boots.** See below.
+
 ### What is still unverified, stated so it is not assumed
 
-- **Nobody has read the SVN of the `10.0.28000.342` loader.** It is the
-  candidate replacement on the strength of its build number and its date, and
-  that is inference, not measurement. `signtool` is **not installed on this
-  host**, so nothing here reads an SVN directly.
-- **The cheap test is Rufus itself**, because Rufus is what read the SVN in the
-  first place: copy the patched loader into a scratch media tree, build an ISO
-  from it, and let Rufus analyse the ISO. If the analysis comes back clean, the
-  replacement clears the floor.
-- **That answers the SVN and nothing else.** Whether a 28000-series boot manager
-  boots against the ADK's 26100-era `EFI\Microsoft\Boot\BCD` is a **separate,
-  untested question**, and it cannot be answered by an analyser at all — it
-  needs a Generation 2 VM with Secure Boot on, booting the rebuilt media.
+- **Whether a 28000-series boot manager boots against the ADK's 26100-era
+  `EFI\Microsoft\Boot\BCD` is a separate, untested question**, and no analyser
+  can answer it — it needs a Generation 2 VM with Secure Boot on, booting the
+  rebuilt media. Reading the SVN proves the firmware will not refuse the file;
+  it does not prove the file will find its boot store.
+- **Rufus remains the cheap cross-check** on a built ISO, because Rufus is what
+  read the SVN in the first place and it reads the whole tree rather than the
+  two files HDT replaces.
 
 **Do not read the warning as "the ISO is untrustworthy".** Rufus phrases it as a
 possible malware indicator because it cannot know where an image came from. This
 one was built on this machine, from the installed ADK, minutes earlier.
+
+### S20.2 — the swap boots WORSE than the ADK's own media, and the boot manager is what refuses it ⚠
+
+Date: 2026-09-07. The bootloader swap S20 asked for was built
+(`-BootLoaderPath` on `Update-HDTBootImage` and `New-HDTPxePayload`) and then
+**boot-tested on Generation 2 Hyper-V VMs**, which is the only test that could
+have found this. Every analyser on this host said the swapped media was correct.
+It is not.
+
+| Run | Media | Secure Boot | Result |
+|---|---|---|---|
+| swapped (boot manager SVN 9.0) | built with `-BootLoaderPath "$env:SystemRoot\Boot\EFI"` | **On** | **FAIL — `0xc0430001`**, Windows Boot Manager recovery screen |
+| swapped (SVN 9.0) | the same ISO | Off | PASS — WinPE reached |
+| **unswapped ADK (SVN 3.0)** | control | **On** | **PASS — WinPE reached** |
+
+`0xc0430001` is **`STATUS_SECUREBOOT_ROLLBACK_DETECTED`**.
+
+**The firmware accepted the swapped boot manager.** The screen is *Windows Boot
+Manager's* recovery screen, not the firmware's "Security Violation" — a
+different screen from a different component, and telling them apart is the whole
+diagnosis. What refused the media is the **boot manager**, on the stage after
+itself:
+
+| File | Where it lives | Version |
+|---|---|---|
+| swapped boot manager | media tree, from `C:\Windows\Boot\EFI` | **10.0.28000.342** |
+| `winload.efi` | inside the built `boot.wim` | **10.0.26100.1** |
+
+A boot manager will not hand control to an OS loader from an **older servicing
+level** while Secure Boot is on. That is a rollback check, it is gated on Secure
+Boot, and that gate is exactly why the identical ISO booted with Secure Boot off.
+
+**`winload.efi` carries no `BOOTMGRSECURITYVERSIONNUMBER` resource at all** —
+checked the same way S20.1 read the loaders. So this is not the SVN floor under
+another name, and no amount of copying loaders can satisfy it.
+
+**Two conclusions, and the second one is uncomfortable.**
+
+- **As shipped, `-BootLoaderPath` turned working Secure Boot media into
+  non-booting media, silently.** The build was green, the hashes matched, the
+  manifest was written, Rufus would have been satisfied — and the machine showed
+  a recovery screen. That is the defect, and it is closed below.
+- **The control run proves this host's Hyper-V `MicrosoftWindows` Secure Boot
+  template does not enforce the 7.0 floor**, because SVN 3.0 media booted under
+  it. **S20's premise is therefore unproven on this platform.** It is very
+  likely still real on physical hardware with an updated DBX — the
+  post-BlackLotus revocations are not hypothetical — so the feature stays. Do
+  not read this as "the swap is unnecessary"; read it as "Hyper-V cannot
+  reproduce the problem the swap is for, and can reproduce a problem the swap
+  causes".
+
+### What was built instead
+
+`Assert-HDTBootLoaderServicingLevel` — pure, unit-tested against fakes. It
+compares the **build number** of each replacement boot manager against the build
+number of the `winload.efi` in the image, and refuses a rollback with a message
+naming the cause (`0xc0430001`, the boot manager's check on the OS loader) rather
+than the symptom.
+
+- `Update-HDTBootImage` probes `Windows\System32\Boot\winload.efi` in the mount —
+  falling back to `Windows\System32\winload.efi` — right after step 7, and
+  refuses there. It is the one refusal in that command that costs a mount,
+  because the fact is *inside* the image. Nothing reaches `Boot\` when it
+  refuses.
+- The version is recorded in `Boot\<name>.manifest.json` as `osLoader` on **every**
+  build, swap or not.
+- `New-HDTPxePayload` cannot mount the WIM it stages, so it reads that manifest
+  field and applies the same check. A manifest with no `osLoader` is refused, not
+  waved through — rebuilding the boot image is a one-command remedy.
+
+The comparison is on the **build** and nothing finer. 28000 against 26100 is the
+measured failure; nothing measured says a *revision* gap refuses, so it does not
+claim to check one. An unreadable version (`0.0.0.0`, i.e. no version resource)
+is a refusal rather than a pass.
+
+### The real fix, which is not built
+
+**The WinPE OS loader has to move with the boot manager.** In practice that means
+**servicing the boot image** rather than copying two files over a media tree:
+
+1. Apply the current Windows cumulative update to the mounted `boot.wim`
+   (`Add-WindowsPackage` against the mount step 7 already opens). The LCU is what
+   carries the post-revocation `winload.efi`. It is on neither the ADK media nor
+   the install media — S20.1 measured both at 26100-series.
+2. Take the boot manager from the **same** update level rather than from whatever
+   the build host happens to be patched to. `-BootLoaderPath` pointing at the
+   build host is only ever right by coincidence.
+3. Re-run the servicing check afterwards, so "the versions agree" is measured
+   rather than assumed.
+4. Prove it on a Generation 2 VM with Secure Boot **on**. Nothing short of a boot
+   found this.
+
+Open questions that go with it: which servicing package HDT may assume is
+available (the ADK ships none), where it comes from on a disconnected build host,
+and whether the ADK's 26100-era `EFI\Microsoft\Boot\BCD` is happy under a
+28000-series boot manager — which the failing run could not answer, because it
+never got that far.
+
+`-BootLoaderPath` **stays opt-in and is not defaulted on.**
+
+`HDT-SBOOT-01` is left powered off holding the failed state.
 
 ## S21 — `tzutil` is not in WinPE, and the boot image's zone must be set offline ✅
 

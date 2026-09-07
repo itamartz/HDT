@@ -1,4 +1,4 @@
-# New-HDTPxePayload - DESIGN 6.1's other half: "For sites with an existing
+﻿# New-HDTPxePayload - DESIGN 6.1's other half: "For sites with an existing
 # TFTP/HTTP stack instead of WDS, New-HDTPxePayload stages bootmgr, bootmgfw.efi,
 # boot.sdi, the BCD, and the boot WIM into a directory to point that server at."
 #
@@ -377,4 +377,245 @@ Describe 'New-HDTPxePayload' {
             $result.Complete | Should -BeTrue
         }
     }
+
+    Context 'the Secure Boot bootloader swap' {
+
+        # BOTH PATHS, OR NEITHER (ROADMAP M4). Correcting the ISO and leaving the
+        # TFTP root alone leaves WDS/PXE serving the same revoked SVN 3.0 loader
+        # the ADK ships, and the two are one product to the person whose machine
+        # shows Security Violation and nothing else.
+
+        BeforeAll {
+            $script:bootLoaderPath = 'C:\PatchedBoot\EFI'
+
+            # THE MEASURED PAIR (SPIKES S20.2). 10.0.28000.342 is this laptop's
+            # own C:\Windows\Boot\EFI, and 10.0.26100.1 is the winload.efi the
+            # ADK's WinPE really carries - the two versions whose combination
+            # failed 0xc0430001 on a Gen 2 VM with Secure Boot on.
+            $script:patchedLoaderVersion = '10.0.28000.342'
+            $script:adkOsLoaderVersion = '10.0.26100.1'
+
+            # A PXE PAYLOAD CANNOT MOUNT THE IMAGE IT STAGES, so the OS loader
+            # version comes from the manifest Update-HDTBootImage wrote beside
+            # the WIM. That is the only place the fact exists on this side.
+            $script:newSwapManifest = {
+                param([string] $OsLoaderVersion)
+
+                if ([string]::IsNullOrEmpty($OsLoaderVersion)) { return '{ "schemaVersion": 1 }' }
+
+                return ('{{ "schemaVersion": 1, "osLoader": {{ "path": "C:\\scratch\\mount\\Windows\\System32\\Boot\\winload.efi", "version": "{0}" }} }}' -f $OsLoaderVersion)
+            }
+
+            $script:newSwapFileSystem = {
+                param([string[]] $Omit, [string] $OsLoaderVersion = '10.0.28000.342', [string] $LoaderVersion = '10.0.28000.342')
+
+                $file = @{}
+                foreach ($key in @($script:adkFile.Keys)) { $file[$key] = $script:adkFile[$key] }
+                foreach ($key in @($script:workspaceFile.Keys)) { $file[$key] = $script:workspaceFile[$key] }
+
+                $file[(Join-Path -Path $script:workspace -ChildPath 'Boot\HDTPE_x64.manifest.json')] =
+                (& $script:newSwapManifest $OsLoaderVersion)
+
+                $version = @{}
+
+                foreach ($leaf in @('bootmgr.efi', 'bootmgfw.efi')) {
+                    if (@($Omit) -contains $leaf) { continue }
+                    $file[($script:bootLoaderPath + '\' + $leaf)] = ('patched {0} bytes' -f $leaf)
+                    $version[($script:bootLoaderPath + '\' + $leaf)] = $LoaderVersion
+                }
+
+                return (New-HDTFakeFileSystem -File $file -Version $version)
+            }
+        }
+
+        It 'stages both UEFI loaders from the patched folder instead of the ADK' {
+            $fs = & $script:newSwapFileSystem @()
+            $registry = & $script:newRegistry
+
+            $result = New-HDTPxePayload -WorkspaceRoot $script:workspace -Path $script:payloadPath `
+                -BootLoaderPath $script:bootLoaderPath -FileSystem $fs -Registry $registry -Confirm:$false
+
+            $row = @($result.File | Where-Object { [string] $_.Destination -like '*.efi' })
+
+            @($row | ForEach-Object { [string] $_.Destination }) |
+                Should -Be @('Boot\x64\wdsmgfw.efi', 'Boot\x64\bootmgfw.efi')
+
+            foreach ($entry in $row) {
+                [string] $entry.Source | Should -BeLike ($script:bootLoaderPath + '\*')
+            }
+        }
+
+        It 'keeps the payload table''s source pairing when it substitutes' {
+            # The table stages bootmgfw.efi FROM the ADK media's bootmgr.efi and
+            # wdsmgfw.efi FROM EFI\Boot\bootx64.efi - the firmware boot manager
+            # under the removable-media name. bootmgr.efi and bootmgfw.efi are
+            # different binaries, so a substitution that crossed them over would
+            # produce a payload that looks staged and boots nothing.
+            $fs = & $script:newSwapFileSystem @()
+            $registry = & $script:newRegistry
+
+            $result = New-HDTPxePayload -WorkspaceRoot $script:workspace -Path $script:payloadPath `
+                -BootLoaderPath $script:bootLoaderPath -FileSystem $fs -Registry $registry -Confirm:$false
+
+            $bootmgfw = @($result.File | Where-Object { [string] $_.Destination -eq 'Boot\x64\bootmgfw.efi' })
+            $wdsmgfw = @($result.File | Where-Object { [string] $_.Destination -eq 'Boot\x64\wdsmgfw.efi' })
+
+            [string] $bootmgfw[0].Source | Should -BeExactly ($script:bootLoaderPath + '\bootmgr.efi')
+            [string] $wdsmgfw[0].Source | Should -BeExactly ($script:bootLoaderPath + '\bootmgfw.efi')
+        }
+
+        It 'leaves every other declared row on the ADK media' {
+            # The swap is two files. bootmgr.exe, boot.sdi, the BCD and the fonts
+            # are not signed loaders and have no SVN; moving them would be an
+            # unrelated change hiding inside a security fix.
+            $fs = & $script:newSwapFileSystem @()
+            $registry = & $script:newRegistry
+
+            $result = New-HDTPxePayload -WorkspaceRoot $script:workspace -Path $script:payloadPath `
+                -BootLoaderPath $script:bootLoaderPath -FileSystem $fs -Registry $registry -Confirm:$false
+
+            $other = @($result.File | Where-Object { [string] $_.Destination -notlike '*.efi' })
+
+            $other | Should -Not -BeNullOrEmpty
+            foreach ($entry in $other) {
+                [string] $entry.Source | Should -Not -BeLike ($script:bootLoaderPath + '\*')
+            }
+        }
+
+        It 'still hashes what it staged, so a substituted copy is verified too' {
+            # A swapped loader gets the same treatment as every other row: hash
+            # the source, hash the copy, refuse on a mismatch. A truncated
+            # bootmgfw.efi on a TFTP server is a machine that hangs at boot.
+            $fs = & $script:newSwapFileSystem @()
+            $registry = & $script:newRegistry
+
+            $result = New-HDTPxePayload -WorkspaceRoot $script:workspace -Path $script:payloadPath `
+                -BootLoaderPath $script:bootLoaderPath -FileSystem $fs -Registry $registry -Confirm:$false
+
+            $swapped = @($result.File | Where-Object { [string] $_.Destination -eq 'Boot\x64\bootmgfw.efi' })
+
+            [string] $swapped[0].Sha256 | Should -Not -BeNullOrEmpty
+            $result.Complete | Should -BeTrue
+        }
+
+        It 'stages the ADK loaders when no bootloader folder is named' {
+            $fs = & $script:newSwapFileSystem @()
+            $registry = & $script:newRegistry
+
+            $result = New-HDTPxePayload -WorkspaceRoot $script:workspace -Path $script:payloadPath `
+                -FileSystem $fs -Registry $registry -Confirm:$false
+
+            foreach ($entry in @($result.File)) {
+                [string] $entry.Source | Should -Not -BeLike ($script:bootLoaderPath + '\*')
+            }
+        }
+
+        It 'refuses a folder missing a loader, naming the file and the cause' {
+            $fs = & $script:newSwapFileSystem @('bootmgfw.efi')
+            $registry = & $script:newRegistry
+
+            $record = $null
+            try {
+                New-HDTPxePayload -WorkspaceRoot $script:workspace -Path $script:payloadPath `
+                    -BootLoaderPath $script:bootLoaderPath -FileSystem $fs -Registry $registry -Confirm:$false
+            } catch {
+                $record = $_
+            }
+
+            $record | Should -Not -BeNullOrEmpty
+
+            $message = [string] $record.Exception.Message
+            $message | Should -Match 'bootmgfw\.efi'
+            $message | Should -Match 'Secure Boot'
+            $message | Should -Not -Match 'Could not find file'
+        }
+
+        # =================================================================
+        # THE SERVICING CHECK - SPIKES S20.2
+        # =================================================================
+        #
+        # THE SWAP AS FIRST SHIPPED PRODUCED MEDIA THAT DOES NOT BOOT, and said
+        # nothing. Measured on Gen 2 Hyper-V, 2026-09-07: swapped media failed
+        # with Secure Boot ON (0xc0430001), the same ISO passed with it OFF, and
+        # the unswapped ADK media passed with it ON. The firmware accepted the
+        # loader; the BOOT MANAGER refused the OS loader behind it.
+        #
+        # A PXE PAYLOAD CANNOT MOUNT THE IMAGE, so the check reads the version
+        # Update-HDTBootImage recorded in the manifest it stages beside the WIM.
+        # Both delivery paths or neither, which is already this file's rule for
+        # the swap itself.
+
+        It 'refuses a boot manager newer than the OS loader the image records' {
+            $fs = & $script:newSwapFileSystem @() $script:adkOsLoaderVersion
+            $registry = & $script:newRegistry
+
+            $record = $null
+            try {
+                New-HDTPxePayload -WorkspaceRoot $script:workspace -Path $script:payloadPath `
+                    -BootLoaderPath $script:bootLoaderPath -FileSystem $fs -Registry $registry -Confirm:$false
+            } catch {
+                $record = $_
+            }
+
+            $record | Should -Not -BeNullOrEmpty
+
+            $message = [string] $record.Exception.Message
+            $message | Should -Match 'rollback'
+            $message | Should -Match '0xc0430001'
+            $message | Should -Match ([regex]::Escape($script:patchedLoaderVersion))
+        }
+
+        It 'stages nothing at all when it refuses' {
+            # A TFTP ROOT HALF FULL OF A PAYLOAD THAT CANNOT BOOT is worse than
+            # an empty one: it looks served. The refusal happens before the first
+            # copy, like every other refusal in this command.
+            $fs = & $script:newSwapFileSystem @() $script:adkOsLoaderVersion
+            $registry = & $script:newRegistry
+
+            try {
+                New-HDTPxePayload -WorkspaceRoot $script:workspace -Path $script:payloadPath `
+                    -BootLoaderPath $script:bootLoaderPath -FileSystem $fs -Registry $registry -Confirm:$false
+            } catch {
+                $null = $_
+            }
+
+            @($fs.Operations | Where-Object { $_.Operation -eq 'CopyItem' }) | Should -BeNullOrEmpty
+        }
+
+        It 'refuses when the manifest does not record an OS loader version' {
+            # SILENCE IS THE FAILURE MODE. An image built before this check
+            # existed carries no osLoader block, so the one fact the decision
+            # turns on is missing - and "missing" cannot be read as "safe" for a
+            # feature whose failure mode is a machine that will not start.
+            $fs = & $script:newSwapFileSystem @() ''
+            $registry = & $script:newRegistry
+
+            $record = $null
+            try {
+                New-HDTPxePayload -WorkspaceRoot $script:workspace -Path $script:payloadPath `
+                    -BootLoaderPath $script:bootLoaderPath -FileSystem $fs -Registry $registry -Confirm:$false
+            } catch {
+                $record = $_
+            }
+
+            $record | Should -Not -BeNullOrEmpty
+
+            $message = [string] $record.Exception.Message
+            $message | Should -Match 'Update-HDTBootImage'
+            $message | Should -Match 'manifest'
+        }
+
+        It 'says nothing about servicing levels when no swap was asked for' {
+            # OPT-IN. A payload staged from the ADK's own matched pair is the
+            # control run, and it PASSED with Secure Boot on.
+            $fs = & $script:newSwapFileSystem @() ''
+            $registry = & $script:newRegistry
+
+            $result = New-HDTPxePayload -WorkspaceRoot $script:workspace -Path $script:payloadPath `
+                -FileSystem $fs -Registry $registry -Confirm:$false
+
+            $result.Complete | Should -BeTrue
+        }
+    }
 }
+

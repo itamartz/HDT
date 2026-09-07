@@ -1,4 +1,4 @@
-function New-HDTPxePayload {
+﻿function New-HDTPxePayload {
     <#
         .SYNOPSIS
             Stages everything a non-WDS TFTP or HTTP stack needs to serve the HDT
@@ -80,6 +80,41 @@ function New-HDTPxePayload {
         .PARAMETER AdkRoot
             An explicit ADK root, which wins over the registry.
 
+        .PARAMETER BootLoaderPath
+            A folder holding bootmgr.efi and bootmgfw.efi from a FULLY PATCHED
+            Windows - '%SystemRoot%\Boot\EFI' on a patched host. The payload's
+            two UEFI loader rows are staged FROM IT instead of from the ADK
+            media, hashed and verified like every other row.
+
+            BOTH DELIVERY PATHS OR NEITHER. Correcting the ISO and leaving the
+            TFTP root alone leaves PXE serving the same revoked loader; the two
+            are one product to the person whose machine shows Security Violation.
+
+            Omitted, the ADK media supplies them as it always has. See SPIKES
+            S20 for why the ADK's copies are refused and why a Windows install
+            media is not the fix.
+
+            ⚠ IT IS NOT YET A WORKING FIX, AND THAT WAS MEASURED ON HARDWARE.
+            Three Generation 2 Hyper-V runs, 2026-09-07 (SPIKES S20.2):
+
+              swapped media, Secure Boot ON    FAIL - 0xc0430001
+              the same ISO,  Secure Boot OFF   PASS - WinPE reached
+              unswapped ADK, Secure Boot ON    PASS - WinPE reached
+
+            0xc0430001 is STATUS_SECUREBOOT_ROLLBACK_DETECTED. The firmware
+            ACCEPTED the swapped boot manager; the boot manager then refused the
+            OS loader behind it, because the boot image's own winload.efi is
+            10.0.26100.1 against a boot manager of 10.0.28000.342. So the swap
+            alone turns working Secure Boot media into media that does not boot,
+            and the build now REFUSES that combination rather than shipping it.
+            The complete fix is to service the WinPE image so its winload.efi
+            comes up with the boot manager; until then this parameter is only
+            useful against an image that has been.
+
+            This command cannot mount the WIM it stages, so it reads the OS
+            loader version out of Boot\<name>.manifest.json. A manifest that does
+            not record one is refused: rebuild the boot image first.
+
         .PARAMETER FileSystem
             An IFileSystem. Defaults to the real adapter.
 
@@ -134,6 +169,15 @@ function New-HDTPxePayload {
         [AllowEmptyString()]
         [string] $AdkRoot = '',
 
+        # OPT-IN, and it substitutes a SOURCE rather than adding a row. The
+        # declared table stays the one list (see Get-HDTPxePayloadRow); what
+        # changes is where two of its rows are copied from, so -ListRequired
+        # still describes the payload and the hashes reported still describe
+        # what landed.
+        [Parameter(ParameterSetName = 'Stage')]
+        [AllowEmptyString()]
+        [string] $BootLoaderPath = '',
+
         [Parameter(ParameterSetName = 'Stage')]
         [AllowNull()]
         [object] $FileSystem,
@@ -185,6 +229,40 @@ function New-HDTPxePayload {
     $mediaRoot = Get-HDTAdkPath @adkSplat
 
     # =====================================================================
+    # 2b. THE SECURE BOOT LOADERS, IF A PATCHED FOLDER WAS NAMED
+    # =====================================================================
+    #
+    # SPIKES S20: the ADK's bootmgr.efi and EFI\Boot\bootx64.efi carry Secure
+    # Version Number 3.0 against an enforced floor of 7.0, so a fully patched
+    # machine with Secure Boot on refuses them before WinPE loads. Nothing HDT
+    # writes can explain that, because HDT never ran.
+    #
+    # KEYED BY DESTINATION, so the substitution happens where the table already
+    # decided which file goes where. Get-HDTBootLoaderSource preserves that
+    # pairing - the payload's bootmgfw.efi comes from bootmgr.efi and its
+    # wdsmgfw.efi from bootmgfw.efi, which is the ADK's EFI\Boot\bootx64.efi
+    # under another name. They are DIFFERENT binaries, so crossing them over
+    # yields a payload that stages clean and boots nothing.
+    #
+    # RESOLVED BEFORE THE FIRST WRITE. A folder that cannot do the job refuses
+    # here rather than after half a payload is on somebody's TFTP root.
+
+    $loaderOverride = @{}
+
+    if (-not [string]::IsNullOrWhiteSpace($BootLoaderPath)) {
+        try {
+            $loaderRow = @(Get-HDTBootLoaderSource -BootLoaderPath $BootLoaderPath -Target Pxe `
+                    -Architecture $Architecture -FileSystem $FileSystem)
+        } catch {
+            $PSCmdlet.ThrowTerminatingError($_)
+        }
+
+        foreach ($loader in @($loaderRow)) {
+            $loaderOverride[[string] $loader.Destination] = [string] $loader.Source
+        }
+    }
+
+    # =====================================================================
     # 3. THE BOOT IMAGE MUST HAVE BEEN BUILT
     # =====================================================================
 
@@ -193,6 +271,73 @@ function New-HDTPxePayload {
     if (-not $FileSystem.TestPath($wimSource)) {
         $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $wimSource -Category ObjectNotFound `
                     -Message ("there is no boot image to stage. Run Update-HDTBootImage against this workspace first - it writes Boot\{0}.wim, Boot\{0}.manifest.json and the ISO beside them; a PXE payload without the WIM is a TFTP root that answers a machine and then has nothing to give it." -f $BootImageName)))
+    }
+
+    # =====================================================================
+    # 3b. THE SECURE BOOT SERVICING CHECK, READ OUT OF THE MANIFEST
+    # =====================================================================
+    #
+    # THE SWAP AS FIRST SHIPPED PRODUCED MEDIA THAT DOES NOT BOOT, and said
+    # nothing about it. Measured on Generation 2 Hyper-V, 2026-09-07 (SPIKES
+    # S20.2): swapped media FAILED with Secure Boot on - 0xc0430001,
+    # STATUS_SECUREBOOT_ROLLBACK_DETECTED, on a Windows Boot Manager recovery
+    # screen - the same ISO PASSED with Secure Boot off, and the unswapped ADK
+    # media PASSED with it on. The firmware accepted the replacement boot
+    # manager; the boot manager then refused the OS loader behind it, because
+    # the image's winload.efi was 10.0.26100.1 against a boot manager of
+    # 10.0.28000.342.
+    #
+    # THE MANIFEST IS WHERE THE FACT LIVES ON THIS SIDE. Update-HDTBootImage can
+    # read winload.efi directly, because it has the image open. This command
+    # stages a WIM it never mounts, so the version it has to match is the one
+    # recorded in Boot\<name>.manifest.json when that WIM was built.
+    #
+    # A MISSING FIELD IS A REFUSAL, NOT A PASS. An image built before this was
+    # recorded cannot be judged, and "cannot be judged" for a feature whose
+    # failure mode is a machine that will not start has to stop rather than
+    # shrug. Rebuilding the boot image is a one-command remedy and the message
+    # says so.
+
+    if (-not [string]::IsNullOrWhiteSpace($BootLoaderPath)) {
+        $manifestSource = Get-HDTWorkspacePath -Root $WorkspaceRoot -Kind Boot `
+            -ChildPath ('{0}.manifest.json' -f $BootImageName)
+
+        $osLoaderVersion = ''
+        $osLoaderPath = ''
+
+        if ($FileSystem.TestPath($manifestSource)) {
+            $manifest = ConvertFrom-Json -InputObject ([string] $FileSystem.ReadAllText($manifestSource))
+
+            # PROBED RATHER THAN INDEXED. Set-StrictMode -Version Latest makes
+            # reading an absent property on a PSCustomObject an error, and an
+            # older manifest is exactly the case this has to report cleanly.
+            if (@($manifest.PSObject.Properties.Name) -contains 'osLoader') {
+                if (@($manifest.osLoader.PSObject.Properties.Name) -contains 'version') {
+                    $osLoaderVersion = [string] $manifest.osLoader.version
+                }
+                if (@($manifest.osLoader.PSObject.Properties.Name) -contains 'path') {
+                    $osLoaderPath = [string] $manifest.osLoader.path
+                }
+            }
+        }
+
+        if ([string]::IsNullOrWhiteSpace($osLoaderVersion)) {
+            $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $manifestSource -Category ObjectNotFound `
+                        -Message ("the Secure Boot bootloader swap cannot be proved safe, so it is refused: the boot image manifest '{0}' records no OS loader version. A replacement boot manager will not start an OS loader from an older servicing level while Secure Boot is on (0xc0430001, STATUS_SECUREBOOT_ROLLBACK_DETECTED), and this command stages the WIM without mounting it, so the manifest is the only place that version exists. Run Update-HDTBootImage against this workspace to rebuild the boot image and record it, or stage without -BootLoaderPath and leave the ADK's own matched loaders in place. See .planning/SPIKES.md, S20.2." -f $manifestSource)))
+        }
+
+        if ([string]::IsNullOrWhiteSpace($osLoaderPath)) { $osLoaderPath = $manifestSource }
+
+        # THE VALUE AND WHERE IT CAME FROM (CLAUDE.md, logging).
+        Write-Verbose ("Secure Boot servicing check: '{0}' records the boot image's OS loader as '{1}', version {2}. Each replacement boot manager is compared against it." -f
+            $manifestSource, $osLoaderPath, $osLoaderVersion)
+
+        try {
+            Assert-HDTBootLoaderServicingLevel -BootLoaderRow $loaderRow `
+                -OsLoaderVersion $osLoaderVersion -OsLoaderPath $osLoaderPath
+        } catch {
+            $PSCmdlet.ThrowTerminatingError($_)
+        }
     }
 
     # =====================================================================
@@ -253,6 +398,18 @@ function New-HDTPxePayload {
         if ([string] $entry.Origin -eq 'Workspace') { $origin = $WorkspaceRoot }
 
         $source = [System.IO.Path]::Combine($origin, ([string] $entry.Source))
+
+        # THE SWAP, APPLIED WHERE THE SOURCE IS CHOSEN. Everything below - the
+        # existence probe, the copy, the hash comparison, the reported row - then
+        # treats a swapped loader exactly like any other file, which is the point:
+        # a substituted bootmgfw.efi that truncated in transit must fail here for
+        # the same reason a truncated boot.sdi does.
+        if ($loaderOverride.ContainsKey([string] $entry.Destination)) {
+            $source = [string] $loaderOverride[[string] $entry.Destination]
+
+            Write-Verbose ("Secure Boot loader: '{0}' is staged from '{1}' rather than from the ADK media, whose copy carries Secure Version Number 3.0 against an enforced floor of 7.0." -f
+                [string] $entry.Destination, $source)
+        }
 
         if (-not $FileSystem.TestPath($source)) {
             if ([bool] $entry.Required) {

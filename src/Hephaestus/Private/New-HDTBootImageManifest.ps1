@@ -117,6 +117,16 @@
             else cannot tell those two images apart, and they are the two images
             this defect was about.
 
+        .PARAMETER OsLoader
+            Path and Version of the winload.efi found inside the mounted image.
+
+            IT IS RECORDED BECAUSE IT IS THE ONLY PLACE THE FACT SURVIVES THE
+            BUILD, and a second command needs it. New-HDTPxePayload can swap the
+            same Secure Boot bootloaders into a TFTP tree and cannot mount the
+            WIM it stages, so the manifest is where it reads the servicing level
+            it has to match (SPIKES S20.2). It is also the answer to "what is in
+            this WIM" for the one file a bootloader swap is judged against.
+
         .PARAMETER CredentialRecord
             Username, Embedded, PromptForCredential. Anything else in this
             hashtable is ignored.
@@ -213,6 +223,10 @@
 
         [Parameter()]
         [bool] $TimeZoneDaylight = $false,
+
+        [Parameter()]
+        [AllowNull()]
+        [hashtable] $OsLoader,
 
         [Parameter()]
         [AllowNull()]
@@ -334,6 +348,10 @@
         startnet           = $Startnet
         timeZone           = $TimeZone
         timeZoneDaylight   = [bool] $TimeZoneDaylight
+        osLoader           = [ordered] @{
+            path    = [string] (& $valueOf $OsLoader 'Path' '')
+            version = [string] (& $valueOf $OsLoader 'Version' '')
+        }
         credential         = [ordered] @{
             username            = [string] (& $valueOf $CredentialRecord 'Username' '')
             embedded            = [bool] (& $valueOf $CredentialRecord 'Embedded' $false)
