@@ -1,4 +1,4 @@
-# Every wizard page, against every surface that has to know about it.
+﻿# Every wizard page, against every surface that has to know about it.
 #
 # CLAUDE.md RULE 8, AS A TEST. A page is not added by writing its markup. It is
 # added when the definition names it, the file it names exists, a new share is
@@ -227,6 +227,44 @@ Describe 'Wizard page surface contract' {
         foreach ($name in $shipped) {
             $seeded | Should -Contain $name -Because "$name ships in Templates\Wizard and a new share must get it"
         }
+    }
+
+    It 'is the same wizard the sample workspace carries, file for file' {
+        # THE SECOND COPY RULE 8 WARNS ABOUT, AND IT HAD ALREADY DRIFTED.
+        # samples\workspace\Scripts\UI is a hand-maintained duplicate of this
+        # directory, and tests/e2e/UnattendedDeployment stages it onto the
+        # content disk - so it is the definition a real deployment reads, not
+        # the one every other test here checks.
+        #
+        # On 2026-09-07 it was 110 lines against the template's 237: no
+        # AdminPassword page, no BitLocker page, and none of the `optional: true`
+        # markers. A machine deployed with HDTSkipWizard therefore died on
+        # "nothing supplies HDTJoinDomain" - a variable the template has marked
+        # optional for as long as it has existed. Nothing caught it, because
+        # every wizard assertion in this file reads Templates\Wizard and that
+        # copy was right.
+        $sampleRoot = Join-Path -Path $script:repoRoot -ChildPath 'samples/workspace/Scripts/UI'
+        Test-Path -LiteralPath $sampleRoot -PathType Container | Should -BeTrue -Because 'the sample workspace ships a wizard, and this is where it lives'
+
+        $shipped = @(Get-ChildItem -LiteralPath $script:wizardRoot -File | Sort-Object Name)
+        $sample  = @(Get-ChildItem -LiteralPath $sampleRoot -File | Sort-Object Name)
+
+        @($sample | ForEach-Object { $_.Name }) | Should -Be @($shipped | ForEach-Object { $_.Name }) -Because 'the sample workspace is a COPY of Templates\Wizard, not a curated subset of it'
+
+        $differing = @()
+        foreach ($file in $shipped) {
+            $other = Join-Path -Path $sampleRoot -ChildPath $file.Name
+            if (-not (Test-Path -LiteralPath $other)) { continue }
+
+            # Content, not length: a page that drifted by one `optional: true`
+            # is the case that cost a deployment, and it changes the length by
+            # less than a line ending does.
+            $a = [System.IO.File]::ReadAllText($file.FullName) -replace "`r`n", "`n"
+            $b = [System.IO.File]::ReadAllText($other) -replace "`r`n", "`n"
+            if ($a -ne $b) { $differing += $file.Name }
+        }
+
+        ($differing -join ', ') | Should -BeNullOrEmpty -Because 'a wizard page that differs between Templates\Wizard and the sample share is two answers to the same question'
     }
 
     It 'is read back by the engine''s own reader, with every page present' {

@@ -1,4 +1,4 @@
-# Every feature of the definition, and the four pages HDT ships as samples.
+﻿# Every feature of the definition, and the four pages HDT ships as samples.
 #
 # MDT's DeployWiz_Definition_ENU.xml lists one <Pane id= reference= /> per
 # screen with a <Condition> deciding whether it appears; PSD's theme definition
@@ -15,6 +15,17 @@ pages:
     subheading: What this machine will be deployed with.
     reference: TaskSequence.xaml
     skip: HDTSkipTaskSequence
+
+    # NOTHING IS PRESELECTED, SO THE PAGE HAS TO REFUSE TO MOVE ON. The picker
+    # used to open on its first row and the host recorded that as a seed, which
+    # the harvest drops when it comes back unchanged - so a technician who
+    # accepted the highlighted sequence answered nothing and the machine failed
+    # before its first step with "nothing in the rules resolved
+    # HDTTaskSequenceID". MDT's Task Sequence pane preselects nothing and will
+    # not leave without a choice; this is that.
+    validate:
+      control: HDTTaskSequenceList
+      rule: TaskSequence
     collect:
       - control: HDTTaskSequenceList
         variable: HDTTaskSequenceID
@@ -37,20 +48,37 @@ pages:
         variable: HDTComputerName
       - control: HDTJoinDomainBox
         variable: HDTJoinDomain
+        optional: true
       - control: HDTMachineObjectOuBox
         variable: HDTMachineObjectOU
+        optional: true
+      # OPTIONAL BECAUSE MDT DEFAULTS IT. LiteTouch.wsf's "clean up properties
+      # if the wizard was skipped" block calls SetPropertyDefault
+      # "JoinWorkgroup", "WorkGroup" - its own comment says "when skipping
+      # wizard pages, it is possible that some required properties are not
+      # set". New-HDTWorkspace seeds the same answer into rules.yaml's Fallback
+      # rule, so a share this module creates already has one; a share that does
+      # not is a machine that joins nothing, which is what MDT does too.
+      #
+      # THE NAME IS NOT. HDTComputerName above stays required, because HDT will
+      # not let Windows invent a machine's identity (DESIGN 4.5.2) the way MDT
+      # does with an empty OSDComputerName - and the seeded Fallback rule
+      # answers it, so the refusal is one an administrator can satisfy.
       - control: HDTJoinWorkgroupBox
         variable: HDTJoinWorkgroup
+        optional: true
 
       # The account domain box is read BEFORE the account box, so the split
       # below can see what it held and decide whether to keep it.
       - control: HDTDomainAdminDomainBox
         variable: HDTDomainAdminDomain
+        optional: true
 
       # One box, two variables: CORP\svc-hdt-join, or a bare account that
       # belongs to the domain being joined.
       - control: HDTDomainAdminBox
         variable: HDTDomainAdmin
+        optional: true
         split: AccountName
         splitVariable: HDTDomainAdminDomain
         splitDefaultFrom: HDTJoinDomain
@@ -61,17 +89,56 @@ pages:
         property: Password
         isSecret: true
 
-  # MDT's Applications pane, and the one page that answers with a COLUMN rather
-  # than a value. `select: many` is what says so: the host reads the rows the
-  # list was filled with instead of one property off the control, and joins the
-  # ticked ids the way Invoke-HDTInstallApplicationsStep splits them apart.
+  - id: LocaleTime
+    title: Locale and time
+    heading: Specify locale and time preferences
+    subheading: What the deployed machine speaks, types and reads the clock in.
+    reference: LocaleTime.xaml
+    skip: HDTSkipLocaleSelection
+
+    # ALL FOUR OPTIONAL, BECAUSE MDT DEFAULTS THEM AND HDT SEEDS THEM.
+    # LiteTouch.wsf defaults TimeZoneName to Pacific Standard Time when the
+    # wizard is skipped, and CustomSettings.ini shipped KeyboardLocale,
+    # UILanguage and UserLocale already written out; New-HDTWorkspace seeds the
+    # same three into rules.yaml's "Language and region" rule, and the engine
+    # falls back to US English when nothing answers. A locale nobody chose is a
+    # keyboard somebody changes later - not a deployment that must not start.
+    collect:
+      - control: HDTUILanguageBox
+        variable: HDTUILanguage
+        property: SelectedValue
+        optional: true
+      - control: HDTUserLocaleBox
+        variable: HDTUserLocale
+        property: SelectedValue
+        optional: true
+      - control: HDTKeyboardLocaleBox
+        variable: HDTKeyboardLocale
+        property: SelectedValue
+        optional: true
+      - control: HDTTimeZoneNameBox
+        variable: HDTTimeZone
+        property: SelectedValue
+        optional: true
+
+  # Which applications this machine gets, ticked from the catalog published on
+  # the share. Everything but the page already existed: the engine has read the
+  # catalog and logged "applications page: N published on the share" on every
+  # deployment since the catalog did, with nowhere to show it.
   #
-  # The rows come from Get-HDTWizardApplication - the share's own catalog - so
-  # this file names no application, and neither does the markup.
+  # select: many IS WHY THIS PAGE COULD NOT SHIP BEFORE. Every other collect
+  # entry reads ONE property off ONE control; a column of tick boxes is neither,
+  # so the page would have had its answer silently dropped. The host reads the
+  # rows it handed over - Id and IsSelected - and joins the ticked ids the way
+  # InstallApplications splits them apart again.
+  #
+  # THE CONTROL NAME IS NOT A CHOICE. Get-HDTWizardApplication defaults its
+  # -Control to HDTApplicationList and the payload takes that default, so the
+  # host fills this name and no other.
   - id: Applications
     title: Applications
-    heading: Choose what to install
-    subheading: Everything published on the share. Nothing ticked is a normal answer.
+    heading: Choose applications
+    subheading: What gets installed after Windows, from the catalog on this share.
     reference: Applications.xaml
     skip: HDTSkipApplications
     collect:
@@ -79,25 +146,86 @@ pages:
         variable: HDTApplications
         select: many
 
-  - id: LocaleTime
-    title: Locale and time
-    heading: Specify locale and time preferences
-    subheading: What the deployed machine speaks, types and reads the clock in.
-    reference: LocaleTime.xaml
-    skip: HDTSkipLocaleSelection
+  # Whether this machine is encrypted, and with what. The EnableBitLocker step
+  # in client.yaml resolves the two choices and runs at all only when
+  # HDTEnableBitLocker is true, so an unticked box leaves a deployment doing
+  # exactly what it did before this page existed.
+  #
+  # SCOPE AND METHOD ARE NOT ASKED. Which AES, and whether to encrypt used
+  # space or the whole disk, are policy for a site rather than a decision at a
+  # bench; they stay authored in the task sequence.
+  - id: BitLocker
+    title: BitLocker
+    heading: Encrypt this computer
+    subheading: Whether the disk is encrypted, how it unlocks, and where the recovery key goes.
+    reference: BitLocker.xaml
+    skip: HDTSkipBitLocker
+
+    # OPTIONAL, ALL THREE, BECAUSE AN UNTICKED BOX IS AN ANSWER. The
+    # EnableBitLocker step runs at all only when HDTEnableBitLocker is true, so
+    # a machine skipped past this page with nothing set does exactly what every
+    # deployment did before this page existed - which is the behaviour a site
+    # that has never encrypted anything is entitled to. MDT has no BitLocker
+    # entry in LiteTouch.wsf's skip-cleanup block for the same reason: nothing
+    # to default when the feature is off.
     collect:
-      - control: HDTUILanguageBox
-        variable: HDTUILanguage
+      - control: HDTBitLockerEnableBox
+        variable: HDTEnableBitLocker
+        property: IsChecked
+        optional: true
+      - control: HDTBitLockerProtectorBox
+        variable: HDTBitLockerProtector
         property: SelectedValue
-      - control: HDTUserLocaleBox
-        variable: HDTUserLocale
+        optional: true
+      - control: HDTBitLockerEscrowBox
+        variable: HDTBitLockerEscrow
         property: SelectedValue
-      - control: HDTKeyboardLocaleBox
-        variable: HDTKeyboardLocale
-        property: SelectedValue
-      - control: HDTTimeZoneNameBox
-        variable: HDTTimeZone
-        property: SelectedValue
+        optional: true
+
+      # BLANK UNLESS THE PROTECTOR NEEDS THEM, and the step is what refuses:
+      # "protector: tpmPin needs a pin, and this step declares none." This page
+      # offered both choices and collected neither, so picking one produced a
+      # deployment that failed at the last step over a value nobody was asked
+      # for.
+      - control: HDTBitLockerPinBox
+        variable: HDTBitLockerPin
+        property: Password
+        optional: true
+        isSecret: true
+      - control: HDTBitLockerStartupKeyBox
+        variable: HDTBitLockerStartupKey
+        optional: true
+
+  # The local Administrator password for the machine being deployed - the one
+  # value the answer file cannot carry a default for, because HDT will not
+  # invent one (DESIGN 4.5.2).
+  #
+  # IT EARNS ITS PLACE THE HARD WAY. A Latitude running the shipped client
+  # template stopped at step 6 of 11 because nothing supplied
+  # %HDTAdminPassword%, and the error told the technician to use this page
+  # before it existed.
+  #
+  # LAST BEFORE THE SUMMARY. It is the one answer to give with the machine
+  # already decided, not the first thing a technician meets.
+  #
+  # TWO CONTROLS, ONE VARIABLE. The confirmation box is collected by nobody -
+  # it exists so the validate rule can compare the two, because a password box
+  # shows dots and a typo is otherwise invisible until the machine is built.
+  - id: AdminPassword
+    title: Administrator password
+    heading: Set the local Administrator password
+    subheading: The password for the Administrator account on the machine being deployed.
+    reference: AdminPassword.xaml
+    skip: HDTSkipAdminPassword
+    validate:
+      control: HDTAdminPasswordBox
+      confirm: HDTAdminPasswordConfirmBox
+      rule: AdminPassword
+    collect:
+      - control: HDTAdminPasswordBox
+        variable: HDTAdminPassword
+        property: Password
+        isSecret: true
 
   - id: Summary
     title: Summary
@@ -106,5 +234,4 @@ pages:
     reference: Summary.xaml
     skip: HDTSkipSummary
     summary:
-      rowControl: HDTSummaryList
       snippetControl: HDTSummarySnippet

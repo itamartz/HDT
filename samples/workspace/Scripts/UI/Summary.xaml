@@ -19,6 +19,28 @@
         Get-HDTWizardSummary STILL RETURNS THE ROWS - it is a query, and what a
         page chooses to show is the page's business. A later page that wants a
         table can bind HDTSummaryList without the engine changing.
+
+        THE TABLE CAME BACK ON 2026-08-28 AND WENT AWAY AGAIN THE SAME DAY, so
+        the third person to reach for it reads this instead of rebuilding it.
+        The report was that "Ready to deploy" was missing almost everything -
+        no task sequence, most variables absent - and a table looked like the
+        missing control. It was not. The cause was a SEED GATE IN THE WIZARD
+        HOST, which discarded any answer equal to the value the wizard had
+        itself preselected; the task sequence a technician picked therefore
+        never reached the value bag, and so never reached the snippet either. A
+        table would have been just as empty, for the same reason, one row at a
+        time. Fixed in the host, and the snippet keeps the whole page - which
+        is what was asked for when it was seen.
+
+        AND wizard.yaml NO LONGER DECLARES rowControl. It did, all through the
+        first removal: summary.rowControl said HDTSummaryList and no control on
+        this page answered to that name, so New-HDTWizardHost's FindName
+        returned $null and its guard - correct, because a share half a release
+        behind must still open - swallowed it. A declaration that does nothing
+        and says nothing is what made a host defect look like a deleted
+        feature. summary now names only the snippet control it fills, and a
+        contract test walks every *control key in the definition and fails any
+        that no markup declares.
     -->
 
     <Grid.RowDefinitions>
@@ -26,8 +48,23 @@
         <RowDefinition Height="*" />
     </Grid.RowDefinitions>
 
-    <TextBlock Grid.Row="0" Margin="0,0,0,10" TextWrapping="Wrap" FontSize="13" Foreground="#FF8A8A8A"
-               Text="Everything this deployment was told, as rules.yaml. Put it on the deployment share and the next machine like this one deploys with no wizard at all - set only part of it and only those pages disappear." />
+    <!--
+        THE SIZE AND THE COLOUR COME FROM THE THEME, NOT FROM HERE. This line
+        was authored as FontSize="13" Foreground="#FF8A8A8A" - the values
+        HDTHintSize and HDTHintBrush held at the time - so it stopped matching
+        the hint under every other control the first time either moved, and a
+        retheme would leave it behind again.
+
+        AND THE LAST CLAUSE SHRANK WITH THE THING IT DESCRIBES. It read "Long
+        lines wrap on screen", written when six header lines wrapped and it was
+        simply true. Get-HDTWizardSummary now writes to a 68-character budget,
+        so the only line that wraps is a value somebody typed - an OU, usually -
+        and a warning about "long lines" would now send a technician hunting for
+        a problem that is one line and is theirs.
+    -->
+    <TextBlock Grid.Row="0" Margin="0,0,0,10" TextWrapping="Wrap"
+               FontSize="{DynamicResource HDTHintSize}" Foreground="{DynamicResource HDTHintBrush}"
+               Text="Everything this deployment was told, as rules.yaml. Put it on the deployment share and the next machine like this one deploys with no wizard at all - set only part of it and only those pages disappear. A long value wraps on screen; what you copy is exact." />
 
     <!--
         A TextBox RATHER THAN A TextBlock so the text can be selected: a
@@ -48,6 +85,60 @@
         it to look in - a StaticResource here throws "Provide value on
         'System.Windows.StaticResourceExtension' threw an exception" before the
         page is ever attached. A DynamicResource is resolved once it is.
+
+        ============ IT WRAPS, AND NOT BECAUSE WRAPPING IS NICER ============
+
+        HDTSnippetBox sets TextWrapping="NoWrap", which is the honest choice for
+        an indentation-significant format and was the right one while this box
+        was a short panel under a table. It is wrong now, and the reason is
+        LAYOUT rather than taste.
+
+        THE BOX IS ALREADY AS WIDE AS IT CAN GET. Measured, not assumed: the
+        shell is 900px, the rail takes 230, the content margin 36, the
+        ScrollViewer's padding 12 and its own scrollbar the rest - so the text
+        inside this box has about 542px, or roughly 70 characters of Consolas
+        at HDTHintSize. Get-HDTWizardSummary emits lines of 78 to 84: an OU of
+        any realistic depth, and the header line naming the password it
+        deliberately does not write. Nothing here constrains the box - there is
+        no Width, no MaxWidth, no column to widen. Wrapping is not a workaround
+        for a layout fault; there is no width left to find.
+
+        AND THE ESCAPE HATCH DOES NOT EXIST. NoWrap is defensible when a reader
+        can scroll sideways, and here they cannot. Row 1 is "*" inside the
+        shell's ScrollViewer, so this box is measured at unbounded height and
+        grows to its whole content - which puts its own horizontal scrollbar at
+        the bottom of that grown box, far below the fold, while the shell's
+        ScrollViewer disables horizontal scrolling on purpose. So a clipped
+        value was not merely awkward to reach at a bench. It was unreachable,
+        and this page is the last thing read before a disk is wiped.
+
+        WHAT WRAPPING COSTS, SAID PLAINLY. A continuation line starts at column
+        0, so YAML that is correctly indented can look as though it is not. It
+        is a visual effect only - the text is unchanged, so a selection and a
+        paste carry the real indentation - and the hint above says so in one
+        line. Losing a value entirely is the worse of the two.
+
+        AND THE NET IS NOT WHERE THE FIX WENT. Turning wrapping on stopped a
+        value being unreachable; it did not make the page readable, because the
+        generator was emitting 78 to 84 characters into a box that fits about
+        70. Six header lines wrapped and one set: continuation landed at column
+        0, which in an indentation-significant format reads for a moment as the
+        wrong nesting level. Get-HDTWizardSummary was shortened to a
+        68-character budget instead - the sum is written out there, and a unit
+        test holds it - so what remains is one line, a technician's own OU,
+        which is exactly the case this attribute exists for. Wrapping stays on
+        because that line is real and there is no width left to find; it is now
+        the exception rather than the shape of the page.
+
+        TextWrapping IS SAFE AS AN ATTRIBUTE AND IsReadOnly IS NOT, which looks
+        arbitrary until you look at where each is declared: IsReadOnly,
+        AcceptsReturn and both ScrollBarVisibility members come from TextBoxBase,
+        and those are the members the parsed theme stops resolving as attributes
+        (see the paragraph above and HDTSnippetBox). TextWrapping is declared on
+        TextBox itself, exactly as TextBlock.TextWrapping is on TextBlock - and
+        that one is set as an attribute on this very page, and on every other
+        page, in real WinPE. So this line does not reach for the poisoned half.
     -->
-    <TextBox Grid.Row="1" x:Name="HDTSummarySnippet" Style="{DynamicResource HDTSnippetBox}" />
+    <TextBox Grid.Row="1" x:Name="HDTSummarySnippet" Style="{DynamicResource HDTSnippetBox}"
+             TextWrapping="Wrap" />
 </Grid>

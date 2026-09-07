@@ -381,10 +381,36 @@ bootImage:
 #
 # HDTTaskSequenceID: nothing types a sequence id at this machine, so it has to
 # be readable from the content. This is where it lives.
+#
+# HDTSkipWizard, AND THIS FILE IS THE ONLY PLACE IT CAN COME FROM. Naming the
+# sequence is not the same as not being asked for it: with the id resolved the
+# wizard still opens, shows DEMO-M4 already selected, and waits for somebody to
+# press Next. Nothing types here - that is this test's whole discriminator - so
+# the machine sat on the Task Sequence page until Wait-HDTLabVmState timed out
+# 45 minutes later.
+#
+# The only HDTSkipWizard in reach is in samples/workspace/rules.yaml, under
+# `when: { HDTDefaultGateway: "10.20.30.1" }`, and this VM is on the isolated
+# 'HDT Lab' switch where SPIKES S6 records there is no lease and therefore no
+# gateway at all. A rule keyed on a gateway can never match a machine that has
+# none, so the answer belongs in the per-machine override with the other two.
+#
+# HDTSkipFinalSummary and HDTFinishAction, which THIS FILE'S OWN HEADER already
+# said were here and which were not. Without them the full-OS leg ends on the
+# Finished screen and stands there: the machine is up, its heartbeat is Ok, and
+# Wait-HDTLabVmState -State Off waits 45 minutes for a shutdown that needs a
+# click. Observed on 2026-09-07, sixteen minutes into a run that had otherwise
+# done everything right.
+#
+# SHUTDOWN rather than REBOOT, because powering itself off IS this test's
+# discriminator - the whole plan turns on "the VM ended by going Off".
 schemaVersion: 1
 variables:
   HDTComputerName: HDT-M4-01
   HDTTaskSequenceID: DEMO-M4
+  HDTSkipWizard: true
+  HDTSkipFinalSummary: true
+  HDTFinishAction: SHUTDOWN
 "@, $utf8NoBom)
 
         # -- the content disk: THE WORKSPACE AND NOTHING ELSE ---------------
