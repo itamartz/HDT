@@ -1,0 +1,342 @@
+﻿# DEPLOY A CLIENT AND JOIN IT TO THE LAB DOMAIN - THE ONLY HARDWARE EVIDENCE
+# JoinDomain WILL EVER HAVE.
+#
+# WHAT THIS SEQUENCE IS FOR. JoinDomain is the last v1 step type verified
+# against a fake and nothing else. Its own help says so - "IT HAS NEVER JOINED A
+# REAL DOMAIN" - and DESIGN 4.2, ROADMAP and PROJECT.md all record the reason:
+# there has been no domain controller on this host since 2026-08-29 and
+# _ldap._tcp is NXDOMAIN on this segment. AD-DC-2025 builds the controller;
+# this sequence is the machine that joins it. Run that one first.
+#
+# EVERYTHING ABOVE State Restore IS REF-DEPLOY's DEPLOY LEG, UNCHANGED, on
+# purpose. A failure before the join is a failure of deployment, which four
+# other payload sequences already cover, and this one exists to ask a question
+# none of them ask. The last three steps are the whole sequence.
+#
+# ----------------------------------------------------------------------------
+# THE ORDER IS THE POINT: DNS, THEN JOIN, THEN RESTART, THEN VERIFY.
+# ----------------------------------------------------------------------------
+#
+# DNS FIRST, AND THIS IS THE FAILURE THIS SEQUENCE EXISTS TO NOT HAVE. This
+# machine holds a DHCP lease from the home router on 192.168.1.0/24, and the
+# router hands out ITSELF as the DNS server. The router has never heard of
+# hdtlab.test. A join attempted in that state fails with "an Active Directory
+# Domain Controller for the domain could not be contacted" - a message that
+# points at the domain name, the credential, the network and the controller with
+# equal weight and at DNS not at all. Hours have been lost to it in every lab
+# that has ever been built. So the resolver is pointed at the controller in its
+# own step, before the join, with its own log line.
+#
+# THEN THE JOIN, which is the step under test.
+#
+# THEN A RESTART, because a machine is not usefully a domain member until it has
+# rebooted: the secure channel is established, the domain's policy applies for
+# the first time, and a domain account can log on. MDT restarts after its join
+# for the same reason.
+#
+# THEN THE VERIFICATION, in the leg AFTER that restart, which is the only leg
+# that can honestly answer whether the join worked. A check in the same leg
+# would be asking a machine that had not yet been one.
+#
+# AUTOLOGON SURVIVES THE JOIN, AND THAT IS BY DESIGN RATHER THAN BY LUCK.
+# DESIGN 4.5.3: DefaultDomainName stays local and the remaining legs go on
+# logging on as the LOCAL Administrator. The domain credentials are used for the
+# join operation and for nothing else - they are never written to Winlogon and
+# never stored as the autologon secret, because an account with rights to join
+# machines to a directory, whose password sits in the LSA of every machine on a
+# bench, is a privilege escalation across the estate.
+#
+# ----------------------------------------------------------------------------
+# THE DEPENDENCY, STATED PLAINLY: THIS SEQUENCE CANNOT RUN UNTIL THE SECRET BAG
+# EXISTS.
+# ----------------------------------------------------------------------------
+#
+# DESIGN 4.5.2, and Invoke-HDTJoinDomainStep says it at length in its own help.
+# A leg that resumes after a reboot rehydrates its variable bag from state.json,
+# where Save-HDTRunState wrote "(set, not shown)" in place of every secret,
+# because that file is copied to the deployment share and moved to
+# C:\Windows\Logs\HDT on the deployed machine. HDTAdminPassword is recovered from
+# the autologon LSA secret because it happens to hold the same value; nothing
+# else has a recovery.
+#
+# The join runs in the full OS, which IS such a leg, so HDTDomainAdminPassword
+# arrives redacted. THE STEP REFUSES RATHER THAN TRYING IT, and that refusal is
+# correct and is not a bug to work around: attempting a redacted value is one
+# wrong-password attempt per machine against the one account that can join
+# anything to the directory, so a lab of forty overnight trips a lockout policy
+# forty times on it.
+#
+# The durable answer is the LSA-carried secret bag DESIGN 4.5.2 names and
+# ROADMAP tracks. It is being built. THIS SEQUENCE IS WRITTEN AS THOUGH IT
+# WORKS, because it is the shape a working one has, and the join step will
+# refuse with a message naming exactly this until it lands.
+#
+# ----------------------------------------------------------------------------
+# WHAT MUST BE IN rules.yaml BEFORE THIS RUNS, and none of it belongs in this
+# document - a sequence.yaml is printed into the console, quoted back in
+# refusals and stored on a share every machine being deployed can read:
+#
+#   HDTDomainDnsServer      the controller's address, which AD-DC-2025's last
+#                           step prints at the bottom of its log. It is a DHCP
+#                           lease, so it is read off that run and not
+#                           remembered from a previous one.
+#   HDTJoinDomain           hdtlab.test. The share's fallback rule currently
+#                           carries a placeholder from an older lab.
+#   HDTDomainAdmin          Administrator
+#   HDTDomainAdminDomain    HDTLAB
+#   HDTDomainAdminPassword  secret by name, redacted everywhere it is written
+#                           down, and the subject of the dependency above.
+#
+# HDTJoinWorkgroup IS ALSO SET ON EVERY SHARE - New-HDTWorkspace seeds
+# WORKGROUP into the fallback rule - and that is FINE and does not need
+# removing. Invoke-HDTJoinDomainStep prefers the domain when both are set,
+# deliberately and unlike MDT, and its log says so when both were.
+schemaVersion: 1
+id: AD-JOIN
+name: Deploy a client and join it to the lab domain
+version: 1.0.0
+folder: Clients
+description: >
+  Deploys Windows 11 to a bare machine, boots it into Windows, points its
+  resolver at the domain controller AD-DC-2025 built, joins it to
+  %HDTJoinDomain% with the JoinDomain step, restarts, and then proves the
+  membership from the leg after that restart - the secure channel, the domain
+  the machine reports, a Kerberos ticket issued to its own computer account,
+  and a directory object whose SID is this machine's rather than merely its
+  name.
+
+variables:
+  HDTOSImage: Win11-LTSC-2024
+  HDTOSImageIndex: 1
+
+steps:
+
+  # ------------------------------------------------------------ Initialization
+  - group: Initialization
+    runIn: WinPE
+    steps:
+      - name: Gather local only
+        type: Gather
+
+  # ---------------------------------------------------------------- Validation
+  #
+  # minRamMB is 2048 rather than 4096 because a 4 GB machine reports slightly
+  # under 4096 - the firmware keeps some of it.
+  - group: Validation
+    runIn: WinPE
+    steps:
+      - name: Validate
+        type: Validate
+        minRamMB: 2048
+        minDiskGB: 40
+
+  # ---------------------------------------------------------------- Preinstall
+  #
+  # THE PAIR, AND ONLY ONE OF THEM RUNS. A GPT disk on a BIOS machine fails
+  # after the image has been applied, which is late, expensive, and looks like a
+  # working deployment until the restart.
+  - group: Preinstall
+    runIn: WinPE
+    steps:
+      - name: Format and Partition Disk (UEFI)
+        type: DiskPartition
+        diskNumber: 0
+        wipe: true
+        condition: '$HDTIsUEFI -eq $true'
+        partition:
+          - name: System
+            type: EFI
+            size: 260MB
+            filesystem: FAT32
+          - name: Windows
+            type: Primary
+            size: remainder
+            filesystem: NTFS
+          - name: Recovery
+            type: Recovery
+            size: 1GB
+            filesystem: NTFS
+
+      - name: Format and Partition Disk (BIOS)
+        type: DiskPartition
+        diskNumber: 0
+        wipe: true
+        condition: '$HDTIsUEFI -eq $false'
+        partition:
+          - name: System
+            type: Primary
+            size: 500MB
+            filesystem: NTFS
+          - name: Windows
+            type: Primary
+            size: remainder
+            filesystem: NTFS
+
+  # ------------------------------------------------------------------- Install
+  - group: Install
+    runIn: WinPE
+    steps:
+      - name: Install Operating System
+        type: ApplyImage
+        os: "%HDTOSImage%"
+        index: "%HDTOSImageIndex%"
+        target: "%HDTOSVolume%"
+        timeoutMinutes: 60
+
+  # --------------------------------------------------------------- Postinstall
+  - group: Postinstall
+    runIn: WinPE
+    steps:
+      # BEFORE Apply Windows Settings: unattend.xml's DriverPaths are processed
+      # in the offlineServicing pass the moment ApplyUnattend applies the file,
+      # so the drivers have to be on the volume first (HDT 0.10.1).
+      - name: Inject Drivers
+        type: ApplyDrivers
+        group: 'Win11\%HDTMake%\%HDTModel%'
+        mode: all
+
+      - name: Apply Windows Settings
+        type: ApplyUnattend
+        template: unattend.xml
+
+      - name: Configure Boot
+        type: ConfigureBoot
+
+      # THE HANDOVER. Everything above ran in WinPE; everything below runs in
+      # the Windows that is about to start for the first time.
+      - name: Restart into Windows
+        type: Restart
+
+  # ------------------------------------------------------------- State Restore
+  - group: State Restore
+    runIn: FullOS
+    steps:
+      # Tattoo FIRST, so the machine is identifiable even if the join then
+      # fails. An unjoined machine that says what built it is a machine
+      # somebody can fix; an unjoined one with no tattoo is a mystery - and this
+      # is a sequence whose whole purpose is to find out whether a step works,
+      # so the failing run matters as much as the passing one.
+      - name: Tattoo
+        type: Tattoo
+
+      # THE STEP WITHOUT WHICH THE NEXT ONE CANNOT WORK. See the header: this
+      # machine's resolver is the home router, which knows nothing about the AD
+      # zone, and a join in that state fails with a message that names
+      # everything except DNS.
+      - name: Point this machine's resolver at the domain controller
+        type: PowerShell
+        script: TaskSequences\AD-JOIN\Set-ClientDnsToDomainController.ps1
+        timeoutMinutes: 15
+
+      # THE STEP UNDER TEST, AND THE ONLY REASON THIS SEQUENCE EXISTS.
+      #
+      # EVERY VALUE IS A VARIABLE, NOT A LITERAL. These are the names the
+      # shipped wizard's Computer Details page has collected since the wizard
+      # shipped and that Invoke-HDTJoinDomainStep reads; putting the domain in
+      # the document would make this sequence a fact about one lab.
+      #
+      # THERE IS NO PASSWORD PROPERTY AND THERE MUST NOT BE. The step has none,
+      # deliberately - sequence.yaml is readable by every machine being
+      # deployed. HDTDomainAdminPassword comes from the variable bag, where
+      # Test-HDTSecretVariable classifies it secret on its name alone.
+      #
+      # NO ou:, ON PURPOSE. This forest is one afternoon old and has no OU
+      # structure; the computer object lands in CN=Computers, which is where a
+      # default join puts it. Naming an OU that does not exist is a refusal, and
+      # MDT's own OU-recovery retry - Invoke-HDTJoinDomainStep derives it from
+      # ZTIDomainJoin.wsf - would then paper over the mistake by joining without
+      # one anyway.
+      #
+      # retry, AND IT IS NOW CHEAP INSURANCE RATHER THAN THE MECHANISM.
+      #
+      # THE STEP BEFORE THIS ONE NOW POLLS UNTIL DNS ACTUALLY WORKS - both at
+      # the controller and through this machine's own resolver - so by the time
+      # the join runs the thing these retries used to wait for has already been
+      # proven. What is left is the genuinely racy remainder (Netlogon, the
+      # secure channel), which settles in seconds and not in half-minutes, so
+      # the delay is 5 seconds rather than 30. Three attempts now cost fifteen
+      # seconds on a real failure instead of ninety, and the patience that
+      # matters lives in the polling loop above where it can end early.
+      #
+      # THE RETRY IS NOT REMOVED. Counting attempts is the ENGINE's job (MDT
+      # counts its own in a task sequence variable), and a step that has been
+      # made reliable is not a step that cannot flake.
+      #
+      # THE ORIGINAL REASON, KEPT BECAUSE IT IS STILL TRUE:
+      # THE FIRST ATTEMPT AFTER A BOOT IS THE ONE THAT LOSES.
+      # The network stack, DHCP and the resolver change above all settle at
+      # slightly different times, and a join that fires two seconds too early
+      # gets a DNS answer from a stale cache. Three attempts FIVE SECONDS apart
+      # - the delay this step actually carries, since the polling loop above
+      # took over the waiting - cost fifteen seconds on a failure and save a
+      # whole deployment run on a flake. Counting attempts is the ENGINE's job,
+      # not the step's -
+      # MDT counts its own in a task sequence variable and reboots between
+      # them, and HDT has retry: on every step so a step does not grow a second
+      # retry mechanism inside itself.
+      - name: Join Domain
+        type: JoinDomain
+        domain: "%HDTJoinDomain%"
+        userName: "%HDTDomainAdmin%"
+        userDomain: "%HDTDomainAdminDomain%"
+        timeoutMinutes: 15
+        retry:
+          count: 3
+          delaySeconds: 5
+          backoff: fixed
+
+      # A MACHINE IS NOT USEFULLY A MEMBER UNTIL IT HAS REBOOTED. The secure
+      # channel comes up, domain policy applies for the first time, and a domain
+      # account can log on. Autologon carries on as the LOCAL Administrator
+      # across it - DESIGN 4.5.3, and the header says why that separation
+      # matters.
+      - name: Restart into the domain
+        type: Restart
+        message: restarting to complete the domain join
+
+  # ------------------------------------------------------- Join Verification --
+  #
+  # THE ONLY LEG THAT CAN HONESTLY ANSWER THE QUESTION. A check in the leg that
+  # ran the join would be asking a machine that had not yet finished becoming a
+  # member.
+  - group: Join Verification
+    runIn: FullOS
+    steps:
+      # NO retry, AND THE REASON THIS STEP ONCE HAD ONE WAS WRONG.
+      #
+      # WHAT THIS COMMENT USED TO SAY, and it is worth recording because it was
+      # believed for a day: that on 2026-09-07 the step ran 44 seconds after the
+      # boot and failed on an LDAP bind while reporting PartOfDomain True and a
+      # working secure channel, so "the locator was not ready yet" and a couple
+      # of attempts would ride it out.
+      #
+      # THE NEXT RUN DISPROVED IT. The bind failed FOUR TIMES, thirty seconds
+      # apart, identically - and by hand, in the same session on the same
+      # machine at the same moment, a bind WITH a domain credential succeeded
+      # while the serverless one failed. It was never a race. The script was
+      # binding serverless and calling that "as the machine account", and under
+      # DESIGN 4.5.3 this leg is logged on as the LOCAL Administrator, so it was
+      # binding as a local account that can never reach a directory. It could
+      # not have passed on attempt three hundred. Test-DomainMembership.ps1's
+      # section 4 header carries the evidence in full.
+      #
+      # AND A RETRY DOES NOT BELONG ON AN ASSERTION ANYWAY. On an ACTION it
+      # means "do it until it takes", which is why Join Domain above keeps one.
+      # On an assertion it converts "the membership held" into "the membership
+      # held at least once in three", and it hides the elapsed time: a run that
+      # only passed on the third attempt reads in the log exactly like one that
+      # passed immediately, which is the opposite of what a verification step is
+      # for. Both runs since the fix passed on attempt one, so nothing here is
+      # being paid for by removing it.
+      #
+      # THE PATIENCE THAT WAS REAL MOVED INTO THE SCRIPT. The secure channel
+      # genuinely is still settling seconds after a boot, so the script polls it
+      # against a two-minute deadline and logs every attempt with its elapsed
+      # time - AD-DC-2025's Test-DomainControllerReady.ps1, which never had a
+      # retry: on its verification either, does the same thing for the same
+      # reason. That way the log says the channel came up at 6 seconds instead
+      # of saying attempt two passed.
+      - name: Verify the domain membership
+        type: PowerShell
+        script: TaskSequences\AD-JOIN\Test-DomainMembership.ps1
+        timeoutMinutes: 20

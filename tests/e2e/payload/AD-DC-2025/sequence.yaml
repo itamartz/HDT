@@ -1,0 +1,354 @@
+# BARE METAL TO A WINDOWS SERVER 2025 DOMAIN CONTROLLER - THE MACHINE THAT WILL
+# GIVE JoinDomain ITS FIRST HARDWARE EVIDENCE.
+#
+# WHAT THIS SEQUENCE CLOSES. JoinDomain is the LAST v1 step type verified against
+# a fake and nothing else. ROADMAP says so in as many words; DESIGN 4.2 says it
+# in the step's own help ("IT HAS NEVER JOINED A REAL DOMAIN"); PROJECT.md
+# records why - the lab's controller was retired on 2026-08-29 and _ldap._tcp is
+# NXDOMAIN on this segment. Every assertion about that step today is made against
+# New-HDTFakeDomainService. This sequence builds the thing that answers it, and
+# AD-JOIN is the sequence that then joins a machine to it.
+#
+# THE DEPLOY LEG IS WDS-2025's, WHICH IS WSUS-2025's, WHICH IS REF-DEPLOY's,
+# UNCHANGED - a server is deployed the same way a client is. Everything above
+# "Restart into Windows" is an ordinary deployment on purpose: a failure before
+# the AD DS groups is a failure of deployment, which four other payload
+# sequences already cover, and this one exists to ask a question none of them
+# ask.
+#
+# ----------------------------------------------------------------------------
+# THE SWITCH: 'HDT External', WITH A DHCP LEASE FROM THE REAL LAN.
+# ----------------------------------------------------------------------------
+#
+# The VM this runs on goes on 'HDT External' and takes a lease from the home
+# router on 192.168.1.0/24, exactly as HDT-WDS-01 did. NOT 'HDT Lab'.
+#
+# PROJECT.md's earlier note says a lab controller would go on the isolated
+# switch, and that note predates the reason it cannot: SPIKES S6 records that
+# 'HDT Lab' is an INTERNAL switch with no DHCP and no route to the host, so a VM
+# on it gets no lease AND CANNOT REACH THE DEPLOYMENT SHARE AT ALL. An HDT
+# deployment is SMB to the share from the moment WinPE starts. A controller
+# built there could not be built, and the client that is supposed to join it
+# could not be deployed there either.
+#
+# THE OPERATOR MADE THIS CALL EXPLICITLY, on 2026-09-07, the same way the WDS
+# switch decision was made and written into WDS-2025's header. Read it as a
+# decision, not an oversight, and do not "fix" it by moving the sequence.
+#
+# WHY THE EXPOSURE IS SMALLER THAN WDS's, AND IT IS WORTH SAYING WHICH:
+#
+#   * THIS SERVER SERVES NO DHCP. The DHCP role is not installed, is not in the
+#     InstallRoles step, and tests/unit/LabDomainSequence.Tests.ps1 refuses it
+#     over every lab sequence. The home router goes on handing out every address
+#     on the segment and is never reconfigured. A domain controller is not a
+#     DHCP server and the two get built together only out of habit.
+#   * IT ANSWERS DNS AND LDAP ON ITS OWN ADDRESS ONLY. Nothing on the LAN is
+#     pointed at it: a machine reaches this directory only if somebody sets its
+#     resolver to this server's address, which is exactly what AD-JOIN's first
+#     full-OS step does and nothing else on the segment does.
+#   * NOTHING ELSE ON THE SEGMENT IS TOUCHED. No DHCP option, no router change,
+#     no address assignment. Powering this VM off restores the previous state
+#     completely.
+#
+# ----------------------------------------------------------------------------
+# NO STATIC ADDRESS. THE RESOLVER IS SET; THE ADDRESS IS NOT.
+# ----------------------------------------------------------------------------
+#
+# CLAUDE.md: "Never assign, create or use another subnet without asking", and
+# the host's own address on this segment "is local wiring, not a fact about
+# HDT" - a lease, to be read and never written down. So this sequence assigns
+# NOTHING. The server keeps the lease the router gave it.
+#
+# Promotion does want a static address and will warn about not having one. That
+# warning is accepted here and the reason is in Install-LabForest.ps1: a lab
+# controller that lives for one afternoon does not need a reservation, and
+# taking an address out of the router's pool by hand is the kind of change this
+# repository is not allowed to make to somebody else's network.
+#
+# WHAT IS SET IS THE DNS CLIENT, WHICH IS NOT ADDRESSING. Promotion points the
+# adapter at 127.0.0.1 itself, and a DHCP lease renewal would overwrite that
+# with the router - after which the controller cannot resolve its own zone and
+# every AD operation on it fails in a way that reads like a broken directory.
+# Set-DcDnsConfiguration.ps1 makes the resolver a STATIC setting on the adapter,
+# which survives renewal, and leaves the address alone. See that file's header.
+#
+# ----------------------------------------------------------------------------
+# THE DOMAIN NAME: hdtlab.test
+# ----------------------------------------------------------------------------
+#
+# '.test' is reserved by RFC 2606 for exactly this purpose and can never be
+# delegated to anybody, so this zone cannot collide with a real name however
+# long the VM stays up or whoever else is on the segment.
+#
+# NOT '.local'. That is mDNS (RFC 6762) - Bonjour, every Apple device and every
+# printer on the LAN answer in it - and an AD zone there fights all of them.
+# Microsoft has advised against it since Windows 2000 and it remains the single
+# most common mistake in a first lab domain.
+#
+# NOT A SUBDOMAIN OF A REAL DOMAIN EITHER, which is the other common answer
+# ("ad.example.com"): it needs the parent to be real, and this lab has no parent.
+#
+# ----------------------------------------------------------------------------
+# THE DSRM PASSWORD, AND THE ONE THING THAT BLOCKS THIS SEQUENCE TODAY
+# ----------------------------------------------------------------------------
+#
+# Install-ADDSForest requires -SafeModeAdministratorPassword. It is a secret, so
+# it is NOT in this document: sequence.yaml is printed into the console, quoted
+# back in refusals and stored on a share every machine being deployed can read
+# (Invoke-HDTJoinDomainStep's help says all of this, at length, and is why THAT
+# step has no password property either). It comes from HDTDsrmPassword in the
+# variable bag, which Test-HDTSecretVariable classifies secret on its name alone.
+#
+# AND THAT IS THE DEPENDENCY. DESIGN 4.5.2: a leg that resumes after a reboot
+# rehydrates its variable bag from state.json, where Save-HDTRunState wrote
+# "(set, not shown)" in place of every secret. HDTAdminPassword is recovered from
+# the autologon LSA secret because it happens to be the same value by
+# construction; NOTHING ELSE HAS A RECOVERY. The promotion runs in the full OS,
+# which is by definition the leg after a restart, so HDTDsrmPassword arrives
+# redacted - exactly as HDTDomainAdminPassword does for JoinDomain, and for
+# exactly the same reason.
+#
+# THE ANSWER IS THE SAME ANSWER: the LSA-carried secret bag written alongside
+# each checkpoint (DESIGN 4.5.2, ROADMAP's "A secret bag that survives a
+# reboot"). It is being built. Until it lands, Install-LabForest.ps1 REFUSES
+# rather than promoting with a literal "(set, not shown)" as the DSRM password -
+# which would succeed, silently, and leave a controller whose directory services
+# restore mode password is a sentence from a log file.
+#
+# ----------------------------------------------------------------------------
+# INDEX 2, NOT 1. WS2025-Std index 1 is Server Core; index 2 is Desktop
+# Experience. Same choice as WDS-2025 and for the same reason: the AD tools and
+# the habit of looking at a server want the GUI, and the ADDSDeployment
+# PowerShell module comes with the management tools either way.
+#
+# THE SCRIPTS DEFINE NO FUNCTIONS, for WDS-2025's and WSUS-2025's reason: the
+# engine invokes a step script in its own session, so a function declared in one
+# would shadow whatever else answered to that name for the rest of the
+# deployment. Every script is straight-line and prefixes its variables dc*.
+schemaVersion: 1
+id: AD-DC-2025
+name: Windows Server 2025 - Active Directory Domain Services (new forest)
+version: 1.0.0
+folder: Servers
+description: >
+  Deploys Windows Server 2025 (Desktop Experience), installs the AD DS role with
+  its management tools, promotes the server to the first domain controller of a
+  new forest, restarts, pins the server's own resolver to itself so a DHCP
+  renewal cannot take the AD zone away from it, and then proves the directory is
+  actually serving - Get-ADDomain, Get-ADForest and the _ldap._tcp SRV records a
+  client is about to look up.
+
+variables:
+  HDTOSImage: WS2025-Std
+
+  # 2 = Windows Server 2025 Standard (Desktop Experience). See the header.
+  HDTOSImageIndex: 2
+
+  # THE FOREST. See the header for why .test and not .local.
+  HDTDomainDnsName: hdtlab.test
+
+  # THE NetBIOS NAME, WRITTEN DOWN RATHER THAN DERIVED. Install-ADDSForest would
+  # derive HDTLAB from hdtlab.test on its own, and then ASK about it on a
+  # console nobody is watching if it disliked the answer. Naming it here makes
+  # the promotion non-interactive and makes the pre-Windows-2000 name a thing
+  # somebody chose rather than a thing that happened.
+  HDTDomainNetbiosName: HDTLAB
+
+  # 'Default' IS THE HIGHEST LEVEL THIS BINARY SUPPORTS, which on Server 2025 is
+  # the 2025 forest functional level. There is nothing older in this forest to
+  # hold back - it is being created empty, on one server, today - and choosing a
+  # down-level mode would only forbid features for the sake of compatibility
+  # with a machine that will never exist.
+  HDTDomainForestMode: Default
+
+steps:
+
+  # ------------------------------------------------------------ Initialization
+  - group: Initialization
+    runIn: WinPE
+    steps:
+      - name: Gather local only
+        type: Gather
+
+  # ---------------------------------------------------------------- Validation
+  #
+  # THE FLOORS ARE THE SERVER'S, NOT AD's. AD DS itself is small - the database,
+  # the logs and SYSVOL on a one-object directory are megabytes. What needs the
+  # room is Server 2025 plus its servicing. minRamMB is 2048 rather than 4096
+  # because a 4 GB machine reports slightly under 4096; the firmware keeps some.
+  - group: Validation
+    runIn: WinPE
+    steps:
+      - name: Validate
+        type: Validate
+        minRamMB: 2048
+        minDiskGB: 50
+
+  # ---------------------------------------------------------------- Preinstall
+  #
+  # THE PAIR, AND ONLY ONE OF THEM RUNS. A GPT disk on a BIOS machine fails after
+  # the image has been applied, which is late, expensive, and looks like a
+  # working deployment until the restart.
+  - group: Preinstall
+    runIn: WinPE
+    steps:
+      - name: Format and Partition Disk (UEFI)
+        type: DiskPartition
+        diskNumber: 0
+        wipe: true
+        condition: '$HDTIsUEFI -eq $true'
+        partition:
+          - name: System
+            type: EFI
+            size: 260MB
+            filesystem: FAT32
+          - name: Windows
+            type: Primary
+            size: remainder
+            filesystem: NTFS
+          - name: Recovery
+            type: Recovery
+            size: 1GB
+            filesystem: NTFS
+
+      - name: Format and Partition Disk (BIOS)
+        type: DiskPartition
+        diskNumber: 0
+        wipe: true
+        condition: '$HDTIsUEFI -eq $false'
+        partition:
+          - name: System
+            type: Primary
+            size: 500MB
+            filesystem: NTFS
+          - name: Windows
+            type: Primary
+            size: remainder
+            filesystem: NTFS
+
+  # ------------------------------------------------------------------- Install
+  - group: Install
+    runIn: WinPE
+    steps:
+      - name: Install Operating System
+        type: ApplyImage
+        os: "%HDTOSImage%"
+        index: "%HDTOSImageIndex%"
+        target: "%HDTOSVolume%"
+        timeoutMinutes: 60
+
+  # --------------------------------------------------------------- Postinstall
+  - group: Postinstall
+    runIn: WinPE
+    steps:
+      - name: Apply Windows Settings
+        type: ApplyUnattend
+        template: unattend.xml
+
+      - name: Configure Boot
+        type: ConfigureBoot
+
+      # THE HANDOVER. Everything above ran in WinPE; everything below runs in
+      # the Windows that is about to start for the first time.
+      - name: Restart into Windows
+        type: Restart
+
+  # ------------------------------------------------------------- State Restore
+  #
+  # TATTOO FIRST, BEFORE THE ROLE AND LONG BEFORE THE PROMOTION. That is MDT's
+  # own order and it is the order that survives failure: a promotion that dies
+  # half way leaves a server that still says what built it, whereas a stamp at
+  # the end leaves it anonymous precisely when somebody needs to know what
+  # happened to it.
+  - group: State Restore
+    runIn: FullOS
+    steps:
+      - name: Tattoo
+        type: Tattoo
+
+  # ------------------------------------------------------------------- AD DS --
+  - group: AD DS - Role
+    runIn: FullOS
+    steps:
+      # THE ROLE, AND THE MANAGEMENT TOOLS ARE NOT OPTIONAL HERE.
+      # AD-Domain-Services pulls in the directory itself; includeManagementTools
+      # is what puts the ADDSDeployment module on the box, and
+      # Install-ADDSForest lives in that module and nowhere else. Without it the
+      # promotion step fails with "the term Install-ADDSForest is not
+      # recognized" on a server that just installed Active Directory, which is a
+      # confusing way to learn about a flag. Leave this true.
+      #
+      # DNS IS NOT LISTED, ON PURPOSE. Install-ADDSForest installs and
+      # configures the DNS Server role itself as part of promotion (-InstallDns,
+      # which defaults true for a new forest) and creates the AD-integrated
+      # zone in the same transaction. Installing DNS-Server here first would
+      # leave a standalone DNS server for the promotion to adopt, which works
+      # and which nobody asked for.
+      #
+      # AND DHCP IS NOT LISTED, AND MUST NOT BE. See the header: this segment's
+      # DHCP is the home router's.
+      - name: Install the AD DS role
+        type: InstallRoles
+        features: [AD-Domain-Services]
+        includeManagementTools: true
+        timeoutMinutes: 45
+
+      # THE ROLE ASKS FOR A RESTART AND THE PROMOTION MUST NOT RUN BEFORE IT.
+      # InstallRoles returns RebootRequested and the engine would handle it, but
+      # an explicit step is what checkpoints state.json at a known place, so a
+      # resume lands here rather than re-entering the install. WDS-2025 does the
+      # same for the same reason.
+      - name: Restart after the role install
+        type: Restart
+        message: restarting to complete the AD DS role installation
+
+  - group: AD DS - Promotion
+    runIn: FullOS
+    steps:
+      # THE PROMOTION. -NoRebootOnCompletion is what makes this an HDT step
+      # rather than a machine that vanishes mid-sequence; the restart below is
+      # the engine's, checkpointed, and it is what brings the sequence back.
+      # See Install-LabForest.ps1.
+      #
+      # 60 MINUTES because promotion copies the schema, builds the database,
+      # populates SYSVOL and installs DNS, and on a 4 GB VM with one core doing
+      # other work that is not a five-minute job. A timeout here is a real
+      # finding; a timeout at 15 would only be an impatient one.
+      - name: Promote to the first domain controller of a new forest
+        type: PowerShell
+        script: TaskSequences\AD-DC-2025\Install-LabForest.ps1
+        timeoutMinutes: 60
+
+      # THE RESTART THAT ACTUALLY MAKES IT A DOMAIN CONTROLLER. Until this boot
+      # completes the server has the bits and not the role: NTDS, Netlogon, the
+      # SYSVOL and NETLOGON shares and every SRV record arrive on the way back
+      # up. Anything that asked a directory question before here would be
+      # asking a member server.
+      - name: Restart to complete the promotion
+        type: Restart
+        message: restarting to complete the promotion to a domain controller
+
+  - group: AD DS - Verification
+    runIn: FullOS
+    steps:
+      # THE RESOLVER, PINNED, BEFORE ANYTHING IS ASKED. Promotion sets the
+      # adapter's DNS to this server, but on a DHCP lease that setting is the
+      # LEASE's and a renewal replaces it with the router - which knows nothing
+      # about hdtlab.test. See Set-DcDnsConfiguration.ps1: it makes the resolver
+      # static and leaves the ADDRESS on DHCP, which is the distinction
+      # CLAUDE.md's networking rule turns on.
+      - name: Pin this server's resolver to itself
+        type: PowerShell
+        script: TaskSequences\AD-DC-2025\Set-DcDnsConfiguration.ps1
+        timeoutMinutes: 15
+
+      # THE STEP THAT REFUSES TO CALL THIS FINISHED BECAUSE THE PREVIOUS ONES
+      # RETURNED ZERO. Every way a first domain controller fails is silent on
+      # the controller and shows up minutes later on a client as "the domain
+      # could not be contacted". This asks the questions AD-JOIN is about to
+      # ask, while somebody is still reading the log - and it prints the
+      # server's address, which is the number the client sequence needs.
+      - name: Verify the forest is up and answering
+        type: PowerShell
+        script: TaskSequences\AD-DC-2025\Test-DomainControllerReady.ps1
+        timeoutMinutes: 30
