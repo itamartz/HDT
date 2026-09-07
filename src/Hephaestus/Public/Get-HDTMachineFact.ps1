@@ -23,11 +23,12 @@
 
               Win32_ComputerSystem, Win32_ComputerSystemProduct, Win32_BaseBoard,
               Win32_BIOS, Win32_SystemEnclosure,
-              Win32_NetworkAdapterConfiguration, Win32_Tpm
+              Win32_NetworkAdapterConfiguration, Win32_Tpm,
+              Win32_OperatingSystem
 
             The first four are required: a deployment that cannot read
             Win32_ComputerSystem has no facts to rule on and must fail loudly.
-            The last three are optional and degrade to "no instances" - WinPE
+            The last four are optional and degrade to "no instances" - WinPE
             without the TPM optional component, a VM with no enclosure data and a
             machine with no IP enabled adapter are all normal in the field.
 
@@ -53,6 +54,31 @@
             An IEnvironmentProvider, used for firmware_type and the processor
             architecture variables.
 
+        .PARAMETER Phase
+            WinPE or FullOS - the leg the engine started on, and the only thing
+            HDTDeploymentType is derived from: WinPE gives NEWCOMPUTER, FullOS
+            gives REFRESH. It is declared rather than probed, because this
+            command touches nothing itself; the caller already holds the answer
+            as _HDTPhase. Mandatory, so a full-OS caller cannot forget it and
+            publish NEWCOMPUTER on a Refresh.
+
+        .PARAMETER DeploymentType
+            What the run already knows it is, when something already knows -
+            NEWCOMPUTER or REFRESH, read off the run's own state document by a
+            resumed leg.
+
+            Empty is the ordinary case and means "derive it from -Phase", which
+            is what the first leg of every run does because nothing has decided
+            yet. Only a resumed leg passes one, and it passes back the value an
+            earlier leg of the SAME run derived. MDT does exactly this
+            (LiteTouch.wsf:373-387): the derivation is the else branch of
+            "nobody has said yet".
+
+            It exists because a Refresh changes legs without changing what it
+            is. Started in the full OS it is a REFRESH; its second leg runs in
+            WinPE, and a gather that re-derived would rename the run
+            NEWCOMPUTER at the moment the resume guard is asking (DESIGN 3.2).
+
         .OUTPUTS
             System.Collections.Specialized.OrderedDictionary. Ordered so a
             facts.json diff stays readable, case-insensitive so a hand-written
@@ -62,24 +88,26 @@
             $fact = Get-HDTMachineFact `
                 -CimProvider (New-HDTCimProvider) `
                 -RegistryService (New-HDTRegistryService) `
-                -EnvironmentProvider (New-HDTEnvironmentProvider)
+                -EnvironmentProvider (New-HDTEnvironmentProvider) `
+                -Phase WinPE
             $fact['HDTModel']
 
-            Gathers from the live machine through the real adapters.
+            Gathers from the live machine through the real adapters, on the
+            WinPE leg - so HDTDeploymentType comes back NEWCOMPUTER.
 
         .EXAMPLE
             $service = @{
                 CimProvider         = New-HDTCimProvider
                 RegistryService     = New-HDTRegistryService
                 EnvironmentProvider = New-HDTEnvironmentProvider
+                Phase               = 'FullOS'
             }
 
             $fact = Get-HDTMachineFact @service
-            @($fact.Keys | Where-Object { $_ -like 'HDTIs*' }) |
-                ForEach-Object { '{0} = {1}' -f $_, $fact[$_] }
+            $fact['HDTDeploymentType']
 
-            The yes-or-no facts a rule matches on - HDTIsLaptop, HDTIsVirtual,
-            HDTIsUefi - read off this machine.
+            REFRESH. The same gather run from the running Windows rather than
+            from a boot, which is the only thing that decides the scenario.
 
             THERE IS NO BARE CALL, AND THAT IS THE POINT. All three adapters are
             mandatory with no default, so `Get-HDTMachineFact` on its own does
@@ -112,6 +140,56 @@
         [Parameter(Mandatory = $true)]
         [ValidateNotNull()]
         [object] $EnvironmentProvider,
+
+        # WHICH LEG THIS IS, AND HDTDeploymentType FALLS OUT OF IT. WinPE means
+        # NEWCOMPUTER, the full OS means REFRESH - MDT decides it on exactly this
+        # evidence, testing oEnv("SystemDrive") = "X:" at LiteTouch.wsf:373-387
+        # and re-deriving it per task sequence at ZTIUtility.vbs:3339-3347.
+        #
+        # DECLARED, NOT PROBED. There is no MiniNT registry read and no
+        # $env:SystemDrive test in here, because engine logic takes injected
+        # facts (constraint 5) and this file touches nothing itself - the whole
+        # point of the three adapters above. The caller already knows which leg
+        # it is on: it is what New-HDTExecutionContext publishes as _HDTPhase and
+        # what Get-HDTLogPath has taken by the same name since phase 03.
+        #
+        # AND MANDATORY, so a full-OS caller cannot forget it and silently
+        # publish NEWCOMPUTER on a Refresh. Every symptom of that would point
+        # somewhere else.
+        [Parameter(Mandatory = $true)]
+        [ValidateSet('WinPE', 'FullOS')]
+        [string] $Phase,
+
+        # WHAT THE RUN ALREADY KNOWS IT IS, WHEN SOMETHING ALREADY KNOWS.
+        #
+        # DERIVE ONLY WHEN IT IS NOT ALREADY KNOWN, WHICH IS MDT'S RULE.
+        # LiteTouch.wsf:373-387 fills DeploymentType in inside
+        # `ElseIf oEnvironment.Item("DeploymentType") = "" then` - the
+        # derivation is the else branch of "nobody has said yet", and from then
+        # on the value lives in the run's persisted environment.
+        #
+        # BECAUSE A REFRESH CHANGES LEGS AND MUST NOT CHANGE ITS NAME. It starts
+        # in the full OS - SystemDrive C:, so REFRESH - stages a WinPE, reboots,
+        # and comes back with SystemDrive at X:. -Phase on that second leg is
+        # WinPE and it is RIGHT: this leg genuinely is a WinPE leg, its log goes
+        # to the RAM disk and only WinPE steps may run. What it is not is a
+        # different run. Without this the gather would rename it NEWCOMPUTER at
+        # the exact moment the resume guard is asking, because REFRESH is the one
+        # value that unlocks ApplyImage there (DESIGN 3.2).
+        #
+        # EMPTY IS THE ORDINARY CASE AND MEANS "DERIVE IT". The first leg of
+        # every run passes nothing, because nothing has decided yet; only a
+        # resumed leg, which read the value off its own checkpoint, passes one.
+        #
+        # IT DOES NOT LET AN ADMINISTRATOR DECLARE THE SCENARIO. No rules.yaml
+        # reaches this - HDTDeploymentType is Writable = $false in
+        # Get-HDTVariableMap and Assert-HDTRuleDocument refuses the name on that
+        # column. The only caller that passes it is a resumed leg handing back
+        # the value an earlier leg of the SAME run derived from evidence.
+        [Parameter()]
+        [AllowEmptyString()]
+        [ValidateSet('', 'NEWCOMPUTER', 'REFRESH')]
+        [string] $DeploymentType = '',
 
         # WHERE EACH FACT CAME FROM, AND WHICH ONES THE MACHINE COULD NOT ANSWER.
         # A dictionary the CALLER owns and this fills in - the same shape
@@ -213,6 +291,27 @@
         # WinPE WITHOUT THE TPM OPTIONAL COMPONENT LOOKS EXACTLY LIKE THIS, and
         # it is an image to rebuild rather than a machine to replace.
         $tpmReason = 'the root/cimv2/security/microsofttpm namespace is not available: {0}' -f $_.Exception.Message
+    }
+
+    # MDT'S OSCurrentVersion, FROM THE CLASS MDT READS IT FROM. ZTIGather.wsf
+    # GetOSVersion runs "select * from Win32_OperatingSystem" and takes .Version
+    # (:295-300); ZTIValidate's downgrade refusal is the only thing that reads
+    # it, and it is what M9's Refresh guard needs in order to know which Windows
+    # is on the machine before it replaces it.
+    #
+    # OPTIONAL, LIKE Win32_Tpm AND FOR THE SAME KIND OF REASON. A boot image
+    # that cannot answer is a fact about the image, not a deployment to abort:
+    # the four REQUIRED classes are the ones with no facts at all without them.
+    # A Refresh that needs this and does not have it is refused by the pre-flight
+    # with a sentence naming the variable, which is where that refusal belongs.
+    $operatingSystemReason = ''
+    $operatingSystem = @()
+    try {
+        $operatingSystem = @(& $timed 'Win32_OperatingSystem' { $CimProvider.GetInstance('Win32_OperatingSystem') })
+        if ($operatingSystem.Count -eq 0) { $operatingSystemReason = 'Win32_OperatingSystem returned no instances' }
+    } catch {
+        $operatingSystem = @()
+        $operatingSystemReason = 'Win32_OperatingSystem could not be read: {0}' -f $_.Exception.Message
     }
 
     # -- identity -------------------------------------------------------------
@@ -387,6 +486,24 @@
         }
     }
 
+    # -- the running operating system -----------------------------------------
+
+    # THE WHOLE VERSION, NOT ITS MAJOR AND MINOR. Every Windows since Windows 10
+    # reports 10.0 - Windows 11 included - so major.minor cannot tell one from
+    # the other, and MDT's downgrade refusal compares exactly those two
+    # components and has therefore been unable to fire since 2015. The build is
+    # the only component that moves, so the whole string is published and the
+    # comparison is left to the check that makes it.
+    $osCurrentVersion = $null
+    if ($operatingSystem.Count -gt 0) {
+        $versionText = [string] $operatingSystem[0].Version
+        if (-not [string]::IsNullOrWhiteSpace($versionText)) {
+            $osCurrentVersion = $versionText.Trim()
+        } else {
+            $operatingSystemReason = 'Win32_OperatingSystem reported an empty Version'
+        }
+    }
+
     # -- network --------------------------------------------------------------
 
     $macAddress = New-Object -TypeName System.Collections.ArrayList
@@ -421,15 +538,55 @@
     $fact['HDTSystemSKU'] = $systemSku
     $fact['HDTMemory'] = $memoryMegabyte
     $fact['HDTArchitecture'] = $architecture
-    # MDT SETS DeploymentType IN ZTIGather AND GATES WHOLE GROUPS ON IT. This
-    # engine performs bare-metal installs only, so there is one value - and it
-    # is written anyway, so a sequence can be conditioned on it now rather than
-    # every group predating the refresh path having to be retrofitted later.
-    # See Get-HDTVariableMap for the rest of MDT's set.
-    $fact['HDTDeploymentType'] = 'NEWCOMPUTER'
+    # MDT SETS DeploymentType IN ZTIGather AND GATES WHOLE GROUPS ON IT - which
+    # is how one Client.xml serves bare metal and a refresh from the same file.
+    #
+    # DERIVED FROM THE PHASE, NOT DECLARED BY AN ADMINISTRATOR. Started in
+    # WinPE, this is a NEWCOMPUTER; started in the full OS, it is a REFRESH.
+    # MDT decides it on the same evidence in the same place - LiteTouch.wsf
+    # :373-387 writes NEWCOMPUTER when SystemDrive is the RAM disk and REFRESH
+    # when it is not - and re-derives it per task sequence at
+    # ZTIUtility.vbs:3339-3347 rather than trusting what was recorded earlier.
+    #
+    # SO IT IS A FACT ABOUT HOW THE RUN STARTED, NOT A PREFERENCE, which is why
+    # its Get-HDTVariableMap row carries Writable = $false and rules.yaml may not
+    # set it. An admin who declares REFRESH on a machine that booted WinPE does
+    # not get a Refresh - they get a run that lies about its own origin, and
+    # every symptom of that points somewhere else. No MDT wizard pane sets it
+    # either: all seventeen in DeployWiz_Definition_ENU.xml only read it inside
+    # a <Condition>. DESIGN 3.2.
+    #
+    # AND DERIVED ONLY WHEN IT IS NOT ALREADY KNOWN, WHICH IS THE HALF THAT WAS
+    # MISSING. A Refresh's second leg runs in WinPE and would be renamed
+    # NEWCOMPUTER by a gather that re-derived - see -DeploymentType above, which
+    # is where the reasoning is. The mapping itself lives in
+    # Get-HDTDeploymentType so this and New-HDTRunState cannot disagree about
+    # the same run.
+    $deploymentType = $DeploymentType
+    $deploymentTypeSource = 'state'
+    $deploymentTypeProperty = 'deploymentType'
+    $deploymentTypeRaw = $DeploymentType
+    $deploymentTypeReason = ''
+
+    if ([string]::IsNullOrWhiteSpace($deploymentType)) {
+        $deploymentType = Get-HDTDeploymentType -Phase $Phase
+        $deploymentTypeSource = 'engine'
+        $deploymentTypeProperty = 'Phase'
+        $deploymentTypeRaw = $Phase
+    } else {
+        # THE SENTENCE AN ADMINISTRATOR NEEDS AND WOULD OTHERWISE HAVE TO
+        # INVENT. They are reading the log of a leg whose SystemDrive is X:,
+        # beside the word REFRESH, and the only thing that makes those two
+        # readable together is being told which leg decided it and which one is
+        # merely reporting it.
+        $deploymentTypeReason = "carried from this run's checkpoint, which an earlier leg wrote; it was NOT derived on this {0} leg, because the deployment type is a fact about the run rather than about the leg" -f $Phase
+    }
+
+    $fact['HDTDeploymentType'] = $deploymentType
     $fact['HDTIsUEFI'] = [bool] $isUefi
     $fact['HDTSecureBootEnabled'] = [bool] $secureBootEnabled
     $fact['HDTTPMVersion'] = $tpmVersion
+    $fact['HDTOSCurrentVersion'] = $osCurrentVersion
     $fact['HDTIsDesktop'] = [bool] $isDesktop
     $fact['HDTIsLaptop'] = [bool] $isLaptop
     $fact['HDTIsServer'] = [bool] $isServer
@@ -448,8 +605,10 @@
     #
     # THE SOURCE VOCABULARY IS SHARED WITH Gather\devices.json AND THE STEP'S
     # LOG: a CIM class is named by its class name, and the two non-CIM sources
-    # are 'registry' and 'environment'. 'constant' is the third, and it is said
-    # out loud rather than dressed up as a reading.
+    # are 'registry' and 'environment'. 'engine' is the third - a value this
+    # toolkit derives rather than reads off the machine, spelled the way
+    # Get-HDTVariableMap's Origin column already spells it - and it is said out
+    # loud rather than dressed up as a reading.
 
     if ($null -ne $Provenance) {
         # DETERMINED IS NOT "TRUTHY". False is an answer - SecureBoot off is a
@@ -497,11 +656,21 @@
             'Win32_ComputerSystem.TotalPhysicalMemory reported no memory'
         & $note 'HDTArchitecture' 'environment' 'PROCESSOR_ARCHITECTURE' $architectureRaw (& $said $architecture) ''
 
-        # SAID TO BE A CONSTANT, because it is. This engine performs bare-metal
-        # installs only, so there is one value - and reporting it as though a
-        # machine had been asked would be a lie in the one place that exists to
-        # stop them.
-        & $note 'HDTDeploymentType' 'constant' 'NEWCOMPUTER' 'NEWCOMPUTER' $true ''
+        # IT STOPPED BEING A CONSTANT, SO IT STOPPED SAYING IT WAS ONE. The
+        # source is the engine and the property is the phase it was told it
+        # started in; Raw is that phase, so a log reading REFRESH says WHICH leg
+        # produced it. 'engine' is the word Get-HDTVariableMap's Origin column
+        # already uses for a value this toolkit publishes rather than reads, and
+        # the alternative - naming a CIM class or the registry - would be a lie
+        # in the one place that exists to stop them.
+        # AND IT SAYS WHICH LEG DECIDED IT, which is the whole reason the source
+        # is not hard-coded any more. 'engine'/'Phase' means this leg derived it
+        # from the leg it is on; 'state'/'deploymentType' means an earlier leg of
+        # this run derived it and this one read it back off the checkpoint. A
+        # carried value recorded as 'engine'/'Phase' would name this leg's phase
+        # as the evidence for a value this leg did not decide - a lie in the one
+        # place that exists to stop them.
+        & $note 'HDTDeploymentType' $deploymentTypeSource $deploymentTypeProperty $deploymentTypeRaw $true $deploymentTypeReason
 
         & $note 'HDTIsUEFI' 'environment' 'firmware_type' $firmwareType (& $said $firmwareType) `
             'the firmware_type environment variable was not set, so UEFI could not be confirmed'
@@ -511,6 +680,8 @@
         & $note 'HDTSecureBootEnabled' 'registry' 'UEFISecureBootEnabled' $secureBootValue $true ''
 
         & $note 'HDTTPMVersion' 'Win32_Tpm' 'SpecVersion' $tpmVersion (& $said ([string] $tpmVersion)) $tpmReason
+
+        & $note 'HDTOSCurrentVersion' 'Win32_OperatingSystem' 'Version' $osCurrentVersion (& $said ([string] $osCurrentVersion)) $operatingSystemReason
 
         # THE DERIVATIONS, WITH THEIR WORKING. Raw is the chassis type; the fact
         # is what the table mapped it to. All three come back False when nothing

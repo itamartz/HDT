@@ -46,6 +46,25 @@ class HDTFakeFileSystem {
     # refuses to be written.
     [hashtable] $WriteFailure
 
+    # Path -> the message a DELETE of it throws, as a
+    # System.UnauthorizedAccessException. A WRITE FAILURE COULD NOT SAY THIS: a
+    # write and a delete fail for different reasons and at different moments -
+    # a folder a service still has a handle on, or one whose ACL denies the
+    # caller, refuses to be removed while everything around it removes cleanly.
+    #
+    # CleanVolume IS WHY IT EXISTS. It empties a volume by deleting the folders
+    # standing on it, and the two behaviours that matter most there are the ones
+    # only a refusing delete can stage: the ACL reset it tries when one folder
+    # will not go, and the divergence from MDT where a folder that STILL will
+    # not go fails the step instead of warning.
+    [hashtable] $RemoveFailure
+
+    # Path -> how many deletes of it refuse before it starts behaving. Absent
+    # means for ever, which is the locked folder that fails the step; 1 is the
+    # folder that yields to an ACL reset, and without the difference the retry
+    # and the failure cannot be told apart.
+    [hashtable] $RemoveFailureCount
+
     # Path -> the hash GetHash answers with, whatever the content says. THE ONE
     # FILESYSTEM CONDITION NO AMOUNT OF SEEDED CONTENT CAN EXPRESS: a copy that
     # landed corrupt. CopyItem copies content exactly - as the real one does when
@@ -78,6 +97,8 @@ class HDTFakeFileSystem {
         $this.File = [System.Collections.Hashtable]::new([System.StringComparer]::OrdinalIgnoreCase)
         $this.Directory = [System.Collections.Hashtable]::new([System.StringComparer]::OrdinalIgnoreCase)
         $this.WriteFailure = [System.Collections.Hashtable]::new([System.StringComparer]::OrdinalIgnoreCase)
+        $this.RemoveFailure = [System.Collections.Hashtable]::new([System.StringComparer]::OrdinalIgnoreCase)
+        $this.RemoveFailureCount = [System.Collections.Hashtable]::new([System.StringComparer]::OrdinalIgnoreCase)
         $this.HashOverride = [System.Collections.Hashtable]::new([System.StringComparer]::OrdinalIgnoreCase)
         $this.VersionOverride = [System.Collections.Hashtable]::new([System.StringComparer]::OrdinalIgnoreCase)
         $this.VersionInfoOverride = [System.Collections.Hashtable]::new([System.StringComparer]::OrdinalIgnoreCase)
@@ -149,7 +170,16 @@ class HDTFakeFileSystem {
     }
 
     hidden [string[]] Descendant([string] $NormalizedPath) {
-        $prefix = $NormalizedPath + [System.IO.Path]::DirectorySeparatorChar
+        # A VOLUME ROOT ALREADY ENDS IN ITS SEPARATOR, and appending a second
+        # one produced 'C:\', which nothing starts with - so GetChildItem on a
+        # drive root answered EMPTY while GetDirectory, which compares parents
+        # rather than prefixes, answered correctly. The real adapter's
+        # GetFileSystemEntries has no such seam. Found by CleanVolume, the first
+        # caller to enumerate a root: the fake was wrong, not the caller.
+        $prefix = $NormalizedPath
+        if (-not $prefix.EndsWith([string] [System.IO.Path]::DirectorySeparatorChar)) {
+            $prefix = $prefix + [System.IO.Path]::DirectorySeparatorChar
+        }
         $found = [System.Collections.ArrayList]::new()
 
         foreach ($key in @($this.File.Keys)) {
@@ -179,6 +209,15 @@ class HDTFakeFileSystem {
 
     [void] SeedWriteFailure([string] $Path, [string] $Message) {
         $this.WriteFailure[$this.Normalize($Path)] = $Message
+    }
+
+    # THE FOLDER THAT WILL NOT GO. See $RemoveFailure above. Times is how many
+    # deletes refuse before the path behaves; 0 or less means for ever.
+    [void] SeedRemoveFailure([string] $Path, [string] $Message, [int] $Times) {
+        $full = $this.Normalize($Path)
+        $this.RemoveFailure[$full] = $Message
+
+        if ($Times -gt 0) { $this.RemoveFailureCount[$full] = $Times }
     }
 
     # THE CORRUPT COPY. See $HashOverride above: the path still holds whatever
@@ -278,6 +317,23 @@ class HDTFakeFileSystem {
     [void] RemoveItem([string] $Path, [bool] $Recurse) {
         $this.Record('RemoveItem', @($Path, $Recurse))
         $full = $this.Normalize($Path)
+
+        # THE REFUSING DELETE, AND IT IS COUNTED DOWN BEFORE IT THROWS so a path
+        # seeded to refuse once behaves on the second attempt. System.IO throws
+        # UnauthorizedAccessException for a delete an ACL denies, which is the
+        # type the real adapter lets through and the one a caller catches.
+        if ($this.RemoveFailure.ContainsKey($full)) {
+            $remaining = -1
+            if ($this.RemoveFailureCount.ContainsKey($full)) {
+                $remaining = [int] $this.RemoveFailureCount[$full]
+            }
+
+            if ($remaining -ne 0) {
+                if ($remaining -gt 0) { $this.RemoveFailureCount[$full] = $remaining - 1 }
+
+                throw [System.UnauthorizedAccessException]::new([string] $this.RemoveFailure[$full])
+            }
+        }
 
         if ($this.File.ContainsKey($full)) {
             $this.File.Remove($full)
@@ -635,6 +691,21 @@ function New-HDTFakeFileSystem {
             AppendAllText and a CopyItem that names it as the DESTINATION - a
             copy is a write, and DESIGN 4.4.1's log mirror is made of copies.
 
+        .PARAMETER RemoveFailure
+            Paths that refuse to be DELETED. Keys are paths, values are the
+            message the System.UnauthorizedAccessException carries - which is
+            what System.IO throws for a delete an ACL denies. A write failure
+            cannot say this: a folder a service still holds open refuses to be
+            removed while everything around it removes cleanly, and CleanVolume's
+            whole divergence from MDT is what it does when one does.
+
+        .PARAMETER RemoveFailureCount
+            How many deletes of a RemoveFailure path refuse before it starts
+            behaving. Keys are paths, values are counts. A path named in
+            RemoveFailure and not here refuses for ever - the locked folder that
+            fails the step; 1 is the folder that yields to an ACL reset, and
+            without the difference a retry and a failure look identical.
+
         .PARAMETER Hash
             Paths whose GetHash answers with a stated value rather than with the
             hash of their content. THE CORRUPT COPY, which no amount of seeded
@@ -691,6 +762,12 @@ function New-HDTFakeFileSystem {
         [hashtable] $WriteFailure,
 
         [Parameter()]
+        [hashtable] $RemoveFailure,
+
+        [Parameter()]
+        [hashtable] $RemoveFailureCount,
+
+        [Parameter()]
         [hashtable] $Hash,
 
         [Parameter()]
@@ -719,6 +796,17 @@ function New-HDTFakeFileSystem {
     if ($PSBoundParameters.ContainsKey('WriteFailure')) {
         foreach ($key in @($WriteFailure.Keys)) {
             $fake.SeedWriteFailure([string] $key, [string] $WriteFailure[$key])
+        }
+    }
+
+    if ($PSBoundParameters.ContainsKey('RemoveFailure')) {
+        foreach ($key in @($RemoveFailure.Keys)) {
+            $times = 0
+            if ($PSBoundParameters.ContainsKey('RemoveFailureCount') -and $RemoveFailureCount.ContainsKey($key)) {
+                $times = [int] $RemoveFailureCount[$key]
+            }
+
+            $fake.SeedRemoveFailure([string] $key, [string] $RemoveFailure[$key], $times)
         }
     }
 
@@ -1305,7 +1393,7 @@ function New-HDTFakeRegistryService {
 
         .EXAMPLE
             $registry = New-HDTFakeRegistryService
-            Get-HDTMachineFact -RegistryService $registry -CimProvider $cim -EnvironmentProvider $environment
+            Get-HDTMachineFact -RegistryService $registry -CimProvider $cim -EnvironmentProvider $environment -Phase WinPE
 
             The BIOS machine case: no SecureBoot key at all, and
             HDTSecureBootEnabled resolves to $false instead of throwing.
@@ -2317,6 +2405,43 @@ class HDTFakeBitLockerService {
         $row.ProtectionStatus = 'On'
         $row.VolumeStatus = 'EncryptionInProgress'
     }
+
+    # THE SUSPEND A REFRESH ARMS ITS BOOT ENTRY BEHIND. MDT's
+    # ZTIDisableBDEProtectors.wsf:96, objEncVol.DisableKeyProtectors(0), run
+    # inside its DeploymentType equals REFRESH group (Client.xml:85-90)
+    # immediately before LTIApply.wsf /PE stages the transport.
+    #
+    # IT MODELS TWO REFUSALS, AND CLAUDE.md RECORDS WHY IT HAS TO. The fake
+    # MoveItem once moved files and not directories while the real adapter's
+    # Move-Item did both, and the finding was that the fake was wrong rather
+    # than the caller. A suspend that cannot refuse is that again: a step
+    # proved correct here would ship reporting success on every unencrypted
+    # machine in the estate, because Suspend-BitLocker errors on a volume with
+    # nothing to suspend and this double would have shrugged.
+    #
+    # The unencrypted refusal is also MDT's own guard restated - :88 selects
+    # only "where ProtectionStatus<>0", so MDT never calls it on a volume that
+    # has nothing to suspend either.
+    [void] Suspend([string] $Drive, [int] $RebootCount) {
+        # RECORDED BEFORE IT CAN REFUSE, like every other operation here: an
+        # attempt that threw is still an attempt, and a test asserting the
+        # ordered operation list has to see the one that failed.
+        $this.Record('Suspend', @($Drive, $RebootCount))
+        $this.Fail('Suspend')
+
+        $row = $this.Require($Drive)
+
+        if ([string] $row.VolumeStatus -eq 'FullyDecrypted') {
+            throw [System.InvalidOperationException]::new(
+                "BitLocker is not enabled on '$Drive': there is nothing to suspend.")
+        }
+
+        # A SUSPEND, NOT A DECRYPT. VolumeStatus is deliberately untouched - the
+        # volume stays exactly as encrypted as it was, which is the whole reason
+        # this costs seconds instead of hours, and the assertion the contract
+        # file makes about it.
+        $row.ProtectionStatus = 'Off'
+    }
 }
 
 function New-HDTFakeBitLockerService {
@@ -2327,9 +2452,17 @@ function New-HDTFakeBitLockerService {
         .DESCRIPTION
             The hand-written double for DESIGN 10.3. It carries EVERY behavioural
             assertion about the interface, because there is no safe way to run the
-            real adapter: three of its four methods change the encryption state of
+            real adapter: four of its five methods change the encryption state of
             a physical disk, and the disk most likely to be in front of this code
             is the developer's own.
+
+            SUSPEND IS THE FIFTH, AND IT REFUSES TWICE. A volume it has never
+            been seeded, and a volume with nothing to suspend - which is
+            Suspend-BitLocker's own behaviour and MDT's own guard
+            (ZTIDisableBDEProtectors.wsf:88 selects only ProtectionStatus<>0).
+            It leaves VolumeStatus alone: DESIGN 3.2 makes suspend-not-decrypt
+            the point of the operation, and a double that decrypted would prove
+            a caller correct against behaviour Windows does not have.
 
             IT IS ALSO WHERE "ESCROW BEFORE ENCRYPTION" IS PROVABLE. -Failure
             seeds an operation that throws, so a test can make the backup fail and
@@ -2347,8 +2480,8 @@ function New-HDTFakeBitLockerService {
 
         .PARAMETER Failure
             Seed failures. Keys are operation names - GetVolume, AddProtector,
-            BackupProtector, Enable - and values are the message that operation
-            throws.
+            BackupProtector, Enable, Suspend - and values are the message that
+            operation throws.
 
         .PARAMETER Journal
             The shared cross-service operation journal. When supplied, every

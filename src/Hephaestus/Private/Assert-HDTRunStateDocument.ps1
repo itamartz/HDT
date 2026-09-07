@@ -32,6 +32,11 @@ function Assert-HDTRunStateDocument {
                         there. Optional because a document written before the
                         key existed is a run in flight, and refusing it would
                         strand a machine mid-deployment over a log setting
+              deploymentType
+                        OPTIONAL, and NEWCOMPUTER or REFRESH when it is there.
+                        Optional for the same reason logLevel is - and safe to
+                        be absent, because the guard it feeds unlocks nothing
+                        for a run that does not say what it is
               variable  present and an object
               step      present and a list; every step has an integer index >= 1,
                         a non-empty name and type, a status in the set, an
@@ -205,6 +210,31 @@ function Assert-HDTRunStateDocument {
         if ($allowedLevel -notcontains [string] $Document.logLevel) {
             $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $Path `
                         -Message ("logLevel is '{0}', which is not one of {1}." -f $Document.logLevel, ($allowedLevel -join ', '))))
+        }
+    }
+
+    # -- deploymentType -------------------------------------------------------
+    #
+    # WHAT THE RUN IS, AS OPPOSED TO WHICH LEG WROTE THIS. phase above is
+    # checked as a required enum because every leg has one; this is decided on
+    # the run's FIRST leg and carried, so it is present-or-absent exactly as
+    # logLevel is - and schemas/state.schema.json says the same, because the two
+    # validators must agree on every document.
+    #
+    # AN ABSENT VALUE IS SAFE BY CONSTRUCTION. It is read by the resume guard,
+    # which unlocks ApplyImage only for a REFRESH; a document that does not say
+    # what its run is unlocks nothing, which is the right reading of "I do not
+    # know". So an older document loses a permission rather than gaining one.
+    #
+    # BUT A VALUE OUTSIDE THE SET IS REFUSED, because that is a document
+    # asserting something about itself that this engine cannot interpret, and
+    # the thing it is asserting is the key to a guard.
+    if (& $hasProperty $Document 'deploymentType') {
+        $allowedType = @('NEWCOMPUTER', 'REFRESH')
+
+        if ($allowedType -notcontains [string] $Document.deploymentType) {
+            $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $Path `
+                        -Message ("deploymentType is '{0}', which is not one of {1}." -f $Document.deploymentType, ($allowedType -join ', '))))
         }
     }
 

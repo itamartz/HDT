@@ -1025,6 +1025,7 @@
                                     <DataTemplate>
                                         <Grid Margin="0,0,0,10">
                                             <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
                                                 <ColumnDefinition Width="*" />
                                                 <ColumnDefinition Width="110" />
                                                 <ColumnDefinition Width="34" />
@@ -1037,13 +1038,80 @@
                                                       Foreground="{DynamicResource HDTPanelTextBrush}"
                                                       VerticalAlignment="Center" />
 
+                                            <!--
+                                                WHICH RUN THE CHECK APPLIES TO,
+                                                ON THE ROW. Five of the nine
+                                                checks do nothing on the other
+                                                kind of deployment - the two
+                                                disk checks pick a target disk
+                                                a wipe-and-load never selects,
+                                                and the three guards measure an
+                                                installation a bare-metal run
+                                                has not got. All nine are
+                                                offered, because the step reads
+                                                all nine and a page that hid
+                                                some would be a page you could
+                                                not configure the other kind of
+                                                sequence on; the badge is what
+                                                stops a ticked box reading as a
+                                                check that will be made when
+                                                the run will report it SKIPPED.
+
+                                                A BADGE AND NOT TWO GROUPS. The
+                                                order is the definition table's
+                                                and a technician learns the
+                                                shape of the list; grouping
+                                                would rearrange a familiar page
+                                                every time a scope was added,
+                                                and needs headers and a second
+                                                bound collection to do it.
+
+                                                MDT HAS NO SHAPE FOR THIS to
+                                                take: its Validate action
+                                                declares no scope on a property
+                                                at all (Actions.xml:88-94), and
+                                                where MDT does gate on the
+                                                deployment type it hides the
+                                                whole wizard pane
+                                                (DeployWiz_Definition_ENU.xml).
+                                                A page HDT cannot hide - the
+                                                sequence being edited is not
+                                                the run - so this borrows the
+                                                one marker the console already
+                                                draws: the ? dot's outlined
+                                                pill, in the same brushes.
+
+                                                THE WORD IS BOUND, NEVER SPELT
+                                                HERE. Get-HDTValidateCheckDefinition
+                                                is the one place a scope is
+                                                declared, so a sixth scoped
+                                                check reaches this page without
+                                                this file being touched - the
+                                                same promise the rows
+                                                themselves already make.
+                                            -->
+                                            <Border Grid.Column="1"
+                                                    Visibility="{Binding ScopeVisibility}"
+                                                    Background="Transparent"
+                                                    BorderBrush="{DynamicResource HDTBorderBrush}"
+                                                    BorderThickness="1"
+                                                    CornerRadius="8"
+                                                    Padding="7,1,7,1"
+                                                    Margin="8,0,0,0"
+                                                    HorizontalAlignment="Left" VerticalAlignment="Center">
+                                                <TextBlock Text="{Binding Scope}"
+                                                           Foreground="{DynamicResource HDTLabelBrush}"
+                                                           FontFamily="Segoe UI" FontSize="10" FontWeight="Bold"
+                                                           VerticalAlignment="Center" />
+                                            </Border>
+
                                             <!-- THE VALUE FOLLOWS THE TICK. An
                                                  unticked check is not being
                                                  made, so its value is not being
                                                  read - and a live box beside a
                                                  dark checkbox invites a number
                                                  that changes nothing. -->
-                                            <TextBox Grid.Column="1"
+                                            <TextBox Grid.Column="2"
                                                      Text="{Binding Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                                      IsEnabled="{Binding Enabled}"
                                                      Visibility="{Binding ValueVisibility}"
@@ -1054,7 +1122,7 @@
                                                      FontFamily="Consolas, Courier New" FontSize="12"
                                                      Padding="6,4,6,4" VerticalContentAlignment="Center" />
 
-                                            <TextBlock Grid.Column="2"
+                                            <TextBlock Grid.Column="3"
                                                        Text="{Binding Unit}"
                                                        Foreground="{DynamicResource HDTPanelTextBrush}"
                                                        FontSize="12"
@@ -1091,7 +1159,7 @@
                                                  these hints are two sentences
                                                  and the default five seconds
                                                  is not enough to read them. -->
-                                            <Border Grid.Column="3"
+                                            <Border Grid.Column="4"
                                                     Background="Transparent"
                                                     Width="22" Height="22"
                                                     CornerRadius="11"

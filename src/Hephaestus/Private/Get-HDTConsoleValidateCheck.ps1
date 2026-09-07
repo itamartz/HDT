@@ -124,6 +124,21 @@
                 Unit    = [string] $definition.Unit
                 Hint    = [string] $definition.Hint
 
+                # WHICH RUN THE CHECK BELONGS TO, CARRIED, NOT RESTATED. The
+                # definition table is the one place a scope is declared, and
+                # copying the word through is what lets the page mark a row
+                # without a second list of deployment types living in markup -
+                # a sixth scoped check appears correctly with nothing here or
+                # in the XAML edited.
+                #
+                # IT HAS TO BE ON THE ROW, NOT ONLY IN THE HINT. Five of the
+                # nine checks do nothing on the run being configured, and a
+                # ticked minDiskGB at 60 reads exactly like a check that will
+                # be made when a Refresh will report it SKIPPED. A hint behind
+                # a ? is read once, when the check is new; the badge is read
+                # every time the page is opened.
+                Scope   = [string] $definition.Scope
+
                 Enabled = $enabled
                 Value   = $value
 
@@ -136,6 +151,12 @@
                 # markup: a Visibility converter is a decision living in a file
                 # no test executes.
                 ValueVisibility = $(if ($definition.Kind -eq 'Switch') { 'Collapsed' } else { 'Visible' })
+
+                # 'Any' IS EVERY RUN, AND A BADGE ON EVERY ROW MARKS NOTHING.
+                # Same reason as ValueVisibility above: the word WPF binds is
+                # decided here, where a test executes it, rather than by a
+                # converter in a file no test runs.
+                ScopeVisibility = $(if ([string] $definition.Scope -eq 'Any') { 'Collapsed' } else { 'Visible' })
 
                 Command = ("Set-HDTStepProperty -Line `$line -Name '{0}' -Property '{1}' -Value '<value>'" -f
                     $Name, $definition.Key)

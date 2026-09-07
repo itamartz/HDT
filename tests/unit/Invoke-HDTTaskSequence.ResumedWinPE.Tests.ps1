@@ -58,9 +58,18 @@ BeforeAll {
     # boot is reproduced: the state says step N, the leg runs in a phase, and
     # the question is whether step N can be done there.
     $script:atStep = {
-        param([int] $Index, [string] $Phase)
+        param([int] $Index, [string] $Phase, [string] $DeploymentType)
 
         $harness = New-HDTSequenceTestHarness -Yaml $script:captureYaml -Phase $Phase
+
+        # WHAT THE RUN IS, AS OPPOSED TO WHICH LEG THIS IS. The harness derives
+        # the type from the phase it was given, which is right for the leg that
+        # MINTS a document and wrong for every leg after it - a Refresh's WinPE
+        # leg is a WinPE leg of a REFRESH run. Setting it here is how a resumed
+        # leg that read a carried value off the disk is reproduced.
+        if (-not [string]::IsNullOrEmpty($DeploymentType)) {
+            $harness.State.deploymentType = $DeploymentType
+        }
 
         $harness.State.stepIndex = $Index
         for ($i = 1; $i -lt $Index; $i++) {
@@ -191,6 +200,153 @@ Describe 'Invoke-HDTTaskSequence -Resumed' {
                     Test-HDTResumeStepForbidden -Step $Step | Should -BeFalse
                 }
             }
+        }
+    }
+
+    Context 'the one exception, and how narrow it is' {
+
+        # A REFRESH'S ApplyImage SITS AHEAD OF THE RESUME POINT, WHICH IS THE
+        # WHOLE DIFFERENCE.
+        #
+        # A capture survives this guard by never being visited: its ApplyImage is
+        # BEHIND the resume point and the loop starts at state.stepIndex. A
+        # Refresh runs the other way round - the machine boots into the staged
+        # WinPE and only THEN applies the image - so the leg reaches the step it
+        # exists to run, and the guard as written fails the run (DESIGN 3.2).
+        #
+        # SO THE EXCEPTION IS ApplyImage, ON A REFRESH, AND NOTHING ELSE.
+        # DiskPartition stays refused for every deployment type without
+        # exception: MDT gates all partition work on
+        # `DeploymentType equals NEWCOMPUTER` (Client.xml:131) and a Refresh
+        # reuses the partition Windows was booting from - repartitioning would
+        # destroy the staged WinPE the leg is running from.
+        #
+        # ASSERTED BY WALKING BOTH SETS. Naming ApplyImage/REFRESH would pass for
+        # ApplyImage/REFRESH and say nothing about the pair somebody adds next
+        # year; walking the forbidden set against every deployment type there is
+        # covers the whole grid by construction (CLAUDE.md 8).
+
+        BeforeAll {
+            # EVERY DEPLOYMENT TYPE THERE IS, DERIVED RATHER THAN LISTED. The
+            # type is a function of the leg the run started on, so the set of
+            # types is the set of phases put through the derivation - and a
+            # third leg added to that ValidateSet lands here the same day.
+            $script:deploymentType = @(InModuleScope Hephaestus {
+                    $parameter = (Get-Command -Name Get-HDTDeploymentType).Parameters['Phase']
+                    $set = @($parameter.Attributes | Where-Object { $_ -is [System.Management.Automation.ValidateSetAttribute] })
+
+                    return [string[]] @(@($set[0].ValidValues) | ForEach-Object { Get-HDTDeploymentType -Phase $_ })
+                })
+
+            $script:forbidden = @(InModuleScope Hephaestus { Get-HDTResumeForbiddenStepType })
+
+            $script:permitted = {
+                param([string] $DeploymentType)
+
+                return @(InModuleScope Hephaestus -Parameters @{ DeploymentType = $DeploymentType } {
+                        param($DeploymentType)
+
+                        return (Get-HDTResumePermittedStepType -DeploymentType $DeploymentType)
+                    })
+            }
+
+            $script:refused = {
+                param([string] $Type, [string] $DeploymentType)
+
+                $step = [pscustomobject] @{ Name = ('a {0} step' -f $Type); Type = $Type }
+
+                return [bool] (InModuleScope Hephaestus -Parameters @{ Step = $step; DeploymentType = $DeploymentType } {
+                        param($Step, $DeploymentType)
+
+                        return (Test-HDTResumeStepForbidden -Step $Step -DeploymentType $DeploymentType)
+                    })
+            }
+        }
+
+        It 'exempts exactly one step type, for exactly one deployment type' {
+            $pair = @(foreach ($type in $script:deploymentType) {
+                    foreach ($step in (& $script:permitted $type)) {
+                        '{0}/{1}' -f $type, $step
+                    }
+                })
+
+            $pair | Should -HaveCount 1
+            $pair[0] | Should -BeExactly 'REFRESH/ApplyImage'
+        }
+
+        # THE GRID. Every forbidden type against every deployment type, judged
+        # against the permission table rather than against a memory of what it
+        # says - so the two cannot drift apart.
+        It 'refuses every forbidden type except the pairs the permission names' {
+            $script:deploymentType.Count | Should -BeGreaterThan 0
+            $script:forbidden.Count | Should -BeGreaterThan 0
+
+            foreach ($type in $script:deploymentType) {
+                $allowed = @(& $script:permitted $type)
+
+                foreach ($step in $script:forbidden) {
+                    (& $script:refused $step $type) | Should -Be (-not ($allowed -contains $step)) `
+                        -Because ("{0} on a {1} run" -f $step, $type)
+                }
+            }
+        }
+
+        # NO DEPLOYMENT TYPE BUYS A REPARTITION. This is the half that must not
+        # move: the exception keys on a value carried in the same state.json as
+        # stepIndex, so a forged document can assert a REFRESH - and the most it
+        # can buy with that is an image apply, never a formatted disk.
+        It 'refuses DiskPartition on every deployment type there is' {
+            foreach ($type in $script:deploymentType) {
+                (& $script:refused 'DiskPartition' $type) | Should -BeTrue `
+                    -Because ("DiskPartition on a {0} run" -f $type)
+            }
+        }
+
+        # AND AN UNKNOWN OR ABSENT TYPE BUYS NOTHING EITHER. A state document
+        # written by an engine older than this field carries no deploymentType,
+        # and the safe reading of "I do not know what this run is" is the one
+        # that unlocks nothing.
+        It 'grants nothing to a run that does not say what it is' {
+            foreach ($step in $script:forbidden) {
+                (& $script:refused $step '') | Should -BeTrue -Because ("{0} on a run with no type" -f $step)
+            }
+
+            (& $script:permitted '') | Should -HaveCount 0
+        }
+    }
+
+    Context 'a resumed leg of a Refresh reaching the apply' {
+
+        # THE END OF THE WIRE, NOT JUST THE PREDICATE. The predicate can be
+        # right while the loop never hands it the deployment type, which is the
+        # shape of every half-wired guard in this repository.
+        #
+        # JUDGED ON THE REASON RATHER THAN THE STATUS, for the same reason the
+        # ordinary-first-leg context above is: this harness builds no image
+        # service, so the step fails either way. What must differ is WHY -
+        # refused before dispatch on a NEWCOMPUTER run, dispatched and short of
+        # a service on a REFRESH one.
+        It 'dispatches ApplyImage rather than refusing it' {
+            $run = & $script:atStep 2 'WinPE' 'REFRESH'
+            $message = [string] (& $script:stepNamed $run 'Install Operating System').Message
+
+            $message | Should -Not -Match 'RESUMING'
+        }
+
+        It 'still refuses it on a run that is not a Refresh' {
+            $run = & $script:atStep 2 'WinPE' 'NEWCOMPUTER'
+            $message = [string] (& $script:stepNamed $run 'Install Operating System').Message
+
+            $message | Should -Match 'RESUMING'
+        }
+
+        # AND THE DISK IS STILL OFF LIMITS. Same run type, same resumed leg, the
+        # other member of the forbidden set.
+        It 'still refuses DiskPartition on a Refresh' {
+            $run = & $script:atStep 1 'WinPE' 'REFRESH'
+
+            (& $script:stepNamed $run 'Format and Partition Disk').Status | Should -BeExactly 'Failed'
+            [string] (& $script:stepNamed $run 'Format and Partition Disk').Message | Should -Match 'RESUMING'
         }
     }
 

@@ -113,15 +113,39 @@ $script:HDTExpansionProbe = @(
     # And the workgroup half, which needs no credential and does reach the
     # service - so this row is proved against a real call rather than a refusal.
     @{ Type = 'JoinDomain'; Key = 'workgroup'; Value = 'CONTOSOWG'; Phase = 'FullOS'; Extra = @{} }
+    # A SIXTH ROW THAT REFUSES ON PURPOSE, and for a better reason than the five
+    # above. CleanVolume's whole job is to delete, and the probe cannot be given
+    # a volume it may empty - so it is handed one it must refuse, and the
+    # refusal names the value it was given, which is the observable this file
+    # needs. A row that reached the delete loop would be asserting something
+    # this file is not about, on a step type that would then have emptied the
+    # probe's filesystem.
+    @{ Type = 'CleanVolume'; Key = 'volume'; Value = 'Z:\NotAVolume'; Phase = 'WinPE'; Extra = @{} }
     @{ Type = 'NoOp'; Key = 'message'; Value = 'the step said this'; Phase = 'WinPE'; Extra = @{} }
     @{ Type = 'PowerShell'; Key = 'script'; Value = 'Scripts\Set-ContosoBios.ps1'; Phase = 'WinPE'; Extra = @{} }
     @{ Type = 'Restart'; Key = 'message'; Value = 'restarting to finish setup'; Phase = 'WinPE'; Extra = @{} }
     @{ Type = 'SetVariable'; Key = 'value'; Value = 'the assigned value'; Phase = 'WinPE'
         Extra = @{ variable = 'HDTProbeTarget' }
     }
+    # A SEVENTH ROW THAT REFUSES ON PURPOSE, for CleanVolume's reason turned
+    # round. The probe's BitLocker double is seeded with no volumes at all, so
+    # any drive this row names is one it has never heard of and the read refuses
+    # - which is exactly the observable this file needs, because the refusal
+    # quotes the drive it was given. Seeding one would mean a probe that
+    # suspended a volume, which is behaviour this file is not about.
+    @{ Type = 'SuspendBitLocker'; Key = 'drive'; Value = 'Q:'; Phase = 'FullOS'; Extra = @{} }
     @{ Type = 'Sysprep'; Key = 'unattend'; Value = 'Sysprep\unattend.xml'; Phase = 'FullOS'; Extra = @{} }
     @{ Type = 'Tattoo'; Key = 'path'; Value = 'HKLM:\SOFTWARE\Contoso\Deployment'; Phase = 'FullOS'; Extra = @{} }
     @{ Type = 'Validate'; Key = 'minTpmVersion'; Value = '2.0'; Phase = 'WinPE'; Extra = @{} }
+
+    # THE TWO REFRESH GUARDS THAT TAKE A VALUE. Both are reported by the check
+    # enumeration even on a run they do not apply to - a check absent from the
+    # log and a check that passed look identical - so the control run carries
+    # them into the log and the probe can be held to the same rule as the rest.
+    # allowOtherPartition has no row: it is a switch, and 'true' is not a value
+    # a probe can tell apart from the default.
+    @{ Type = 'Validate'; Key = 'imageVersion'; Value = '10.0.26100'; Phase = 'WinPE'; Extra = @{} }
+    @{ Type = 'Validate'; Key = 'imageSizeMB'; Value = '5200'; Phase = 'WinPE'; Extra = @{} }
 
     # THREE ROWS, NOT ONE, AND THE OTHER TWO ARE LISTS. categories: and exclude:
     # are YAML sequences, and the flat string form is the one this probe drives -

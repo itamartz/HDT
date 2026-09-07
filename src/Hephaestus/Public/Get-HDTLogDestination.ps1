@@ -78,7 +78,7 @@
             $workspaceRoot = 'C:\HDTLab\Share'
             $line = [string[]] @([System.IO.File]::ReadAllLines('C:\HDTLab\Share\workspace.yaml'))
             $fact = Get-HDTMachineFact -CimProvider (New-HDTCimProvider) `
-                -RegistryService (New-HDTRegistryService) -EnvironmentProvider (New-HDTEnvironmentProvider)
+                -RegistryService (New-HDTRegistryService) -EnvironmentProvider (New-HDTEnvironmentProvider) -Phase WinPE
             $resolved = Resolve-HDTVariable -Fact $fact
             Get-HDTLogDestination -WorkspaceRoot $workspaceRoot -Variable $resolved.Variable
 

@@ -259,6 +259,25 @@
             & $new 'unattend' 'Answer file' 'Text' '' 'The GENERALIZE-pass answer file, which is not the deployment''s unattend.xml. It is staged where sysprep looks and deleted afterwards, so it does not travel inside the image. Empty runs sysprep without one.'
         }
 
+        # ONE ROW, BECAUSE THERE IS ONE QUESTION: which volume. Everything else
+        # this step does - what it deletes, what it keeps and why - is decided
+        # by the engine, and a preserved-set editor would be an invitation to
+        # remove HDT\ from the list and kill the run.
+        'CleanVolume' {
+            & $new 'volume' 'Volume' 'Text' 'primary' 'The volume to empty. ''primary'' is the volume the deployment published, which is the one the image is applied to; a letter or a %Variable% names another. This step deletes everything on it except this run''s own state.'
+        }
+
+        # TWO ROWS, AND THE SECOND ONE IS THE TRAP. rebootCount defaults to 0,
+        # which is "stay suspended until protection is explicitly resumed"; 1
+        # would be "until the next boot", and a Refresh boots into WinPE,
+        # applies an image and boots again - so a 1 typed here is a machine that
+        # asks for a recovery key on the second reboot, hours later, with
+        # nothing on screen connecting it to this box.
+        'SuspendBitLocker' {
+            & $new 'drive' 'Drive' 'Text' '' 'The volume to suspend protection on. Left empty this is the volume the run published, and failing that the one this Windows is running from - which is what a Refresh replaces.'
+            & $new 'rebootCount' 'Reboots suspended for' 'Number' '0' 'How many reboots the suspend outlives. 0 keeps protection off until it is explicitly resumed, which is what a Refresh needs: it reboots more than once, and a suspend that expired on the first would put the second into BitLocker recovery.'
+        }
+
         'Tattoo' {
             & $new 'path' 'Registry key' 'Text' 'HKLM:\SOFTWARE\Hephaestus\Deployment' 'Where the deployment record is stamped. This is what an audit reads months later to find out what built the machine.'
             & $new 'values' 'Extra values' 'Table' '' 'Values of your own, stamped beside the standard ones. A name that collides with a standard stamp replaces it.'

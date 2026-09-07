@@ -92,6 +92,43 @@
             so a scan that included it would find this boot's own document and
             make every ordinary deployment resume itself.
 
+        .PARAMETER Phase
+            The leg this START is on - WinPE or FullOS.
+
+            A START IS NOT A RESUME, AND THAT IS THE WHOLE OF THIS PARAMETER.
+            Until M9 the only caller ran in WinPE, where X: is excluded and every
+            other volume belongs to the machine being deployed. A Refresh starts
+            the same payload from the RUNNING WINDOWS (DESIGN 3.2), so the scan
+            now reaches C:\HDT\state.json - the document that machine's PREVIOUS
+            HDT deployment left behind.
+
+            Succeeded and Failed were already right: a finished run is not a run
+            in progress. The two that were wrong are the ones still marked
+            Running, because that machine's last deployment died or was
+            interrupted - a fresh one would be RESUMED, so the Refresh an
+            operator just launched would silently continue somebody else's
+            half-finished sequence at its step index; a stale one would be
+            AMBIGUOUS, so a deliberate act would be refused by a document about
+            a run that ended weeks ago.
+
+            A run that is STARTING in the full OS was launched by a person
+            standing at the machine: it is a new deployment by definition. A run
+            RESUMING into the full OS was sent there by its own reboot, and that
+            arrives through Start-HDTResume.ps1 - armed by the leg before it,
+            reading the path it was given, and never consulting this scan at
+            all. Only the second is evidence that a run is in progress, so a
+            full-OS start answers None and mints a fresh run.
+
+            THE OLD DOCUMENT IS LEFT EXACTLY WHERE IT IS. Nothing here deletes or
+            rewrites it: it is the only account of what happened to this machine
+            last time, and it is named in the Reason so the decision is
+            answerable from the log rather than from a missing file.
+
+            AND THE WinPE LEG OF THAT SAME REFRESH STILL RESUMES. The machine
+            stages a WinPE, reboots into it, and comes back to find the document
+            the leg before it wrote - which is a run in progress, found on a
+            WinPE leg, which is exactly what this command is for.
+
         .PARAMETER Disk
             An IDiskService. Only GetVolume() is called - the same flat listing
             of lettered volumes the Local content provider scans.
@@ -116,7 +153,7 @@
             ('None', 'Resume' or 'Ambiguous'), Reason, State, Path and Candidate.
 
         .EXAMPLE
-            $decision = Get-HDTResumeCandidate -Disk (New-HDTDiskService) `
+            $decision = Get-HDTResumeCandidate -Phase WinPE -Disk (New-HDTDiskService) `
                 -FileSystem (New-HDTFileSystem) -Clock (New-HDTClock)
 
             What Start-HDTDeployment.ps1 asks before it mints a run. On a machine
@@ -132,6 +169,14 @@
     [CmdletBinding()]
     [OutputType([pscustomobject])]
     param(
+        # MANDATORY, WITH NO DEFAULT, AND DELIBERATELY SO. A default of WinPE
+        # would be the historical behaviour spelled quietly, and the leg it is
+        # wrong for is the one where being wrong hijacks another run. There is
+        # one production caller and it already holds the answer.
+        [Parameter(Mandatory = $true)]
+        [ValidateSet('WinPE', 'FullOS')]
+        [string] $Phase,
+
         [Parameter(Mandatory = $true)]
         [ValidateNotNull()]
         [object] $Disk,
@@ -224,6 +269,35 @@
 
     if ($candidate.Count -eq 0) {
         return (& $answer 'None' 'no run is in progress on this machine: no volume carries a state document' $null '' @())
+    }
+
+    # -- 2b. a START in the full OS is a new deployment ----------------------
+    #
+    # AFTER THE SCAN, SO THE EVIDENCE IS IN THE ANSWER. Returning before it
+    # would be a line faster and would leave an administrator with no way to
+    # tell "there was nothing there" from "there was something and it was
+    # ignored" - which is the difference they will be asking about.
+    #
+    # AND BEFORE EVERY OTHER TEST, because none of them applies. A full-OS start
+    # was launched by a person standing at the machine, so nothing found here is
+    # a run in progress: not a fresh Running document (which would be RESUMED,
+    # continuing an interrupted deployment the operator did not ask for), not a
+    # stale one (which would be AMBIGUOUS, refusing a deliberate act over a run
+    # that ended weeks ago), not two of them, and not one that will not parse -
+    # a crashed previous deployment must not be able to strand this machine
+    # behind a file somebody has to find and delete by hand.
+    #
+    # NOTHING IS DELETED OR REWRITTEN. The document stays where it is: it is the
+    # only account of what happened to this machine last time. It is named here
+    # instead, so the decision is answerable from the log.
+    #
+    # THE RESUME THIS DOES NOT TOUCH is the one that arrives by reboot:
+    # Start-HDTResume.ps1, armed by the leg before it, which reads the path it
+    # was given and never calls this command. And the WinPE leg of a Refresh
+    # still reaches every test below, which is how a Refresh comes back.
+    if ($Phase -eq 'FullOS' -and $candidate.Count -gt 0) {
+        return (& $answer 'None' ("this deployment was STARTED from the running Windows, so it is a new run: an operator launched it, rather than a reboot sending an existing run here. {0} state document(s) from an earlier deployment of this machine were found ({1}) and have been left exactly as they are - nothing has been deleted or rewritten - but none of them is resumed, because a start is not a resume. A run that reboots into the full OS comes back through the resume agent the leg before it armed, not through this scan." -f
+                $candidate.Count, (@($candidate) -join ', ')) $null '' ([string[]] @($candidate)))
     }
 
     if ($candidate.Count -gt 1) {

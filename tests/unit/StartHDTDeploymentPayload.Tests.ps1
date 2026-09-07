@@ -473,6 +473,87 @@ Describe 'Start-HDTDeployment.ps1' {
             $element | Should -Contain 'WinPE'
         }
 
+        # M9 ITEM 2. THE ENTRY POINT USED TO ASSERT ITS OWN PHASE, AND IT WAS
+        # RIGHT ABOUT IT EVERY TIME UNTIL A REFRESH.
+        #
+        # A Refresh is a wipe-and-load launched from the RUNNING FULL OS
+        # (DESIGN 3.2), so this same file can now be started on a leg where
+        # every hard-coded WinPE is a lie - the log would go to X: on a machine
+        # with no X:, _HDTPhase would say WinPE inside Windows, and
+        # Get-HDTMachineFact would publish NEWCOMPUTER on a Refresh. Every
+        # symptom of that points somewhere else.
+        #
+        # SO IT DERIVES THE PHASE ONCE AND PASSES THAT ONE VALUE. Asserted over
+        # the SET of -Phase arguments in the file rather than over the four call
+        # sites that exist today: a fifth added tomorrow with the literal back
+        # in it fails here, which is the only version of this test that is worth
+        # having.
+        It 'derives the phase it started in rather than asserting it' {
+            @(& $script:commandNamed 'Get-HDTDeploymentPhase').Count |
+                Should -Be 1 -Because 'the phase is decided once, at the top, and carried - two derivations are two answers'
+        }
+
+        It 'reads the system drive through the environment adapter, never $env: directly' {
+            # CLAUDE.md rule 5 and New-HDTEnvironmentProvider's own help: the
+            # adapter is the one place HDT reads an environment variable, which
+            # is what lets a fake say 'X:' on a machine that is not in WinPE.
+            #
+            # ASSERTED ON THE AST, NOT ON THE TEXT. The header of this file
+            # discusses $env:SystemDrive in prose, and a raw text scan would fail
+            # on the sentence rather than on the code - which teaches the next
+            # author to delete the sentence and keep the defect.
+            $read = @($script:ast.FindAll({
+                        param($node)
+                        $node -is [System.Management.Automation.Language.InvokeMemberExpressionAst] -and
+                        [string] $node.Member.Extent.Text -eq 'GetVariable' -and
+                        @($node.Arguments | ForEach-Object { [string] $_.Extent.Text }) -contains "'SystemDrive'"
+                    }, $true))
+
+            $read.Count | Should -Be 1 -Because 'the system drive is read once, through the injected IEnvironmentProvider'
+
+            $script:codeOnly | Should -Not -BeLike '*$env:SystemDrive*' -Because 'engine and payload code never reaches the environment except through the adapter'
+        }
+
+        It 'hands that one value to every -Phase it passes, and a literal to none of them' {
+            $phaseArgument = @()
+
+            foreach ($command in @($script:ast.FindAll({
+                            param($node)
+                            $node -is [System.Management.Automation.Language.CommandAst]
+                        }, $true))) {
+
+                $element = @($command.CommandElements)
+
+                for ($i = 0; $i -lt $element.Count - 1; $i++) {
+                    if ($element[$i] -is [System.Management.Automation.Language.CommandParameterAst] -and
+                        $element[$i].ParameterName -eq 'Phase') {
+
+                        $phaseArgument += [pscustomobject] @{
+                            Command  = [string] $command.GetCommandName()
+                            Argument = $element[$i + 1]
+                            Text     = [string] $element[$i + 1].Extent.Text
+                        }
+                    }
+                }
+            }
+
+            # ANTI-VACUITY. A set-driven assertion that finds nothing passes
+            # forever, and this one is looking for the absence of a literal.
+            $phaseArgument.Count |
+                Should -BeGreaterThan 3 -Because 'the log path, the log context, the machine facts, the run state and the execution context each take a -Phase'
+
+            $literal = @($phaseArgument | Where-Object {
+                    $_.Argument -isnot [System.Management.Automation.Language.VariableExpressionAst]
+                })
+
+            $literal | Should -BeNullOrEmpty -Because ('every -Phase must carry the derived value, and these carry something else: {0}' -f
+                (@($literal | ForEach-Object { '{0} -Phase {1}' -f $_.Command, $_.Text }) -join ', '))
+
+            $distinct = @($phaseArgument | ForEach-Object { $_.Text } | Sort-Object -Unique)
+
+            $distinct.Count | Should -Be 1 -Because ('one run has one start phase; these are different variables: {0}' -f ($distinct -join ', '))
+        }
+
         It 'builds the content provider through New-HDTContentProvider' {
             @(& $script:commandNamed 'New-HDTContentProvider').Count | Should -Be 1
             @(& $script:commandNamed 'New-HDTLocalContentProvider') | Should -BeNullOrEmpty

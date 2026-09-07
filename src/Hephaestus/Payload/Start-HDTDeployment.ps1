@@ -421,10 +421,46 @@ try {
     $cim = New-HDTCimProvider
     $processService = New-HDTProcessService
 
-    # WinPE, and it is not a guess: this file IS the WinPE entry point and hard-
-    # codes -Phase WinPE everywhere else. 05-06 mounted the boot image and found
-    # no shutdown.exe in it, so a power service built for the full OS would give
-    # a Restart step a command that does not exist.
+    # -- 3b. WHICH LEG DID THIS RUN START ON? --------------------------------
+    #
+    # DERIVED ONCE, HERE, AND CARRIED EVERYWHERE. It used to be the literal
+    # WinPE at five call sites, and it was right about every one of them until
+    # M9: a Refresh is the same wipe-and-load launched from the RUNNING FULL OS
+    # (DESIGN 3.2), so this file can now be started on a leg where every one of
+    # those literals is a lie. The log would be sent to X: on a machine with no
+    # X:, _HDTPhase would say WinPE from inside Windows, and Get-HDTMachineFact
+    # would publish HDTDeploymentType = NEWCOMPUTER on a Refresh.
+    #
+    # WinPE BOOTS WITH ITS SYSTEM DRIVE AT X:, so the drive letter is not a
+    # proxy for how the machine started - it IS how it started. MDT reads
+    # exactly this (LiteTouch.wsf:373-387), and Get-HDTDeploymentPhase carries
+    # the reasoning and every branch.
+    #
+    # AND THE PHASE IS A FACT ABOUT THE RUN'S ORIGIN, NOT A PREFERENCE. Nothing
+    # here takes it as a parameter and no rules.yaml may declare it: the value
+    # decides whether HDTDeploymentType is NEWCOMPUTER or REFRESH, and REFRESH
+    # is the one value that unlocks ApplyImage on a resumed leg. A run that
+    # could be told what it is could talk its way past that guard.
+    #
+    # READ THROUGH THE ADAPTER, DECIDED IN THE COMMAND. $env: appears nowhere:
+    # the environment provider built above is the one thing in HDT that reads an
+    # environment variable (CLAUDE.md rule 5), which is what lets a fake say
+    # 'X:' on a machine that is not in WinPE.
+    #
+    # BEFORE THE LOG, because Get-HDTLogPath needs it to know which root to
+    # open, and that is the first thing this file does that writes anything.
+    # KEPT IN A VARIABLE BECAUSE THE LOG LINE BELOW QUOTES IT. Reading the
+    # environment twice would let the two halves of one sentence disagree, and
+    # the evidence is the half that makes the decision readable a week later.
+    $systemDrive = [string] $environment.GetVariable('SystemDrive')
+    $phase = Get-HDTDeploymentPhase -SystemDrive $systemDrive
+
+    # WinPE, AND STILL A LITERAL WHILE -Phase ABOVE IS NOT. 05-06 mounted the
+    # boot image and found no shutdown.exe in it, so a power service built for
+    # the full OS would give a Restart step a command that does not exist - and
+    # the boot image is what this payload ships inside. Teaching the power
+    # service about a full-OS leg is M9's own work and it is not done here; a
+    # Refresh's restarts happen on the WinPE leg this transports the machine to.
     $power = New-HDTPowerService -Environment WinPE
 
     # -- 3a. IS A TASK SEQUENCE ALREADY RUNNING ON THIS MACHINE? -------------
@@ -451,7 +487,16 @@ try {
     # already, carried in the state document's variable bag; opening the wizard
     # again on the capture boot would stop a reference build dead waiting for
     # somebody who went home hours ago.
-    $resume = Get-HDTResumeCandidate -Disk $diskService -FileSystem $fileSystem -Clock $clock
+    # AND IT IS TOLD WHICH LEG THIS START IS ON, because a start is not a
+    # resume. In WinPE the scan cannot see anything but the machine being
+    # deployed; started from the running Windows it reaches C:\HDT\state.json -
+    # the document this machine's PREVIOUS deployment left behind - and a
+    # Refresh launched soon after an interrupted run would continue the
+    # interrupted one instead of minting its own. The only thing that
+    # legitimately resumes INTO the full OS is Start-HDTResume.ps1, armed by the
+    # leg before it, which never calls this. Get-HDTResumeCandidate carries the
+    # whole reasoning and leaves the old document exactly where it found it.
+    $resume = Get-HDTResumeCandidate -Phase $phase -Disk $diskService -FileSystem $fileSystem -Clock $clock
 
     # AMBIGUOUS STOPS THE DEPLOYMENT. It means "there may be a run in progress
     # and I cannot tell" - a half-written state document, two volumes carrying
@@ -477,11 +522,39 @@ try {
         $runId = [string] $resume.State.runId
     }
 
+    # WHAT THE RUN ALREADY KNOWS IT IS, IF ANYTHING ALREADY KNOWS.
+    #
+    # THE PHASE IS RE-DERIVED EVERY LEG; THE DEPLOYMENT TYPE IS NOT. A Refresh
+    # starts here in the full OS - SystemDrive C:, so REFRESH - stages a WinPE,
+    # reboots, and comes back into this same file with SystemDrive at X:. The
+    # phase is correctly WinPE on that leg. The RUN is still a REFRESH, and a
+    # gather that re-derived would rename it NEWCOMPUTER at the exact moment the
+    # resume guard is asking, because REFRESH is the one value that unlocks
+    # ApplyImage there (DESIGN 3.2).
+    #
+    # MDT'S RULE, AND HDT TAKES IT: DERIVE ONLY WHEN NOTHING HAS SAID YET.
+    # LiteTouch.wsf:373-387 fills DeploymentType in under
+    # `ElseIf oEnvironment.Item("DeploymentType") = "" then`, and it lives in the
+    # run's persisted environment from then on. state.json is HDT's equivalent
+    # of that environment - the only thing that crosses the reboot.
+    #
+    # EMPTY ON A FIRST LEG, AND THAT IS THE ORDINARY CASE. Nothing has decided
+    # yet, so the gather derives from the phase and New-HDTRunState stamps the
+    # same answer onto the document it mints.
+    #
+    # PROPERTY-EXISTENCE CHECKED, NOT ASSUMED, under Set-StrictMode: a document
+    # written by an engine older than the field does not carry one, and an
+    # absent value means "derive" rather than "throw".
+    $carriedDeploymentType = ''
+    if ($null -ne $resumedState -and $null -ne $resumedState.PSObject.Properties['deploymentType']) {
+        $carriedDeploymentType = [string] $resumedState.deploymentType
+    }
+
     # -- 4. the log, before anything else can fail ---------------------------
 
     $logDirectory = $LogRoot
     if ([string]::IsNullOrWhiteSpace($logDirectory)) {
-        $logDirectory = Get-HDTLogPath -Phase WinPE
+        $logDirectory = Get-HDTLogPath -Phase $phase
     }
 
     $fileSystem.CreateDirectory($logDirectory)
@@ -503,7 +576,7 @@ try {
         $bootLevel = [string] $resumedState.logLevel
     }
 
-    $log = New-HDTLogContext -RunId $runId -Phase WinPE -LogPath $logDirectory `
+    $log = New-HDTLogContext -RunId $runId -Phase $phase -LogPath $logDirectory `
         -FileSystem $fileSystem -Clock $clock -Level $bootLevel -Seq $bootSeq
 
     # AND THE REGISTRY ADAPTER GETS IT, now that there is one to give. It is
@@ -518,6 +591,13 @@ try {
     & $say ("powershell-yaml {0} loaded from {1}" -f $yaml.Version, $yaml.ModuleBase)
     & $say ("Hephaestus {0} loaded from {1}" -f $engine.Version, $engine.ModuleBase)
     & $say ("PowerShell {0}; launched by '{1}'" -f $PSVersionTable.PSVersion, $result['launchedBy'])
+
+    # THE PHASE, THE EVIDENCE FOR IT AND WHAT IT DECIDES - at Info, because an
+    # administrator reading this a week later cannot tell a Refresh from a bare
+    # metal build without it, and because it is the line that explains why the
+    # log they are reading is on the drive it is on.
+    & $say ("this run STARTED in {0}: SystemDrive is '{1}', and WinPE boots with its system drive at X:. That is what puts this leg's log under '{2}', and it is what HDTDeploymentType is derived from - the gather below prints the value it produced." -f
+        $phase, $systemDrive, $logDirectory)
 
     # THE DECISION TAKEN ABOVE, RECORDED NOW THAT THERE IS SOMEWHERE TO RECORD
     # IT. Both answers are worth a line: "resuming" is the unusual one, and "no
@@ -864,7 +944,18 @@ try {
 
     while ($true) {
         $attempt++
-        $fact = Get-HDTMachineFact -CimProvider $cim -RegistryService $registry -EnvironmentProvider $environment
+        # THE DERIVED PHASE, THE WAY EVERY OTHER -Phase IN THIS FILE NOW IS.
+        # This is the call HDTDeploymentType falls out of - NEWCOMPUTER on a
+        # WinPE leg, REFRESH on a full-OS one - so a constant here would have
+        # been the run asserting its own origin rather than reading it.
+        #
+        # AND -DeploymentType IS WHAT STOPS IT BEING RE-DERIVED. Empty on a
+        # first leg, which means "derive from the phase"; on a resumed leg it is
+        # the value this run's own checkpoint carries, so a Refresh that has
+        # crossed into WinPE is still a Refresh. Provenance says which of the two
+        # happened, rather than reporting a carried value as a fresh reading.
+        $fact = Get-HDTMachineFact -CimProvider $cim -RegistryService $registry -EnvironmentProvider $environment `
+            -Phase $phase -DeploymentType $carriedDeploymentType
 
         # THE DECISION IS Get-HDTUsableAddress'S, AND IT USED TO BE HERE. Inline,
         # it cast a [string[]] to a string - which SPACE-joins - and then split
@@ -2123,11 +2214,11 @@ try {
         $state = $resumedState
         $state.leg = [int] $state.leg + 1
     } else {
-        $state = New-HDTRunState -SequenceId $sequence.Id -RunId $runId -Phase WinPE `
+        $state = New-HDTRunState -SequenceId $sequence.Id -RunId $runId -Phase $phase `
             -Clock $clock -Variable $variable -Step $sequence.Step -LogLevel ([string] $log.Level)
     }
 
-    $context = New-HDTExecutionContext -RunId $runId -Phase WinPE -WorkspaceRoot $workspaceRoot `
+    $context = New-HDTExecutionContext -RunId $runId -Phase $phase -WorkspaceRoot $workspaceRoot `
         -Variable $variable -Service $catalog -Log $log -State $state
 
     # -- 12. ONE call to the engine ------------------------------------------

@@ -180,10 +180,11 @@ Describe 'HDTDeploymentType' {
     # NEWCOMPUTER, REFRESH, REPLACE, UPGRADE. That is how one template serves
     # bare metal and an in-place refresh from the same file.
     #
-    # HDT IMPLEMENTS ONE OF THEM. There is no State Capture, no USMT and no
-    # replace path, so the variable has exactly one value today - and it exists
-    # anyway, so a sequence can be written against it now and the groups that
-    # arrive later need no rewrite of the ones already there.
+    # HDT CARRIES TWO OF THEM, and derives which one from the phase the engine
+    # started in - WinPE to NEWCOMPUTER, the full OS to REFRESH. There is no
+    # State Capture, no USMT and no replace path, so REPLACE and UPGRADE are not
+    # offered: a description naming a value this engine can never publish is a
+    # promise the map cannot keep.
 
     It 'is a variable the toolkit knows about' {
         Get-HDTVariableMap -Name 'HDTDeploymentType' | Should -Not -BeNullOrEmpty
@@ -193,8 +194,23 @@ Describe 'HDTDeploymentType' {
         (Get-HDTVariableMap -Name 'HDTDeploymentType').MdtName | Should -BeExactly 'DeploymentType'
     }
 
-    It 'says what it is today rather than pretending to more' {
-        (Get-HDTVariableMap -Name 'HDTDeploymentType').Description | Should -BeLike '*NEWCOMPUTER*'
+    It 'names both values it can publish and neither it cannot' {
+        $description = [string] (Get-HDTVariableMap -Name 'HDTDeploymentType').Description
+
+        $description | Should -BeLike '*NEWCOMPUTER*'
+        $description | Should -BeLike '*REFRESH*'
+    }
+
+    # NOT AN ADMINISTRATOR'S TO SET, AND THE ROW IS WHERE THAT IS SAID. The name
+    # carries no underscore - MDT's is DeploymentType and a step condition reads
+    # %HDTDeploymentType% - so the prefix rule cannot say it, exactly as with
+    # HDTDeploymentMethod. Assert-HDTRuleDocument and Resolve-HDTVariable both
+    # refuse on this column, so the row IS the refusal.
+    It 'is engine-owned and not settable from rules.yaml' {
+        $row = Get-HDTVariableMap -Name 'HDTDeploymentType'
+
+        $row.Origin | Should -BeExactly 'engine'
+        $row.Writable | Should -BeFalse
     }
 }
 

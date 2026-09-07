@@ -1198,6 +1198,162 @@ where it lands.
 
 ---
 
+## M9 — Refresh
+
+**A wipe-and-load launched from the running Windows instead of from a boot.** The
+machine stages a WinPE onto its own disk, reboots into it, deletes the old
+installation, applies the image and comes back — MDT's `REFRESH`, and the third caller of the `BootToWinPE` transport
+M7 already built. **It restores no user state.** DESIGN §1 rules USMT out
+permanently and M9 does not reopen that: `REFRESH` says where the run started,
+not what survived it. The design is DESIGN §3.2.
+
+- **`HDTDeploymentType` becomes derived, and stops being writable.**
+  `Get-HDTMachineFact.ps1:429` publishes the constant `NEWCOMPUTER` today, with
+  provenance recorded as `constant` at `:504`. It becomes the phase the engine
+  started in — WinPE to `NEWCOMPUTER`, full OS to `REFRESH` — and the
+  `Get-HDTVariableMap.ps1:134` row gains `Writable = $false` the way
+  `HDTDeploymentMethod`'s has at `:157`. MDT tests the same thing on the same
+  evidence (`LiteTouch.wsf:373-387`) and re-derives it per sequence
+  (`ZTIUtility.vbs:3339-3347`); no wizard pane sets it there and none does here.
+  `Assert-HDTRuleDocument.ps1:155-160` builds its refusal set from the map's
+  `Writable` column rather than from a list of names, so the row **is** the
+  change.
+- **A full-OS entry point.** `Start-HDTDeployment.ps1` hard-codes `-Phase WinPE`
+  at `:484`, `:506`, `:2126` and `:2130`. Nothing can currently say it is on a
+  full-OS leg, and until something can, the derivation above has nothing to read.
+- **No `DiskPartition` in the Refresh sequence.** MDT gates every partition and
+  format step behind `DeploymentType equals NEWCOMPUTER` (`Client.xml:131`,
+  mirrored `Server.xml:115`), and a Refresh reuses the partition Windows was
+  already booting from. It therefore stays in the resume-forbidden set
+  (`Get-HDTResumeForbiddenStepType.ps1:72`) — repartitioning would destroy the
+  staged WinPE the leg is running from. **This is about the partition table, not
+  the volume contents**, which the next bullet empties.
+- **A clean-the-volume step type, which does not exist.** Nothing in
+  `src/Hephaestus/Public/Steps/` empties a volume, and `DISM /Apply-Image`
+  overlays one rather than emptying it. MDT deletes the old installation by name
+  immediately before the apply — `LTIApply.wsf:1245-1317` `CleanDrive`
+  enumerates the root's subfolders at `:1265` and runs `cmd.exe /c rd /s /q` on
+  each at `:1282`, retrying once through takeown/icacls at `:1285-1299`, called
+  from `ApplyImage` at `:880-885` and gated on WinPE at `:882`. It deletes rather
+  than formats because the run's own state is on that volume: the preserved set
+  is `LTIApply.wsf:1275-1277` plus the `OSDStateStorePath` guard at
+  `:1257-1262`/`:1269`. **HDT's preserved set has to carry `<volume>\HDT\`** —
+  `state.json` mirrored by `Invoke-HDTTaskSequence.ps1:897` and read back by
+  `Start-HDTResume.ps1:87`, the staged boot WIM under `<volume>\HDT\Boot`
+  (`Get-HDTLocalWinPePlan`), and the logs — or the step kills the run it is part
+  of. It is destructive, so `SupportsShouldProcess`, and it refuses an ambiguous
+  target rather than guessing a volume.
+- **And it fails where MDT warns.** `LTIApply.wsf:1297-1299` logs
+  `"Unable to delete " & oFolder.Path` and continues, so a locked folder survives
+  into the new installation and nothing fails. HDT fails the step, for the reason
+  the resume guard already fails rather than skips
+  (`Invoke-HDTTaskSequence.ps1:556`): a half-cleaned volume is a machine that
+  looks deployed and is not, and the cause is unreadable a week later from a log
+  that recorded it as a warning.
+- **`ApplyImage` becomes permitted on a resumed leg of a `REFRESH` run, and only
+  there.** Capture's sits behind the resume point and is never visited
+  (`Invoke-HDTTaskSequence.ps1:543-545`); a Refresh's sits ahead of it. The
+  exception keys on the engine-derived deployment type and never on anything
+  `state.json` asserts about itself — which is the whole reason for the
+  `Writable = $false` above, and the reason the guard is placed ahead of the
+  already-completed check in the first place.
+- **`Suspend` on `IBitLockerService`, and the step that calls it — both built.**
+  The interface carries a fifth operation beside `GetVolume`, `AddProtector`,
+  `BackupProtector` and `Enable`, and `SuspendBitLocker` is the step type that
+  uses it. MDT runs `Win32_EncryptableVolume.DisableKeyProtectors(0)`
+  immediately before it arms the boot entry (`Client.xml:85-90`,
+  `ZTIDisableBDEProtectors.wsf:88-96`) — a suspend, not a decrypt — and
+  `Templates/refresh.yaml` puts HDT's in the same place, ahead of both
+  `BootToWinPE` steps. Without it, an encrypted machine's next boot lands in
+  BitLocker recovery instead of in WinPE.
+
+  The step declares `runIn: FullOS`, because the suspend can only be done from
+  the Windows that is running, and it reads the volume first: a machine with
+  nothing to suspend completes having asked for nothing, which is MDT's own
+  `ProtectionStatus<>0` select. `rebootCount` defaults to `0` — until protection
+  is explicitly resumed, rather than until the next boot — because a Refresh
+  reboots more than once.
+
+  **Proven against fakes only.** The ordering claim is asserted on the ordered
+  operation list of the real template
+  (`tests/unit/RefreshTemplate.EndToEnd.Tests.ps1`), and nothing here has run on
+  a real machine: whether a real `Suspend-BitLocker` on a real TPM leaves the
+  one-shot boot entry reachable is not something a hand-written double can
+  answer.
+- **Refresh-only validation — the three guards MDT runs in `ZTIValidate.wsf`,
+  built.** They are three more checks on the existing `Validate` step rather than
+  a step type of their own, because a guard an author can leave out of a sequence
+  is a guard that is not there:
+  `imageVersion` is the downgrade refusal (`:138-146`), comparing the BUILD and
+  not `GetMajorMinorVersion`, which returns `10.0` for every Windows since
+  Windows 10 and so has not been able to fire in a decade;
+  `allowOtherPartition` is the partition-match refusal (`:151-154`), with the
+  override declared on the step in place of MDT's
+  `DestinationOSRefresh=OKTOUSEOTHERDISKANDPARTITION` magic string, and it warns
+  rather than passing in silence; and `imageSizeMB` is free space of image size +
+  150 MB + 3 GB (`:231-256`), measured against the SIZE of the volume rather than
+  the space free on it, because `CleanVolume` empties it first.
+
+  **Which run a check belongs to is a `Scope` column on
+  `Get-HDTValidateCheckDefinition`**, so the table that declares the checks is
+  also the table that says who runs them and the two cannot disagree — a fourth
+  guard is a row there. All three report themselves `skipped`, with the reason,
+  on a `NEWCOMPUTER` run, which is what MDT's `Case "NEWCOMPUTER"` does; the
+  target-disk checks are scoped the other way and report the same on a `REFRESH`,
+  because the boot disk a Refresh replaces is the one disk the target-disk rules
+  exclude absolutely.
+
+  **Proven against fakes only**, like everything else in M9: the guards are
+  asserted over the scoped SET read back out of that table
+  (`tests/unit/Invoke-HDTValidateStep.Refresh.Tests.ps1`), and no run has yet
+  refused a real machine.
+- **`BootToWinPE` is reused unchanged.** `Invoke-HDTBootToWinPEStep`,
+  `Get-HDTLocalWinPePlan` and `Get-HDTBcdCommand` shipped in M7 and were
+  deliberately kept out of the forbidden set so a resumed leg can tear down its
+  own transport (`Get-HDTResumeForbiddenStepType.ps1:36-46`). PSD has no
+  full-OS-to-WinPE mechanism at all, so MDT is the only prior art and M9 invents
+  no second one.
+- **No confirmation screen**, deliberately. MDT has no "you are about to wipe
+  this machine" prompt in `DeployWiz_Ready.xml` or its `.vbs`, in
+  `DeployWiz_Validation.vbs`, in `DeployWiz_Definition_ENU.xml`, or in
+  `LiteTouch.wsf`, and M9 adds none. Recorded here so it reads as decided rather
+  than forgotten.
+
+**Tests first**, and each one written against the SET rather than against the one
+case being added — a test that names `REFRESH` alone passes for it and fails
+nobody after it:
+
+| Tests first item | What it must assert |
+|---|---|
+| **`HDTDeploymentType` is derived, both ways** | `Get-HDTMachineFact` returns `NEWCOMPUTER` for a WinPE phase and `REFRESH` for a full-OS one, and its provenance names the phase it read rather than the word `constant` |
+| **The map refuses it, by column** | a `rules.yaml` setting `HDTDeploymentType` to either value is refused by `Assert-HDTRuleDocument`, asserted over every non-writable row the map carries rather than over that one name — so the next engine-published variable is covered the day its row lands |
+| **The guard's exception is exactly one step type** | on a resumed leg: `ApplyImage` runs under `REFRESH` and refuses under `NEWCOMPUTER`; `DiskPartition` refuses under both. Four cases in one table, because three of them passing is not the set passing |
+| **The exception cannot be forged** | a `state.json` claiming `REFRESH` on a leg the engine derived as `NEWCOMPUTER` does not unlock `ApplyImage`. The guard exists to disbelieve that document, and an exception it can talk its way through is not a guard |
+| **BitLocker is suspended before the entry is armed** | the ordered operation list of a Refresh sequence against the fakes has the suspend ahead of the first `BootToWinPE` arm, and a `NEWCOMPUTER` run has no suspend in it anywhere |
+| **The shipped Refresh template plans** | it parses, schema-checks **and** plans — with no `DiskPartition` step and no partition operation in the resulting list. This is the `client.yaml` failure CLAUDE.md records: parsed and schema-checked is not planned |
+| **The clean preserves a set, not an example** | a clean-the-volume step against the fakes deletes `Windows`, `Program Files`, `Users` and `ProgramData` from the OS volume, and leaves **every** name in the preserved set standing — asserted by enumerating that set rather than by naming `HDT\`, so the next name added to it is covered the day it lands. Deleting `<volume>\HDT\` kills the run, so its survival is the case that must not be the one example somebody wrote |
+| **A delete that fails, fails the step** | a clean whose fake refuses one folder returns a failure and not a warning — MDT logs `"Unable to delete "` and carries on (`LTIApply.wsf:1297-1299`), and the divergence is only real if a test holds it |
+| **Validation refuses before it destroys** | downgrade, wrong partition and insufficient free space each refuse on a `REFRESH` run and each is skipped on a `NEWCOMPUTER` one |
+
+**Exit:** a real machine already running Windows, deployed **without touching its
+boot media** — no ISO, no PXE, no F12. The engine starts from inside the running
+OS, stages its own WinPE, comes back through it, applies the image, and finishes
+in the new installation. Three things the run must also show, because each is a
+way it can look green and be wrong:
+
+- The machine was **BitLocker-encrypted before the run started**, and the boot
+  after the arm reached WinPE rather than a recovery prompt. Refreshing an
+  unencrypted machine proves the transport and nothing at all about the suspend.
+- The **partition table is the one it started with** — same layout, same
+  identifiers, read before and after. A Refresh that quietly repartitioned looks
+  identical from the finished desktop, and would have destroyed the staged WinPE
+  it needed to return through.
+- Every leg's state document recorded a **derived** `REFRESH`, the WinPE one
+  included. A leg that derived `NEWCOMPUTER` there and applied the image anyway
+  got past the guard by accident, and the next corrupt `stepIndex` will too.
+
+---
+
 ## Post-v1 candidates
 
 Ordered by likely value, all pending the open questions in DESIGN §14:

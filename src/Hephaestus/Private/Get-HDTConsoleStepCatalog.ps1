@@ -175,7 +175,28 @@
         # 'Install Applications' in one menu reads as two words for one idea.
         'ApplyUpdates'  = @{ Text = 'Apply Windows Updates'; Category = 'Images'; Order = 4 }
         'ConfigureBoot' = @{ Text = 'Configure Boot'; Category = 'Images'; Order = 4 }
-        'EnableBitLocker' = @{ Text = 'Enable BitLocker'; Category = 'Disks'; Order = 2 }
+        # ON THE Disks SHELF, BESIDE Format and Partition, AND MDT OFFERS NO
+        # SUCH STEP AT ALL - its CleanDrive is code inside LTIApply.wsf that a
+        # Refresh reaches by running the apply, never a step anybody adds. HDT
+        # makes it a step because a Refresh sequence carries no DiskPartition
+        # (DESIGN 3.2) and the emptying therefore has to be somewhere an author
+        # can see it and order it.
+        #
+        # 'Delete Old Installation' RATHER THAN 'Clean Volume', for the reason
+        # Inject Drivers is not called ApplyDrivers: the menu says what happens
+        # to the machine, and 'clean' is the one word in a deployment tool that
+        # could mean almost anything.
+        'CleanVolume'   = @{ Text = 'Delete Old Installation'; Category = 'Disks'; Order = 2 }
+        'EnableBitLocker' = @{ Text = 'Enable BitLocker'; Category = 'Disks'; Order = 3 }
+
+        # BESIDE Enable BitLocker AND IMMEDIATELY AFTER IT, because the pair is
+        # the same subject read in both directions and an author looking for one
+        # is looking at the other. MDT's own step is called 'Disable BDE
+        # Protectors' (Templates\Client.xml:85); this says 'Suspend' instead,
+        # because 'disable' is what an administrator would reasonably read as a
+        # decrypt and this operation is emphatically not one - the volume stays
+        # exactly as encrypted as it was, which is why it costs seconds.
+        'SuspendBitLocker' = @{ Text = 'Suspend BitLocker'; Category = 'Disks'; Order = 4 }
         'InstallRoles'  = @{ Text = 'Install Roles and Features'; Category = 'Roles'; Order = 1 }
 
         # ON THE IMAGES SHELF, AFTER Apply Windows Settings, because that is

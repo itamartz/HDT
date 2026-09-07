@@ -102,6 +102,56 @@ Describe 'Get-HDTConsoleValidateCheck' {
         }
     }
 
+    Context 'which deployment type a check belongs to' {
+
+        # A CHECK THAT DOES NOTHING ON THIS RUN HAS TO SAY SO ON ITS ROW. Five of
+        # the nine are scoped, and a flat list of nine identical rows tells a
+        # technician nothing: minDiskGB ticked at 60 reads exactly the same
+        # whether it is the floor that picks the target disk or a setting the
+        # run will report SKIPPED. The hint behind the ? says it, and a hint
+        # behind a ? is read once, when the check is new.
+        #
+        # THE SCOPES ARE WALKED, NOT NAMED. Get-HDTValidateCheckDefinition is
+        # the one place a scope is declared (CLAUDE.md rule 8), so these assert
+        # over the SET: a sixth scoped check added to that table has to appear
+        # correctly here with nothing in the console edited, and a test that
+        # named minDiskGB would pass for it and fail nobody after it.
+
+        BeforeAll {
+            $script:scoped = Get-HDTConsoleValidateCheck -Line $script:line -Path $script:path -Name 'Validate'
+        }
+
+        It 'the table has scoped checks at all, so the assertions below are not vacuous' {
+            @(Get-HDTValidateCheckDefinition | Where-Object { $_.Scope -ne 'Any' }).Count |
+                Should -BeGreaterThan 0
+        }
+
+        It 'carries every check''s scope through from the table to the row it binds' {
+            foreach ($definition in @(Get-HDTValidateCheckDefinition)) {
+                $row = @($script:scoped.Check | Where-Object { $_.Key -eq $definition.Key })[0]
+
+                $row | Should -Not -BeNullOrEmpty -Because ("the page offers '{0}'" -f $definition.Key)
+                $row.Scope | Should -BeExactly ([string] $definition.Scope) `
+                    -Because ("'{0}' is scoped '{1}' in the definition table" -f $definition.Key, $definition.Scope)
+            }
+        }
+
+        It 'shows the badge on exactly the checks the table scopes, and on no others' {
+            # 'Any' IS EVERY RUN, AND A BADGE ON EVERY ROW MARKS NOTHING. The
+            # word WPF binds is decided here rather than by a converter in
+            # markup - a converter is a decision living in a file no test runs.
+            foreach ($definition in @(Get-HDTValidateCheckDefinition)) {
+                $row = @($script:scoped.Check | Where-Object { $_.Key -eq $definition.Key })[0]
+
+                $expected = 'Visible'
+                if ([string] $definition.Scope -eq 'Any') { $expected = 'Collapsed' }
+
+                $row.ScopeVisibility | Should -BeExactly $expected `
+                    -Because ("'{0}' is scoped '{1}'" -f $definition.Key, $definition.Scope)
+            }
+        }
+    }
+
     Context 'a step of any other type' {
 
         It 'says the page does not belong to it' {

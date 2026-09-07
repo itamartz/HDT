@@ -66,7 +66,7 @@ Describe 'a multi-valued variable on a surface a person reads' {
         $script:registry = New-HDTFakeRegistryService
         $script:environment = New-HDTFakeEnvironmentProvider
         $script:fact = Get-HDTMachineFact -CimProvider $script:cim `
-            -RegistryService $script:registry -EnvironmentProvider $script:environment
+            -RegistryService $script:registry -EnvironmentProvider $script:environment -Phase WinPE
 
         $script:names = & $script:multiValued $script:fact
     }
@@ -339,7 +339,7 @@ Describe 'a multi-valued fact round trips into a when clause' {
         $script:cim = & $script:newCim
         $script:fact = Get-HDTMachineFact -CimProvider $script:cim `
             -RegistryService (New-HDTFakeRegistryService) `
-            -EnvironmentProvider (New-HDTFakeEnvironmentProvider)
+            -EnvironmentProvider (New-HDTFakeEnvironmentProvider) -Phase WinPE
 
         $script:fs = New-HDTFakeFileSystem
     }

@@ -107,6 +107,57 @@ Describe 'Start-HDTDeployment.ps1 and a run already in progress' {
 
             & $script:argumentOf $discover | Should -Contain '-Clock'
         }
+
+        # AND IT HANDS IT THE LEG THIS START IS ON.
+        #
+        # A START IS NOT A RESUME. Until M9 this file only ever ran in WinPE and
+        # the scan could not see a previous deployment's C:\HDT\state.json; a
+        # Refresh starts it from the running Windows, where it can. A run
+        # STARTING in the full OS was launched by a person standing at the
+        # machine and is a new deployment by definition - the only thing that
+        # legitimately resumes INTO the full OS is Start-HDTResume.ps1, armed by
+        # the reboot, which never consults this scan at all. Without the phase
+        # the discovery cannot tell those apart, and a Refresh launched soon
+        # after an interrupted run continues the interrupted one.
+        #
+        # THE DERIVED PHASE, NOT A LITERAL. $phase is what Get-HDTDeploymentPhase
+        # read off SystemDrive a few lines above; a literal here would be this
+        # file asserting its own leg, which is the failure the derivation exists
+        # to remove.
+        It 'hands it the leg this start is on' {
+            $discover = @(& $script:commandNamed 'Get-HDTResumeCandidate')[0]
+            $argument = @(& $script:argumentOf $discover)
+
+            $argument | Should -Contain '-Phase'
+            $argument | Should -Contain '$phase'
+        }
+    }
+
+    Context 'what the run already knows it is' {
+
+        # HDTDeploymentType IS DERIVED ONCE AND THEN CARRIED (DESIGN 3.2).
+        #
+        # A Refresh starts in the full OS - SystemDrive C:, so REFRESH - stages
+        # a WinPE, reboots, and comes back with SystemDrive at X:. Re-deriving on
+        # the leg that comes back calls the same run a NEWCOMPUTER, and it does
+        # so at the exact moment the resume guard is asking, because REFRESH is
+        # the one value that unlocks ApplyImage there.
+        #
+        # MDT DERIVES ONLY WHEN NOTHING HAS SAID YET - LiteTouch.wsf:373-387,
+        # `ElseIf oEnvironment.Item("DeploymentType") = ""` - and the value lives
+        # in the run's persisted environment across the reboot. HDT's equivalent
+        # of that environment is the state document, so a resumed leg hands the
+        # gather what the document says and the gather stops guessing.
+        It 'hands the gather the type the state document carries' {
+            $gather = @(& $script:commandNamed 'Get-HDTMachineFact')
+
+            $gather.Count | Should -BeGreaterOrEqual 1
+
+            $argument = @(& $script:argumentOf $gather[0])
+
+            $argument | Should -Contain '-DeploymentType'
+            @($argument | Where-Object { $_ -match 'deploymentType' }) | Should -Not -BeNullOrEmpty
+        }
     }
 
     Context 'refusing what it cannot read' {

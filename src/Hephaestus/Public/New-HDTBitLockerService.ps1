@@ -10,15 +10,15 @@
             a test.
 
             IT IS BRANCH-FREE, WHICH IS WHY IT IS NOT UNIT TESTED (rule 1's
-            adapter exception) - AND THERE IS NO SAFE WAY TO TEST IT ANYWAY. Three
-            of its four methods change the encryption state of a physical disk,
+            adapter exception) - AND THERE IS NO SAFE WAY TO TEST IT ANYWAY. Four
+            of its five methods change the encryption state of a physical disk,
             and the disk in front of this code during development is the
             developer's own. The contract file runs the real row for SHAPE ONLY
             and never calls a method on it; the fake carries the behaviour.
 
             Every decision - which protector, whether escrow succeeded, whether to
-            encrypt at all - is made by the step. This projects four cmdlets and
-            nothing else.
+            encrypt at all, how many reboots a suspend lasts - is made by the
+            step. This projects five cmdlets and nothing else.
 
             THE PROTECTOR TYPE IS A STRING THE STEP CHOOSES, mapping to the switch
             Add-BitLockerKeyProtector wants. The mapping is here rather than in the
@@ -34,7 +34,7 @@
 
         .OUTPUTS
             System.Management.Automation.PSCustomObject carrying GetVolume,
-            AddProtector, BackupProtector and Enable, plus Operations,
+            AddProtector, BackupProtector, Enable and Suspend, plus Operations,
             GetOperationName and ServiceName.
 
         .EXAMPLE
@@ -171,6 +171,39 @@
         if ($UsedSpaceOnly) { $parameter['UsedSpaceOnly'] = $true }
 
         Enable-BitLocker @parameter | Out-Null
+    }
+
+    # A SUSPEND, AND NEVER A DECRYPT. DESIGN 3.2: a Refresh arms a one-shot
+    # ramdisk boot entry on a machine that is very likely encrypted, which
+    # changes the boot configuration the TPM measured - and the next boot then
+    # lands in BitLocker recovery, on a machine nobody is standing in front of,
+    # wanting a key the technician did not bring.
+    #
+    # MDT does exactly this, immediately before it arms, and it does it through
+    # WMI rather than manage-bde: ZTIDisableBDEProtectors.wsf:88 selects
+    # "Select * from Win32_EncryptableVolume where ProtectionStatus<>0" and :96
+    # calls objEncVol.DisableKeyProtectors(0). Suspend-BitLocker is the same
+    # operation through the module the rest of this adapter already uses; the
+    # BitLocker cmdlets are that WMI class's own projection.
+    #
+    # THE DECRYPT BRANCH IN THAT SCRIPT (:104) IS NOT PORTED AND WILL NOT BE.
+    # It exists for Vista and Server 2008/2008R2 combinations HDT does not
+    # support, and decrypting a volume in order to deploy over it costs hours on
+    # a large disk and buys nothing: the volume is about to be emptied by
+    # CleanVolume and overwritten by ApplyImage, so the plaintext underneath the
+    # ciphertext has no value to anybody. A suspend costs seconds and leaves the
+    # ciphertext exactly where it was.
+    #
+    # RebootCount IS THE CALLER'S, not this adapter's. MDT passes 0, which is
+    # "stay suspended until protection is explicitly resumed" rather than "until
+    # the next boot" - a Refresh reboots more than once, and a suspend that
+    # expired on the first of them would put the second into recovery.
+    $service | Add-Member -MemberType ScriptMethod -Name Suspend -Value {
+        param([string] $Drive, [int] $RebootCount)
+
+        $this.Record('Suspend', @($Drive, $RebootCount))
+
+        Suspend-BitLocker -MountPoint $Drive -RebootCount $RebootCount | Out-Null
     }
 
     return $service

@@ -99,6 +99,25 @@ $script:HDTQuietStep = [ordered] @{
     # from elapsed time would be a bar that lied.
     'BootToWinPE'        = "two of its actions are bcdedit and return at once; the third is one IFileSystem.CopyItem, which reports nothing while it runs. A bar would mean a new output channel on IFileSystem."
     'DiskPartition'      = "partitioning and a quick format, seconds on any disk this deploys to."
+
+    # THE HONEST ANSWER IS BootToWinPE'S, NOT DiskPartition'S, AND THE
+    # DIFFERENCE MATTERS. Emptying a volume is not the seconds shape - deleting
+    # a Windows\ tree is a hundred thousand files and takes real time - so it
+    # does not get DiskPartition's exemption. It gets the other one: each folder
+    # is a single IFileSystem.RemoveItem, which returns when it is done and says
+    # nothing at all while it runs. There are only a handful of folders on an OS
+    # volume root, so a per-folder record is four frames for the whole step -
+    # the token-record defect the drive table below exists to catch - and a
+    # percentage invented from elapsed time would be a bar that lied. Reporting
+    # honestly would mean a new output channel on IFileSystem.
+    'CleanVolume'        = "each folder is one IFileSystem.RemoveItem, which reports nothing while it runs, and an OS volume root holds a handful of them - so a per-folder record is four frames for the whole step. A bar would mean a new output channel on IFileSystem."
+    # THE SECONDS SHAPE, AND IT IS THE SECONDS SHAPE BECAUSE IT IS A SUSPEND
+    # RATHER THAN A DECRYPT. Suspend-BitLocker turns the protectors off and
+    # leaves the ciphertext exactly where it is, which is why DESIGN 3.2 chose
+    # it: a decrypt on a 1 TB volume is hours and would need a meter, and this
+    # is one call that returns at once. Two of them, counting the read that
+    # decides whether to ask at all.
+    'SuspendBitLocker'   = "one Suspend call preceded by one read, both returning at once - a suspend leaves the volume as encrypted as it was, which is why it is seconds rather than the hours a decrypt would need."
     'Gather'             = "reads CIM and the rules, in seconds."
     'InstallCertificate' = "writes a certificate to a store; effectively instant."
 

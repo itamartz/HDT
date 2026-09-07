@@ -263,7 +263,7 @@ and two rules called Fallback make that answer
                 # it is not an HDT variable name.
                 if ($unsettable.Contains($variable)) {
                     $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $Path `
-                                -Message ("{0}: '{1}' cannot be set by a rule. It is a fact about how this machine booted, published by the engine from the boot image's own provider - not a preference. A share that declares MEDIA gets a deployment that skips the network it is actually using, and every symptom of that points somewhere else. Run Get-HDTVariableMap to see which variables a rule may set." -f $locator, $variable)))
+                                -Message ("{0}: '{1}' cannot be set by a rule. It is a fact about how this run started - which provider the machine booted with, or which phase the engine started in - published by the engine, not a preference. A rules.yaml that declares one does not get the deployment it asked for; it gets a run that lies about its own origin, and every symptom of that points somewhere else. Run Get-HDTVariableMap to see which variables a rule may set." -f $locator, $variable)))
                 }
 
                 if ($variable -cnotmatch '^HDT[A-Za-z0-9_]*$') {

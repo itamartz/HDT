@@ -355,7 +355,7 @@
                     # actually reading from by either route.
                     if ($unsettable.Contains($name)) {
                         $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $RuleDocument.Path `
-                                    -Message ("{0}: the setFrom script '{1}' returned '{2}', which cannot be set by a rule. It is a fact about how this machine booted, published by the engine from the boot image's own provider - not a preference. A share that declares MEDIA gets a deployment that skips the network it is actually using, and every symptom of that points somewhere else. Run Get-HDTVariableMap to see which variables a rule may set." -f $locator, $rule.SetFrom, $name)))
+                                    -Message ("{0}: the setFrom script '{1}' returned '{2}', which cannot be set by a rule. It is a fact about how this run started - which provider the machine booted with, or which phase the engine started in - published by the engine, not a preference. A rules.yaml that declares one does not get the deployment it asked for; it gets a run that lies about its own origin, and every symptom of that points somewhere else. Run Get-HDTVariableMap to see which variables a rule may set." -f $locator, $rule.SetFrom, $name)))
                     }
 
                     $null = Add-HDTResolvedVariable -Resolution $resolution -Scope $scope `

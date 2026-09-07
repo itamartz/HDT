@@ -184,7 +184,36 @@
             # applied to the same shape of work.
             'update.apply',
             'var.resolve',
-            'var.unresolved')]
+            'var.unresolved',
+            # FIVE NAMES FOR EMPTYING A VOLUME, FOR THE REASON DRIVERS HAVE
+            # FIVE. CleanVolume (DESIGN 3.2) is the one step that DESTROYS the
+            # machine it is running on, and the question asked of it afterwards
+            # is never "did it run" - it is "what did it take, and what did it
+            # leave". A volume carrying the last installation's Program Files
+            # and a volume missing <volume>\HDT\ are both "the clean ran", and
+            # only these records tell them apart.
+            #
+            # volume.target is the volume it settled on and the one the engine
+            # is itself running from - half of why the target was safe to empty.
+            # volume.delete is one entry that went, volume.preserve one that
+            # stayed AND THE REASON it is exempt, and volume.retry the refusal
+            # that made it reset an ACL and try once more, which is the most
+            # diagnostic line the step writes: a delete needing an ACL reset is
+            # a volume some other deployment built.
+            #
+            # volume.clean is the tally, written before the first delete and
+            # again after the last - two records, one claim, one name, which is
+            # var.resolve's rule about a claim rather than a writer.
+            #
+            # THERE IS NO volume.fail. A clean that could not delete something
+            # asserts what every other failed step asserts - this step did not
+            # finish - so it keeps step.fail, and an administrator asking "what
+            # failed" does not have to know which step types invented a name.
+            'volume.clean',
+            'volume.delete',
+            'volume.preserve',
+            'volume.retry',
+            'volume.target')]
         [string] $Event = 'message',
 
         [Parameter()]

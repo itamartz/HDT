@@ -256,6 +256,31 @@ Describe 'HDTSequenceEditor.xaml' {
     ) {
         $script:markup | Should -Match ('x:Name="{0}"' -f $Name)
     }
+
+    It 'marks a scoped Validate check on its own row, where a technician will see it' {
+        # THE ? IS NOT WHERE THIS BELONGS. The hint behind it explains a check
+        # once; which run a check applies to has to be legible at a glance,
+        # every time the page is opened, or a ticked box reads as a check that
+        # will be made when it will be reported SKIPPED.
+        $script:markup | Should -Match '\{Binding Scope\}'
+        $script:markup | Should -Match '\{Binding ScopeVisibility\}'
+    }
+
+    It 'names no deployment type of its own, so a sixth scoped check needs no edit here' {
+        # ONE PLACE OF TRUTH (CLAUDE.md rule 8). The scope words come from
+        # Get-HDTValidateCheckDefinition and are bound as text; a scope spelled
+        # out in markup would be a second list, and the two would disagree the
+        # first time one of them was edited. Walked, not named: whatever scopes
+        # that table grows, none of them may appear here.
+        foreach ($scope in @(Get-HDTValidateCheckDefinition |
+                    Where-Object { $_.Scope -ne 'Any' } |
+                    ForEach-Object { [string] $_.Scope } |
+                    Select-Object -Unique)) {
+
+            $script:markup | Should -Not -Match ([regex]::Escape($scope)) `
+                -Because 'the badge binds the table''s word rather than repeating it'
+        }
+    }
 }
 
 Describe 'the Partition Properties dialog' {
