@@ -1948,7 +1948,8 @@ under `X:\HDT\`, and a `startnet.cmd` that runs `wpeinit` then launches
 | `X:\HDT\bootstrap.json` | where the content is and which provider reaches it (§6, read by `Get-HDTBootstrapConfiguration`) |
 | `X:\HDT\Start-HDTDeployment.ps1` | the WinPE entry point |
 | `X:\HDT\Start-HDTResume.ps1` | staged **from** the boot image **to** the target for the full-OS leg |
-| `X:\HDT\Modules\Hephaestus` | the engine, **excluding `Payload\`** — those two scripts live at `X:\HDT\`, and a second copy would be a second answer to "which one is running" |
+| `X:\HDT\UI` | the technician screens, staged from the module's own `UI\` (§11) |
+| `X:\HDT\Modules\Hephaestus` | the engine, **excluding `Payload\` and `UI\`** — those live at `X:\HDT\` and `X:\HDT\UI`, and a second copy would be a second answer to "which one is running" |
 | `X:\HDT\Modules\powershell-yaml` | the parser the whole engine rests on in WinPE (SPIKES S9.1) |
 | `X:\Windows\System32\startnet.cmd` | five lines, below |
 
@@ -3297,6 +3298,19 @@ Neither is optional decoration. A bare `X:\Windows\system32>` prompt is what
 HDT showed before this section existed, and it tells a technician standing at a
 bench nothing at all: not which machine, not which sequence, not whether it is
 working or hung.
+
+**They have three homes, because a run has three legs, and this section used to
+name only the first.** `Start-HDTDeployment.ps1` defaults every window it draws
+to `X:\HDT\UI\` (§5.1), which is exactly right on the leg it was written for and
+is a lie on the other two. The full-OS resume agent reads them from the `UI\`
+folder beside `state.json` — `C:\HDT\UI` — because the module staged to the
+target deliberately carries no `UI\` of its own. A Refresh (§5.1.1) never boots
+the image at all, so `X:` is not a drive: `Get-HDTPayloadUiPath` parses the param
+block of the very payload it is about to start and rebases every `X:\HDT\UI\`
+default onto `<share>\Modules\Hephaestus\UI`. The set of screens is **read from
+the payload, never listed** — six of them shipped broken at once when a caller
+kept its own copy of that list, and a seventh window is answered on the day it is
+added.
 
 ### 11.1 The progress window
 
