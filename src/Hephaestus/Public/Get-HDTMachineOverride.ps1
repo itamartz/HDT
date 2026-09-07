@@ -81,8 +81,6 @@
 
     if ($null -eq $FileSystem) { $FileSystem = New-HDTFileSystem }
 
-    $supportedSchemaVersion = 1
-
     # A machine whose UUID is unknown has no override to find, and asking the
     # filesystem about '<root>\Control\machines\.yaml' would be a lie.
     if ([string]::IsNullOrWhiteSpace($Uuid)) {
@@ -99,83 +97,25 @@
 
     $document = ConvertFrom-HDTYaml -Yaml $FileSystem.ReadAllText($path) -Path $path
 
-    # -- the document ---------------------------------------------------------
-
-    if ($null -eq $document) {
-        $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $path `
-                    -Message 'the file is empty. A machine override must declare schemaVersion and at least one variable.'))
-    }
-
-    if (-not ($document -is [System.Collections.IDictionary])) {
-        $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $path `
-                    -Message ("the document must be a mapping with schemaVersion and variables keys, but it is a {0}." -f $document.GetType().Name)))
-    }
-
-    foreach ($key in @($document.Keys)) {
-        if (@('schemaVersion', 'variables') -notcontains [string] $key) {
-            $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $path `
-                        -Message ("'{0}' is not a key a machine override may declare. The allowed keys are schemaVersion and variables." -f $key)))
-        }
-    }
-
-    if (-not $document.Contains('schemaVersion')) {
-        $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $path `
-                    -Message 'schemaVersion is missing. Every HDT document declares one; this engine understands schemaVersion 1.'))
-    }
-
-    $schemaVersion = $document['schemaVersion']
-    if (-not (($schemaVersion -is [int]) -or ($schemaVersion -is [long]))) {
-        $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $path `
-                    -Message ("schemaVersion must be an integer, but it is '{0}'." -f $schemaVersion)))
-    }
-
-    $supported = $false
-    try {
-        $supported = Test-HDTSchemaVersion -SchemaVersion ([int] $schemaVersion) -Supported $supportedSchemaVersion
-    } catch {
-        $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $path `
-                    -Message ("schemaVersion {0} is not a valid schema version. It must be 1 or greater." -f $schemaVersion)))
-    }
-
-    if (-not $supported) {
-        $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $path `
-                    -Message ("schemaVersion {0} is newer than this engine understands (schemaVersion {1}). Upgrade the engine rather than the workspace." -f $schemaVersion, $supportedSchemaVersion)))
-    }
+    # ONE VALIDATOR, NOT A SECOND COPY OF THE RULES. These checks used to live
+    # here inline, which left machine.schema.json as the only schema in the
+    # repository with no Assert-HDT*Document beside it - the published contract
+    # and the engine were two hand-written copies of one vocabulary, and nothing
+    # held them together. SchemaPairing.Contract.Tests.ps1 now refuses that
+    # shape; the messages an administrator reads did not change in the move.
+    Assert-HDTMachineDocument -Document $document -Path $path
 
     # -- the variables --------------------------------------------------------
-
-    if (-not $document.Contains('variables')) {
-        $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $path `
-                    -Message 'the variables key is missing. A machine override exists to set variables for this machine.'))
-    }
-
+    #
+    # Re-materialised into an ordered, case-insensitive dictionary for the same
+    # reason Import-HDTRuleDocument does it: resolution applies them in document
+    # order and looks them up without caring how the author spelled the case.
     $declared = $document['variables']
-    if (-not ($declared -is [System.Collections.IDictionary])) {
-        $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $path `
-                    -Message 'the variables key must be a mapping of variable name to value.'))
-    }
-
-    if (@($declared.Keys).Count -eq 0) {
-        $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $path `
-                    -Message 'the variables mapping is empty. Delete the file rather than shipping an override that sets nothing.'))
-    }
 
     $variable = [System.Collections.Specialized.OrderedDictionary]::new([System.StringComparer]::OrdinalIgnoreCase)
 
     foreach ($key in @($declared.Keys)) {
-        $name = [string] $key
-
-        if ($name.StartsWith('_')) {
-            $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $path `
-                        -Message ("'{0}' is engine-owned and cannot be assigned. A variable named _HDT* is set by the engine and is read-only." -f $name)))
-        }
-
-        if ($name -cnotmatch '^HDT[A-Za-z0-9_]*$') {
-            $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $path `
-                        -Message ("'{0}' is not an HDT variable name. Every deployment variable is prefixed HDT; run Get-HDTVariableMap for the MDT translation." -f $name)))
-        }
-
-        $variable[$name] = $declared[$key]
+        $variable[[string] $key] = $declared[$key]
     }
 
     return [pscustomobject] ([ordered] @{

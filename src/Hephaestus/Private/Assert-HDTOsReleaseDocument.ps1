@@ -1,4 +1,4 @@
-function Assert-HDTOsReleaseDocument {
+﻿function Assert-HDTOsReleaseDocument {
     <#
         .SYNOPSIS
             Refuses an os-releases.yaml that HDT would otherwise misread.
@@ -152,6 +152,20 @@ function Assert-HDTOsReleaseDocument {
         }
 
         [void] $seen.Add($id)
+
+        # name IS OPTIONAL AND DEFAULTS TO THE ID. An EXPLICITLY BLANK one is
+        # not the same thing: it is a row the console's picker draws as an empty
+        # line, and an administrator choosing a release they cannot read is the
+        # failure this list exists to prevent. Omit the key to get the id.
+        #
+        # os-releases.schema.json has always said minLength: 1 here and this did
+        # not, so a blank name was green in an editor and green in the engine for
+        # different reasons - the drift OsReleasesSchema.Contract.Tests.ps1 was
+        # written to catch, and did, on the commit that added it.
+        if ($entry.Contains('name') -and [string]::IsNullOrWhiteSpace([string] $entry['name'])) {
+            $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $Path `
+                        -Message ("the name for release '{0}' is blank. Omit the key to fall back to the id; a release with an empty name is a blank line in the console's picker." -f $id)))
+        }
 
         # build IS OPTIONAL - see the description. When it IS given it has to be
         # a number, because it is compared against a build read out of a package.

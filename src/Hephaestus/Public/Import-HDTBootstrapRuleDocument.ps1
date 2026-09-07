@@ -28,24 +28,36 @@
             share, a workspace or a task sequence:
 
                 HDTDeployRoot       which share to connect to
-                HDTSkipWizard       whether to ask anybody anything
-                HDTKeyboardLocale   the two the wizard needs before it draws
-                HDTUILanguage
+                HDTUserId           the account to open it with - MDT's UserID,
+                HDTUserDomain       UserDomain and UserPassword, which
+                HDTUserPassword     Bootstrap.ini has always carried
 
             Anything else is refused HERE, naming rules.yaml, rather than
             silently doing nothing on a machine at three in the morning. A rule
             setting HDTComputerName in this file would be deciding it from a
             document that cannot see the one that decides computer names.
 
-            NO CREDENTIALS, AND THAT IS DELIBERATE. A user name and password in
-            clear text in a file every boot image carries is one of the known
-            exposures DESIGN 14 narrows. The account lives in
-            Control\share-credential.json, written by Set-HDTShareCredential
-            and embedded protected at build time.
+            THE ACCOUNT IS ON THE LIST BECAUSE THE SHARE IS, and the password is
+            clear text here exactly as it was in Bootstrap.ini: the file is
+            copied INTO the boot image, and anybody holding that image already
+            holds the credential baked into it. A protected credential in
+            Control\share-credential.json, written by Set-HDTShareCredential and
+            embedded at build time, is still the normal way in; this is how one
+            boot image serves many sites, where an account per site is needed as
+            much as a share per site.
+
+            THE DOMAIN JOIN ACCOUNT IS STILL REFUSED. HDTDomainAdminPassword is
+            used long after the share is open and belongs in rules.yaml ON the
+            share, which is not carried around inside an image.
 
             NO setFrom EITHER. setFrom names a script under Scripts\ ON THE
             SHARE, and there is no share yet. A rule that needs real logic here
             has nowhere to keep it.
+
+            THE ALLOW-LIST LIVES IN Assert-HDTBootstrapRuleDocument, and
+            schemas/bootstrap-rules.schema.json publishes the same four for a
+            console or an editor. BootstrapRulesSchema.Contract.Tests.ps1 is what
+            keeps the two saying the same thing.
 
         .PARAMETER Path
             The document. X:\HDT\bootstrap-rules.yaml inside a boot image;

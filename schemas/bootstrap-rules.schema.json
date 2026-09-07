@@ -1,0 +1,45 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://hephaestus/schemas/bootstrap-rules.schema.json",
+  "title": "HDT bootstrap-rules.yaml",
+  "description": "The rules that choose a deployment share before there is one. It is a rules.yaml - the same when:, the same set:, the same first-match-wins, read by the same reader - with a smaller vocabulary, because it travels INSIDE the boot image and is read in WinPE before anything has been connected to. (MDT's Bootstrap.ini solves the same problem.) The console, editors and CI validate against this; Assert-HDTBootstrapRuleDocument is the gate that runs in WinPE, where Test-Json does not exist.",
+  "type": "object",
+  "required": ["schemaVersion", "rules"],
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": { "type": "integer", "minimum": 1, "maximum": 1 },
+    "rules": { "type": "array", "minItems": 1, "items": { "$ref": "#/definitions/rule" } }
+  },
+  "definitions": {
+    "rule": {
+      "description": "NO setFrom, AND THAT IS WHY IT IS ABSENT RATHER THAN FORBIDDEN. setFrom names a script under Scripts\\ on the deployment share, and there is no share yet - so additionalProperties: false refuses the key outright, the same verdict Assert-HDTBootstrapRuleDocument gives with a longer sentence.",
+      "type": "object",
+      "required": ["name", "set"],
+      "additionalProperties": false,
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "when": {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": { "type": ["string", "boolean", "integer", "number"] }
+        },
+        "set": { "$ref": "#/definitions/set" }
+      }
+    },
+    "set": {
+      "description": "THE FOUR, AND THEY ARE THE SHARE AND THE WAY INTO IT: HDTDeployRoot, plus MDT's UserID / UserDomain / UserPassword, which Bootstrap.ini has always carried. One boot image serving many sites needs an account per site as much as a share per site, so a rule that chose \\\\SERVER-B\\Share and left SERVER-A's account behind has chosen a share it cannot open. Anything else is decided AFTER the share is connected and belongs in rules.yaml on the share - a set: this file cannot act on does nothing, silently, on a machine at three in the morning.",
+      "type": "object",
+      "minProperties": 1,
+      "propertyNames": {
+        "enum": ["HDTDeployRoot", "HDTUserId", "HDTUserDomain", "HDTUserPassword"]
+      },
+      "additionalProperties": { "type": ["string", "boolean", "integer", "number", "array"] },
+      "properties": {
+        "HDTDeployRoot": {
+          "description": "A UNC PATH NEEDS TWO BACKSLASHES AND THIS IS THE FILE THAT ATTRACTS ONE. Found written by hand on the lab share. YAML is not the culprit - a plain scalar keeps both slashes - so it is a typo nothing else would notice until WinPE had been handed a path it cannot resolve, on a machine nobody is watching.",
+          "not": { "pattern": "^\\\\[^\\\\]" }
+        }
+      }
+    }
+  }
+}
