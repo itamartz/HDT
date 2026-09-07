@@ -1,0 +1,34 @@
+{
+  "permissions": {
+    "deny": [
+      "Bash(rm:*)",
+      "Bash(rm *)",
+      "Bash(del:*)",
+      "Bash(del *)",
+      "Bash(erase:*)",
+      "Bash(erase *)",
+      "Bash(rmdir:*)",
+      "Bash(rmdir *)",
+      "Bash(rd:*)",
+      "Bash(rd *)",
+      "Bash(ri:*)",
+      "Bash(ri *)",
+      "Bash(Remove-Item:*)",
+      "Bash(Remove-Item *)",
+      "PowerShell(rm:*)",
+      "PowerShell(rm *)",
+      "PowerShell(del:*)",
+      "PowerShell(del *)",
+      "PowerShell(erase:*)",
+      "PowerShell(erase *)",
+      "PowerShell(rmdir:*)",
+      "PowerShell(rmdir *)",
+      "PowerShell(rd:*)",
+      "PowerShell(rd *)",
+      "PowerShell(ri:*)",
+      "PowerShell(ri *)",
+      "PowerShell(Remove-Item:*)",
+      "PowerShell(Remove-Item *)"
+    ]
+  }
+}
