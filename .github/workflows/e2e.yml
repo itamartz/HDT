@@ -1,0 +1,181 @@
+name: E2E
+
+# THE SUITE THAT NEEDS REAL HARDWARE, ON THE ONE MACHINE THAT HAS IT.
+#
+# tests/e2e creates Hyper-V virtual machines, boots them from a WinPE image this
+# build produced, and deploys Windows to them. A hosted runner cannot do that -
+# it has no Hyper-V - so this is the only workflow here that runs on a
+# self-hosted runner: GHRUNNER01, a nested-virtualisation guest on the MS-A2
+# Hyper-V host, itself deployed by HDT from the lab's own deployment share.
+#
+# ---------------------------------------------------------------------------
+# THIS REPOSITORY IS PUBLIC, AND THAT DECIDES THE TRIGGERS.
+#
+# A self-hosted runner executes whatever the checked-out workflow tells it to,
+# on a real machine somebody owns. On a public repository a fork's pull request
+# is code an unknown person wrote, and GitHub's "first-time contributor needs
+# approval" default stops exactly one PR per person: anybody with a single
+# merged contribution runs unapproved after that. GHRUNNER01 sits on a private
+# LAN beside a domain controller and a ConfigMgr server that belong to somebody
+# else's lab, and it holds Hyper-V administrator rights over a nested
+# hypervisor. That is not a machine to hand to a stranger.
+#
+# SO THERE IS NO pull_request TRIGGER HERE, AND THERE MUST NEVER BE ONE.
+# Neither pull_request_target, which is worse: it runs with the base
+# repository's secrets. Pull requests are covered by ci.yml, which runs on
+# GitHub's hosted runners where a hostile fork gets a container that is thrown
+# away and reaches nothing.
+#
+# THIS IS A SEPARATE FILE FOR THAT REASON. Adding a `self-hosted` job to ci.yml
+# would put the runner one YAML key away from the fork-triggered jobs already in
+# it, and the next person to add a trigger there would not know they had done
+# it. The two live apart so the mistake cannot be made by editing the wrong
+# block.
+#
+# THE ENVIRONMENT GATE IS THE BACKSTOP. `environment: lab` carries a required
+# reviewer, so even a workflow_dispatch waits for a human to press a button. It
+# costs one click and it is what still holds if somebody adds a trigger to this
+# file in a year without reading any of the above.
+#
+# THE MACHINE IS REVERTED BETWEEN JOBS, WHICH IS WHERE EPHEMERALITY COMES FROM.
+# GHRUNNER01 is rolled back to a Hyper-V checkpoint after every job, so nothing
+# a job did - a file, a service, a registry key, a nested VM - survives into the
+# next one.
+#
+# THE REGISTRATION LIVES INSIDE THAT CHECKPOINT, and that is deliberate rather
+# than a shortcut. The obvious design is `config.cmd --ephemeral`, where the
+# runner deregisters itself after one job; but then something has to register it
+# again, a registration token expires in an hour, and getting a fresh one means
+# a GitHub PAT stored on the lab host permanently. A checkpoint taken after
+# `config.cmd` already contains valid runner credentials, and those do not
+# expire - so reverting restores a registered runner and no long-lived token
+# needs to exist anywhere. Same guarantee, one fewer credential.
+# ---------------------------------------------------------------------------
+
+on:
+  workflow_dispatch:
+  schedule:
+    # 02:00 UTC on Sundays. The suite deploys real operating systems to real
+    # VMs and takes hours, not minutes; nightly would leave the lab host busy
+    # more often than it is idle, and nobody is waiting on this result the way
+    # they wait on ci.yml.
+    - cron: '0 2 * * 0'
+
+# READ ONLY, AND NOTHING ELSE. ci.yml needs contents: write for the badges
+# branch; this needs nothing at all. A self-hosted job is the last place to hand
+# out a writable token.
+permissions:
+  contents: read
+
+jobs:
+  e2e:
+    name: hyper-v
+    runs-on: [self-hosted, windows, hyperv-nested]
+    environment: lab
+
+    # It deploys Windows to VMs from a WinPE image it builds first. Six hours is
+    # not a target, it is the point past which something has hung.
+    timeout-minutes: 360
+
+    defaults:
+      run:
+        shell: powershell
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # NOT INSTALLED HERE, VERIFIED HERE. ci.yml installs its dependencies on a
+      # fresh hosted runner every time; this machine is built once and reverted
+      # to a checkpoint between jobs, so an Install-Module on every run would be
+      # a network round trip to prove something that cannot have changed. What
+      # can go wrong is the checkpoint being older than the pins, and that is
+      # what this reports - by name and version, before anything long starts.
+      - name: Check the build dependencies
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          $wanted = @{
+              'Pester'           = '5.7.1'
+              'PSScriptAnalyzer' = '1.25.0'
+              'powershell-yaml'  = '0.4.12'
+          }
+
+          $missing = @()
+          foreach ($name in $wanted.Keys | Sort-Object) {
+              $found = Get-Module -Name $name -ListAvailable |
+                  Where-Object { [string] $_.Version -eq $wanted[$name] }
+
+              if ($found) { "{0} {1}: present" -f $name, $wanted[$name] }
+              else {
+                  $have = (Get-Module -Name $name -ListAvailable | ForEach-Object { [string] $_.Version }) -join ', '
+                  $missing += ("{0} {1} is not installed on this runner (found: {2}). Install-Module {0} -RequiredVersion {1} -Scope AllUsers -Force, then retake the 'clean' checkpoint - otherwise the next revert loses it." -f
+                      $name, $wanted[$name], $(if ($have) { $have } else { 'nothing' }))
+              }
+          }
+
+          if ($missing) { throw ($missing -join "`n") }
+
+          "$($PSVersionTable.PSEdition) $($PSVersionTable.PSVersion) on $env:COMPUTERNAME"
+
+      # THE TASK REFUSES AN UNELEVATED SESSION, and says so plainly, so this is
+      # only here to fail on the right sentence rather than forty minutes into a
+      # build. The runner service account has to be a local administrator.
+      - name: Check elevation and Hyper-V
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          $elevated = ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole(
+              [Security.Principal.WindowsBuiltInRole]::Administrator)
+          if (-not $elevated) {
+              throw 'the runner service is not running elevated. tests/e2e creates virtual machines and mounts VHDXs; ./build.ps1 -Task e2e refuses without it.'
+          }
+
+          if (-not (Get-Module -Name 'Hyper-V' -ListAvailable)) {
+              throw 'the Hyper-V PowerShell module is not present on this runner. Enable-WindowsOptionalFeature -Online -FeatureName Microsoft-Hyper-V-Management-PowerShell.'
+          }
+
+          Get-VMHost | Select-Object VirtualMachinePath, VirtualHardDiskPath | Format-List
+          "elevated, Hyper-V present"
+
+      - name: End-to-end
+        run: ./build.ps1 -Task e2e
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pester-e2e
+          path: out/testResults/*.xml
+
+      # THE SCREENSHOTS AND DEPLOYMENT LOGS, WHICH ARE THE ONLY RECORD OF WHY A
+      # VM DID NOT COME UP. A failed e2e assertion says a machine never reported
+      # its heartbeat; the picture of the screen and the share's own log say
+      # what it was doing instead. They are worth more than the .xml here.
+      - name: Upload deployment diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-diagnostics
+          path: |
+            C:/HDTLab/scratch/**/*.png
+            C:/HDTLab/scratch/**/*.log
+          if-no-files-found: ignore
+
+      - name: Summarise the run
+        if: always()
+        run: |
+          $summary = @('## HDT end-to-end', '')
+
+          $results = Get-ChildItem -Path 'out/testResults' -Filter 'pester-e2e-*.xml' -ErrorAction SilentlyContinue
+          foreach ($file in $results) {
+              [xml] $xml = Get-Content -LiteralPath $file.FullName -Raw
+              $run = $xml.'test-results'
+              if ($run) {
+                  $summary += ('- **{0}**: {1} total, {2} failed, {3} not run' -f
+                      $file.Name, $run.total, $run.failures, $run.'not-run')
+              }
+          }
+
+          if ($results.Count -eq 0) { $summary += '- no result file was produced; the suite did not get as far as writing one.' }
+
+          [System.IO.File]::AppendAllText($env:GITHUB_STEP_SUMMARY, ($summary -join "`n") + "`n")

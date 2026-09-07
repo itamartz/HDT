@@ -206,6 +206,45 @@ laptop cannot do — a clean CI environment, PXE/WDS work, or a server role.
 
 Vagrant is also available locally.
 
+### GHRUNNER01 — the GitHub Actions runner, and the second Hyper-V host
+
+`tests/e2e` needs Hyper-V, so it cannot run on a hosted runner. **`GHRUNNER01`
+is a nested-virtualisation guest on MS-A2 that runs it**, registered as a
+self-hosted runner for this repository with the label `hyperv-nested`. It was
+itself deployed by HDT, zero-touch from `\\192.168.1.219\HDTShare`, which is why
+the MAC-keyed rule for it is in that share's `rules.yaml`.
+
+- Generation 2, **24 GB static** RAM, 8 vCPU, 120 GB dynamic VHDX,
+  `C:\HyperV-Lab\` alongside MS-A2's own machines.
+- **Nested virtualisation needs three settings together**, and it is silent
+  about the ones you miss: `ExposeVirtualizationExtensions` on the processor,
+  **dynamic memory off** (they are incompatible), and **MAC address spoofing on**
+  the adapter, without which a nested guest's own MAC never reaches the wire and
+  it gets no lease.
+- It carries `HDT External` and `HDT Lab` switches of its own, so
+  `New-HDTLabVirtualMachine`'s switch guard passes there unchanged.
+- **It is deliberately not named `HDT-*`.** It is infrastructure, not a machine
+  under test, and the prefix is what the harness's budget counts and what
+  `Remove-HDTLabVirtualMachine` is willing to delete.
+- It is **rolled back to a `clean` checkpoint** by an hourly task on MS-A2,
+  which skips it while `Runner.Worker.exe` exists in the guest. The runner
+  registration lives *inside* that checkpoint: runner credentials do not expire,
+  so reverting restores a registered runner and **no GitHub token has to be
+  stored on the lab host** — which `config.cmd --ephemeral` would have required.
+
+**MS-A2 is on `192.168.2.0/24`, not the `192.168.1.0/24` this laptop's
+`HDT External` switch sits on.** The two route to each other, which is the only
+reason any of this works: a guest there matches no rule in `bootstrap-rules.yaml`
+— every rule is keyed on gateway `192.168.1.1` — and falls through to the
+`deployRoot` baked into the boot image, which is the right share. **Read that
+before assuming a boot image built here will reach a machine over there.**
+
+The share is 50 GB and only some of it is reproducible. Four e2e suites skip on
+GHRUNNER01 for want of it: `CapturedImageDeployment`, `ReferenceCapture`,
+`ApplicationRoundTrip` and `WindowsUpdate`. The first of those pins a captured
+WIM by the run id `run-20260831-022805`, an artefact no fresh runner can
+regenerate — it has to be copied.
+
 Two findings from that kit's own notes, both corroborating ours and both
 relevant to phase 07:
 
