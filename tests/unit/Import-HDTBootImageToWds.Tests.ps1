@@ -1,4 +1,4 @@
-# Import-HDTBootImageToWds - DESIGN 6.1's "HDT does not ship a PXE server; WDS
+﻿# Import-HDTBootImageToWds - DESIGN 6.1's "HDT does not ship a PXE server; WDS
 # serves the WIM", with replace-in-place semantics.
 #
 # ROADMAP M4 NAMES ONE TEST IN THIS FILE: "WDS import replacing rather than
@@ -199,6 +199,105 @@ Describe 'Import-HDTBootImageToWds' {
             { Import-HDTBootImageToWds -Path 'C:\HDTLab\Share\Boot\HDTPE_x64.iso' `
                     -WdsService (New-HDTFakeWdsService) -FileSystem $fs -Confirm:$false } |
                 Should -Throw '*.wim*'
+        }
+
+        # ------------------------------------------------------------------
+        # AN UNEXPANDED %Var% TOKEN, WHICH IS NOT A MISSING FILE
+        # ------------------------------------------------------------------
+        #
+        # THIS HAPPENED, on this lab's WDS server at 06:25 on 2026-09-02: the
+        # step died with "there is no boot image at
+        # %HDTDeployRoot%\Boot\HDTPE_x64.wim" - the token printed back
+        # verbatim, which is the tell, and the message then told the operator to
+        # go and run Update-HDTBootImage against a boot image that already
+        # existed. The file was fine. The PATH was never resolved.
+        #
+        # WHY A CALLER CAN HAND US ONE, AND IT IS NOT A TYPO. A step PROPERTY is
+        # expanded by the step that reads it (Get-HDTStepProperty -Expand). A
+        # SEQUENCE VARIABLE is seeded into the variable set exactly as authored -
+        # deliberately, because Expand-HDTVariableToken's scope has to hold RAW
+        # values for a cycle to be detectable at all - so a PowerShell step
+        # script reading $Variable['HDTWdsBootImageSource'] gets the raw string.
+        # The two look identical in the YAML. That trap is not this command's to
+        # fix, but printing "there is no boot image there" when the real answer
+        # is "nothing expanded that" absolutely is.
+        It 'refuses a path that still carries an unexpanded token' {
+            $journal = [System.Collections.ArrayList]::new()
+            $wds = New-HDTFakeWdsService -Journal $journal
+
+            { Import-HDTBootImageToWds -Path '%HDTDeployRoot%\Boot\HDTPE_x64.wim' `
+                    -WdsService $wds -FileSystem (New-HDTFakeFileSystem) -Confirm:$false } |
+                Should -Throw '*unexpanded*'
+
+            # AND IT CALLED NOTHING, for the same reason every other refusal here
+            # calls nothing.
+            @($journal).Count | Should -Be 0
+        }
+
+        It 'names the cause rather than a missing file' {
+            $record = $null
+            try {
+                Import-HDTBootImageToWds -Path '%HDTDeployRoot%\Boot\HDTPE_x64.wim' `
+                    -WdsService (New-HDTFakeWdsService) -FileSystem (New-HDTFakeFileSystem) -Confirm:$false
+            } catch { $record = $_ }
+
+            [string] $record.Exception.Message | Should -BeLike '*unexpanded*'
+
+            # AND IT DOES NOT SEND THEM TO REBUILD A BOOT IMAGE THAT IS ALREADY
+            # THERE. That instruction is right for a genuinely missing WIM and
+            # wrong here, and following it costs half an hour and changes nothing.
+            [string] $record.Exception.Message | Should -Not -BeLike '*Run Update-HDTBootImage against the workspace*'
+        }
+
+        It 'names every token it could not account for' {
+            $record = $null
+            try {
+                Import-HDTBootImageToWds -Path '%HDTDeployRoot%\Boot\%HDTBootImageName%.wim' `
+                    -WdsService (New-HDTFakeWdsService) -FileSystem (New-HDTFakeFileSystem) -Confirm:$false
+            } catch { $record = $_ }
+
+            [string] $record.Exception.Message | Should -BeLike '*unexpanded*'
+            [string] $record.Exception.Message | Should -BeLike '*%HDTDeployRoot%*'
+            [string] $record.Exception.Message | Should -BeLike '*%HDTBootImageName%*'
+        }
+
+        It 'throws HDTConfigurationError for an unexpanded token' {
+            $record = $null
+            try {
+                Import-HDTBootImageToWds -Path '%HDTDeployRoot%\Boot\HDTPE_x64.wim' `
+                    -WdsService (New-HDTFakeWdsService) -FileSystem (New-HDTFakeFileSystem) -Confirm:$false
+            } catch { $record = $_ }
+
+            [string] $record.FullyQualifiedErrorId | Should -BeLike 'HDTConfigurationError*'
+        }
+
+        It 'refuses one under -WhatIf as well' {
+            # A refusal that -WhatIf could talk its way past would report a
+            # successful dry run for a path that can never work.
+            $journal = [System.Collections.ArrayList]::new()
+
+            { Import-HDTBootImageToWds -Path '%HDTDeployRoot%\Boot\HDTPE_x64.wim' `
+                    -WdsService (New-HDTFakeWdsService -Journal $journal) `
+                    -FileSystem (New-HDTFakeFileSystem) -WhatIf } |
+                Should -Throw '*unexpanded*'
+
+            @($journal).Count | Should -Be 0
+        }
+
+        It 'reads %% as a literal per cent rather than a token' {
+            # THE GRAMMAR IS Expand-HDTVariableToken's, not a looser one: %% is a
+            # literal per cent and %1 is a batch file's argument. A path holding
+            # either is an ORDINARY path, so it falls through to the ordinary
+            # missing-file refusal - which is what this asserts by the message it
+            # does NOT get.
+            $record = $null
+            try {
+                Import-HDTBootImageToWds -Path 'C:\Boot@%%\HDTPE_x64.wim' `
+                    -WdsService (New-HDTFakeWdsService) -FileSystem (New-HDTFakeFileSystem) -Confirm:$false
+            } catch { $record = $_ }
+
+            [string] $record.Exception.Message | Should -Not -BeLike '*unexpanded*'
+            [string] $record.Exception.Message | Should -BeLike '*Update-HDTBootImage*'
         }
 
         It 'throws HDTConfigurationError for a missing wim' {

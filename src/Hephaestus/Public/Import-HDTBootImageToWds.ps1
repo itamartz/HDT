@@ -21,7 +21,10 @@
 
             FIVE STEPS, AND THE ORDER IS THE CONTRACT:
 
-              1. refuse a -Path that is not an existing .wim, NAMING
+              1. refuse a -Path that still carries an unexpanded %Var% token,
+                 NAMING THE TOKENS - because that is a value nothing resolved
+                 and not a file anybody has to go and rebuild;
+              1b. refuse a -Path that is not an existing .wim, NAMING
                  Update-HDTBootImage - and call nothing. A refusal that had
                  already asked the server for its image list is a refusal that
                  touched production;
@@ -38,14 +41,30 @@
             step 4 deletes a boot image a fleet PXE boots from. Under -WhatIf
             NOTHING is called, including the read.
 
-            IT HAS NEVER RUN AGAINST A REAL WDS SERVER. There is none on this
-            host - it is Windows 11 Pro, and WDS is a Windows Server role - and
-            PROJECT.md's lab safety rules confine a PXE responder to the
-            isolated 'HDT Lab' switch, which no share on this host is reachable
-            from. Everything above is asserted against
-            New-HDTFakeWdsService; the one real assertion this machine can make
-            is that New-HDTWdsService refuses with a named dependency error, and
-            it is made against the real adapter.
+            IT HAS NOW RUN AGAINST A REAL WDS SERVER, and that sentence
+            replaces "it never has". On 2026-09-07 at 20:04 this command
+            replaced the boot image on the lab's HDT-WDS-01 (Windows Server
+            2025 Standard, standalone WDS) with the current share build:
+            Replaced True, PreviousVersion 10.0.26100, and the server left
+            holding exactly ONE x64 image named HDTPE_x64. The
+            replace-in-place order - GetBootImage, RemoveBootImage,
+            ImportBootImage - behaved on a real server the way the fake says it
+            does, which is the whole reason the fake asserts an ORDERED journal.
+
+            THAT IS ONE RUN, NOT A CONTRACT ROW. It cannot be repeated by the
+            suite: this host is Windows 11 Pro, WDS is a Windows Server role,
+            and the server is a VM reached by PowerShell Direct rather than
+            anything Pester can stand up. So everything here is still asserted
+            against New-HDTFakeWdsService, and the one assertion this machine
+            makes against the real adapter is still that New-HDTWdsService
+            refuses with a named dependency error.
+
+            WHAT IS STILL UNPROVEN IS THE BOOT. No machine has PXE booted from
+            the imported image - a Generation 2 client needs the Secure Boot
+            work, and the UEFI network boot program WDS on Server 2025 does not
+            stage for itself (Initialize-HDTWdsBootFile). An import that lands
+            is not a fleet that boots, and this file will not make the larger
+            claim.
 
         .PARAMETER Path
             The boot WIM to import, normally <workspace>\Boot\<name>.wim as
@@ -125,6 +144,42 @@
     # throws on a machine with no WDS module, and a bad path should say so rather
     # than being masked by a dependency error. It is also what makes "it called
     # nothing" true of the refusal.
+
+    # AN UNEXPANDED %Var% IS DIAGNOSED FIRST, BECAUSE IT IS NOT A MISSING FILE.
+    #
+    # OBSERVED, on this lab's WDS server at 06:25 on 2026-09-02: this command
+    # refused with "there is no boot image at %HDTDeployRoot%\Boot\HDTPE_x64.wim"
+    # - the token printed back verbatim, which is the tell - and then told the
+    # operator to run Update-HDTBootImage against a boot image that already
+    # existed and was perfectly healthy. The message named the SYMPTOM (no file
+    # there) and sent somebody half an hour in the wrong direction. Nothing was
+    # wrong with the file. The PATH had never been resolved.
+    #
+    # HOW A CALLER COMES TO HOLD ONE, AND IT IS NOT A TYPO. A step PROPERTY is
+    # expanded by the step that reads it - Get-HDTStepProperty -Expand. A
+    # SEQUENCE VARIABLE is seeded into the variable set exactly as AUTHORED, and
+    # deliberately so: Expand-HDTVariableToken's scope has to hold RAW values or
+    # a cycle cannot be detected at all. So a PowerShell step script that reads
+    # $Variable['HDTWdsBootImageSource'] is handed the raw string, and the two
+    # cases look identical in the YAML. That trap is not this command's to fix.
+    # Printing "there is no boot image there" when the true answer is "nothing
+    # expanded that" is.
+    #
+    # THE GRAMMAR IS Expand-HDTVariableToken'S, NOT A LOOSER ONE, so %% stays a
+    # literal per cent and a batch file's %1 or a '50% done' path is an ordinary
+    # path that falls through to the ordinary refusals below.
+    $unexpanded = New-Object -TypeName System.Collections.ArrayList
+
+    foreach ($token in [regex]::Matches($Path, '%%|%([A-Za-z_][A-Za-z0-9_]*)%')) {
+        if ($token.Value -eq '%%') { continue }
+        if (-not ($unexpanded -contains $token.Value)) { [void] $unexpanded.Add($token.Value) }
+    }
+
+    if ($unexpanded.Count -gt 0) {
+        $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $Path `
+                    -Message ("that path still contains {0} unexpanded variable token(s) - {1} - so this is not a missing file, it is a value that nothing ever resolved. Expand it in the caller before importing. A step PROPERTY is expanded by the step that reads it; a SEQUENCE VARIABLE is seeded into the variable set exactly as authored, so a PowerShell step script that reads it out of the `$Variable dictionary and passes it here is handed the raw text. The two look identical in the YAML, which is why this refusal names the tokens rather than the file." -f
+                        $unexpanded.Count, ((@($unexpanded) | ForEach-Object { "'" + $_ + "'" }) -join ', '))))
+    }
 
     if ([System.IO.Path]::GetExtension($Path) -ne '.wim') {
         $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $Path `

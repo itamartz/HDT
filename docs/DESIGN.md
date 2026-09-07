@@ -2209,7 +2209,17 @@ The workflow mirrors MDT's:
 2. `Import-HDTBootImageToWds` adds or replaces it as a WDS boot image
    (a thin wrapper over `Import-WdsBootImage`, plus replace-in-place semantics
    so an update doesn't accumulate stale images).
-3. Machines PXE boot, get HDTPE, and the engine connects back to the share.
+3. On Windows Server 2025, `Initialize-HDTWdsBootFile` stages the UEFI network
+   boot program into `<RemoteInstall>\Boot\x64uefi\`. `wdsutil
+   /initialize-server` creates that directory and leaves `default.bcd` alone in
+   it, so the server *answers* a PXE client — event 4096, the MAC logged — and
+   then cannot serve it, while `/get-server /show:config` reports
+   `Boot files installed: x64uefi - Yes` the whole time. The files are already
+   on the machine one directory away, in the role's own
+   `%SystemRoot%\System32\RemInst\boot\<arch>`; this copies them where the role
+   failed to put them, additively and idempotently, so a server somebody has
+   customised survives a resume.
+4. Machines PXE boot, get HDTPE, and the engine connects back to the share.
 
 For sites with an existing TFTP/HTTP stack instead of WDS,
 `New-HDTPxePayload` stages `bootmgr`, `bootmgfw.efi`, `boot.sdi`, the BCD, and

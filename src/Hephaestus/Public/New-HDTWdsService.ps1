@@ -15,9 +15,14 @@
               ImportBootImage(path, imageName, architecture) Import-WdsBootImage
               RemoveBootImage(imageName, architecture)       Remove-WdsBootImage
 
-            THIS FILE HAS NEVER RUN ON THIS HOST, AND AS OF 2026-08-14 IT HAS
-            NEVER RUN ANYWHERE IN THIS REPOSITORY. That is not an oversight, it
-            is a refusal:
+            THIS FILE HAS NOW RUN, ON A REAL SERVER, ONCE. On 2026-09-07 it
+            drove Get-WdsBootImage, Remove-WdsBootImage and Import-WdsBootImage
+            on the lab's HDT-WDS-01 (Windows Server 2025 Standard, standalone)
+            and replaced HDTPE_x64 in place. Before that it had never run
+            anywhere in this repository.
+
+            IT STILL RUNS NOWHERE THIS HOST CAN REACH FROM A TEST, and that is
+            not an oversight, it is a refusal:
 
               * this machine is Windows 11 Pro. The WDS PowerShell module and
                 wdsutil.exe ship with a Windows SERVER role, so there is nothing

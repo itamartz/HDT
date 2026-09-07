@@ -185,6 +185,7 @@
         'Import-HDTStepModule',
         'Import-HDTWizardDocument',
         'Import-HDTWorkspaceDocument',
+        'Initialize-HDTWdsBootFile',
         'Install-HDTAdk',
         'Invoke-HDTNoOpStep',
         'Invoke-HDTSetVariableStep',

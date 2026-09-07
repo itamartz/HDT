@@ -310,7 +310,14 @@ all.
   through the product with `provider: Smb` and a UNC `deployRoot` — image
   pulled across the network, logs written back to the share. SMB deployment has
   since run repeatedly, the wizard E2E included.
-- **No WDS import has ever executed, anywhere in this repository.** This host is
+- ~~**No WDS import has ever executed, anywhere in this repository.**~~ **CLOSED
+  on 2026-09-07.** `Import-HDTBootImageToWds` (module 0.23.0) ran against the
+  lab's `HDT-WDS-01` — Windows Server 2025 Standard, standalone WDS, reached by
+  PowerShell Direct — and replaced the boot image in place: `Replaced: True`,
+  `PreviousVersion: 10.0.26100`, one x64 image named `HDTPE_x64` left on the
+  server. **The replace-in-place semantics held on a real server.** What remains
+  unproven is the BOOT: no client has PXE booted from it. The rest of this
+  paragraph describes why the suite still cannot repeat that run. This host is
   Windows 11 Pro; `Get-Module -ListAvailable WDS` and `Get-Command wdsutil.exe`
   both return nothing, and `PROJECT.md` rule 3 confines a PXE responder to the
   isolated `HDT Lab` switch. `Import-HDTBootImageToWds`'s replace-in-place
