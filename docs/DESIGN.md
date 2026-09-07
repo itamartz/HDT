@@ -3451,8 +3451,18 @@ technician to the log to read the rest.
 | Button | What the machine does |
 |---|---|
 | **Open CMD** | opens a prompt and **stays running** — the technician is going to look |
-| **Restart** | `wpeutil reboot`, to try again from the top |
-| **Shut down** | `wpeutil shutdown`, they are finished with this machine |
+| **Restart** | restarts, to try again from the top |
+| **Shut down** | powers off, they are finished with this machine |
+
+**The command those two run is chosen from the derived phase, not written down.**
+`wpeutil reboot` / `wpeutil shutdown` on the leg that booted the RAM disk, and
+`shutdown /r /t 0 /f` / `shutdown /s /t 0 /f` in the full OS — because
+`shutdown.exe` is not in WinPE and `wpeutil.exe` is in no installed Windows, and
+a Refresh (§5.1.1) reaches this screen from the running Windows. It is the same
+`IPowerService` split `Get-HDTPowerCommand` plans for every other restart in the
+engine; the ending is carried as an *operation* rather than a verb so that the
+one line whose whole job is to end the machine cannot name a command the leg does
+not have.
 
 **A SUCCESS gets one, and it is Finish** — MDT's Deployment Summary. All three
 above are collapsed, Open CMD included: a machine that finished has nothing left

@@ -364,6 +364,25 @@ $result = [ordered] @{
     # never had a $variable dictionary at all.
     finishAction       = ''
 
+    # WHICH LEG THIS RUN STARTED ON - WinPE or FullOS - AND THE ONLY WAY THE
+    # TAIL CAN HAVE IT.
+    #
+    # Section 3b derives it from the system drive, through the environment
+    # adapter, INSIDE the top-level try. That is the right place to derive it
+    # and the wrong place to keep it: a run that died on the module import never
+    # reached section 3b, and the tail reading $phase there would throw under
+    # StrictMode - a second error on top of the first, in the part of this file
+    # that writes RESULT.json and copies the log back.
+    #
+    # SO IT IS PUBLISHED HERE AND READ BACK. The tail's finish action, the
+    # command it ends the machine with and the drive it writes its fallback
+    # evidence to are all decided from this one value, and every one of them was
+    # a literal WinPE until a Refresh made this file reachable from the running
+    # Windows (DESIGN 3.2). It is also worth having in RESULT.json on its own
+    # account: "which leg was this?" is the first question anybody reading one
+    # asks, and it used to be answerable only by inference from a log path.
+    phase              = ''
+
     # HDTSLShare, Media, DeployRoot, or None - so a run that put its logs
     # somewhere unexpected says which rule sent them there, and a run that put
     # them nowhere says whether that was a failure to resolve a destination or
@@ -455,13 +474,44 @@ try {
     $systemDrive = [string] $environment.GetVariable('SystemDrive')
     $phase = Get-HDTDeploymentPhase -SystemDrive $systemDrive
 
-    # WinPE, AND STILL A LITERAL WHILE -Phase ABOVE IS NOT. 05-06 mounted the
-    # boot image and found no shutdown.exe in it, so a power service built for
-    # the full OS would give a Restart step a command that does not exist - and
-    # the boot image is what this payload ships inside. Teaching the power
-    # service about a full-OS leg is M9's own work and it is not done here; a
-    # Refresh's restarts happen on the WinPE leg this transports the machine to.
-    $power = New-HDTPowerService -Environment WinPE
+    # AND INTO THE RESULT DOCUMENT, IMMEDIATELY. The tail cannot read $phase -
+    # it is assigned here, inside the try, and a run that dies before this line
+    # never has it - so the document declared before the try is how the answer
+    # crosses that boundary. Three decisions in the tail depend on it and all
+    # three used to be literals.
+    $result['phase'] = [string] $phase
+
+    # AND THE WORLD THIS MACHINE POWERS OFF IN IS THAT SAME ONE VALUE.
+    #
+    # IT WAS A LITERAL WinPE, AND IT WAS RIGHT UNTIL M9 SHIPPED. 05-06 mounted
+    # the boot image and found no shutdown.exe in it, so a power service built
+    # for the full OS would have given a Restart step a command that is not
+    # there - and the boot image is what this payload ships inside. The comment
+    # that stood here said full-OS power was "M9's own work and it is not done
+    # here", and a unit test pinned the literal on purpose so nobody widened it
+    # by accident before that work existed.
+    #
+    # IT EXISTS NOW, AND THE PIN BECAME THE DEFECT. Templates\refresh.yaml's
+    # first leg ends with a Restart under runIn: FullOS - a Refresh is the same
+    # wipe-and-load launched from the RUNNING Windows (DESIGN 3.2), so it
+    # reaches this file with SystemDrive at C:. That leg would have called
+    # `wpeutil reboot` on a machine that has no wpeutil, and it would have died
+    # at the one step whose entire job is to reach the next leg. The old
+    # sentence "a Refresh's restarts happen on the WinPE leg this transports the
+    # machine to" describes the leg AFTER the one that does the transporting.
+    #
+    # SO IT FOLLOWS THE DERIVATION, NOT A PARAMETER AND NOT A SECOND READ.
+    # Get-HDTDeploymentPhase has already answered which leg this is, from the
+    # system drive, and IPowerService's two worlds are spelled with the same two
+    # words that answer names - so the phase IS the environment. Making it a
+    # parameter would let a caller declare a world the machine is not in, which
+    # is the same forgery the phase itself refuses; reading SystemDrive again
+    # would let the reboot and the log disagree about the same run.
+    #
+    # Get-HDTPowerCommand holds both plans and is contract-tested for both:
+    # wpeutil reboot|shutdown in WinPE, shutdown.exe /r|/s /t <delay> /f in the
+    # full OS. Nothing here branches on which.
+    $power = New-HDTPowerService -Environment $phase
 
     # -- 3a. IS A TASK SEQUENCE ALREADY RUNNING ON THIS MACHINE? -------------
     #
@@ -2374,6 +2424,61 @@ if ($null -ne $log) {
     $result['logPath'] = [string] $log.LogPath
 }
 
+# -- WHICH WORLD IS THIS TAIL STANDING IN ------------------------------------
+#
+# THREE DECISIONS BELOW USED TO ASSERT WinPE, AND ALL THREE WERE RIGHT UNTIL M9.
+# The finish action's -Environment, the executable this file ends the machine
+# with, and the drive its fallback RESULT.json goes to were literals because
+# this file WAS the WinPE entry point. A Refresh is the same wipe-and-load
+# launched from the RUNNING Windows (DESIGN 3.2) and reaches this same file with
+# SystemDrive at C:, where wpeutil does not exist and X: is not a drive.
+#
+# READ BACK FROM THE DOCUMENT, NOT FROM $phase. Section 3b derives the phase
+# through the environment adapter and publishes it into $result; $phase itself
+# is assigned inside the top-level try, and this tail exists precisely to serve
+# the run that never got that far. Reading it here would throw under StrictMode
+# in the part of the file that writes the evidence.
+#
+# THE DRIVE COMES FROM $BootstrapPath, AND NOT FROM $env:SystemDrive.
+#
+# CLAUDE.md rule 5: the IEnvironmentProvider adapter is the one thing in HDT
+# that reads an environment variable, and this tail cannot use it - a run that
+# died on the module import has no adapter to ask. $BootstrapPath is a
+# PARAMETER, so a failed run has it the way it has $result, and it already names
+# the machine's own HDT folder on BOTH legs: X:\HDT\bootstrap.json is what
+# Update-HDTBootImage bakes into the boot image, and <SystemDrive>\HDT\
+# bootstrap.json is what Get-HDTRefreshLaunchPlan writes before it starts this
+# file. One value, correct in both worlds, read from nothing.
+#
+# AND WHEN THERE IS NO ANSWER IN THE DOCUMENT, THAT DRIVE DECIDES THE PHASE.
+# A run that died on the module import has no derived phase and still has to be
+# ended and still has to leave a file behind. WinPE boots with its system drive
+# at X: (LiteTouch.wsf:373-387, and Get-HDTDeploymentPhase carries every branch)
+# so the drive letter is not a proxy for how the machine started - it IS how it
+# started. This is the one duplicate of that comparison in the repository, it
+# exists because the module may not be loaded to be asked, and
+# tests/contract/PhaseLiteral.Contract.Tests.ps1 plus the payload's own
+# anti-drift test hold it against the real function.
+#
+# [IO.Path], NEVER Split-Path. The drive may not be mounted in the session
+# judging this - the provider-aware cmdlets resolve it and throw DriveNotFound,
+# which is the trap CLAUDE.md rule 8 names.
+$endingPhase = [string] $result['phase']
+$endingDrive = ([string] [System.IO.Path]::GetPathRoot([string] $BootstrapPath)).Trim().TrimEnd('\', '/')
+
+if ([string]::IsNullOrWhiteSpace($endingPhase)) {
+    $endingPhase = 'FullOS'
+    if ($endingDrive -eq 'X:') { $endingPhase = 'WinPE' }
+}
+
+# THE OTHER DIRECTION, FOR THE SAME REASON. Every Windows and every WinPE sets
+# SystemDrive, so an empty one means the environment could not be read at all -
+# and the fallback evidence still has to land somewhere a person can reach.
+if ([string]::IsNullOrWhiteSpace($endingDrive)) {
+    $endingDrive = 'C:'
+    if ($endingPhase -eq 'WinPE') { $endingDrive = 'X:' }
+}
+
 # WHAT THE MACHINE DOES NEXT, decided before it is recorded, so RESULT.json can
 # say which one it was. ROADMAP M2 left "does WinPE need wpeutil reboot rather
 # than shutdown.exe" open; this is the first run that can answer it.
@@ -2386,9 +2491,15 @@ if ($null -ne $log) {
 # A FAILURE STILL SHUTS DOWN, and that is not timidity. A failed run has usually
 # not applied an image, so a machine that restarted would boot the media again
 # and start the same deployment for the second time - a loop nobody is watching.
-$ending = 'shutdown'
+#
+# AN OPERATION, NOT A VERB. It used to hold 'reboot' and 'shutdown' - wpeutil's
+# two verbs - because WinPE was the only world this file could be in. The full
+# OS spells the same two operations '/r' and '/s', so what is decided here is
+# the IPowerService operation and the branch further down spells it for the leg
+# this run is really on.
+$endingOperation = 'Stop'
 if ([string] $result['status'] -eq 'RebootPending' -or [string] $result['status'] -eq 'Succeeded') {
-    $ending = 'reboot'
+    $endingOperation = 'Restart'
 }
 
 # -- and what an administrator asked for instead -----------------------------
@@ -2406,20 +2517,32 @@ if ([string] $result['status'] -eq 'RebootPending' -or [string] $result['status'
 # down rather than restarting so a machine with no image does not boot the media
 # and start the same deployment again.
 #
-# IT MOVES BETWEEN THE SAME TWO VERBS, never a third. Get-HDTPowerCommand plans
-# reboot and shutdown for WinPE and nothing else, and LOGOFF resolves to no
-# action here because WinPE has no session to end - which is why the environment
-# passed below has to be the truthful one.
+# IT MOVES BETWEEN THE OPERATIONS IPowerService HAS, never a fourth. LOGOFF is
+# the one that differs between the worlds - WinPE has no session to end, so
+# Get-HDTFinishAction resolves it to None there and to Logoff in the full OS -
+# which is exactly why the environment passed below has to be the truthful one.
+#
+# IT WAS THE LITERAL WinPE, AND IT WAS THE SAME DEFECT AS THE POWER SERVICE'S.
+# On a Refresh's first leg this file runs in the running Windows, and a literal
+# WinPE here threw an administrator's LOGOFF away on the only leg where it means
+# anything. $endingPhase carries what section 3b derived; nothing here decides
+# a world.
+#
+# AND Logoff IS MAPPED, because the truthful environment is what makes it
+# reachable at all. Handling Restart and Stop and nothing else would take an
+# administrator's LOGOFF and reboot the machine instead - the same class of
+# defect as the literal, one step further down.
 if ([string] $result['status'] -eq 'Succeeded') {
     try {
-        $finish = Get-HDTFinishAction -Value ([string] $result['finishAction']) -Environment WinPE
+        $finish = Get-HDTFinishAction -Value ([string] $result['finishAction']) -Environment $endingPhase
 
         if (-not $finish.IsRecognised) {
             & $say ([string] $finish.Reason) 'Warning'
         }
 
-        if ([string] $finish.Action -eq 'Restart') { $ending = 'reboot' }
-        if ([string] $finish.Action -eq 'Stop') { $ending = 'shutdown' }
+        if ([string] $finish.Action -eq 'Restart') { $endingOperation = 'Restart' }
+        if ([string] $finish.Action -eq 'Stop') { $endingOperation = 'Stop' }
+        if ([string] $finish.Action -eq 'Logoff') { $endingOperation = 'Logoff' }
 
         if ([string] $finish.Action -ne 'None') {
             & $say ([string] $finish.Reason)
@@ -2431,7 +2554,12 @@ if ([string] $result['status'] -eq 'Succeeded') {
     }
 }
 
-$result['endedWith'] = 'wpeutil {0}' -f $ending
+# endedWith IS RECORDED FURTHER DOWN, ONCE NOTHING CAN CHANGE IT. It used to be
+# written here, as 'wpeutil {0}', and then overwritten twice - by the failure
+# screen and by the command-prompt guard - which is three places deciding one
+# sentence and two of them naming an executable this file may not have. The
+# operation is settled above; the command that carries it out is planned once,
+# after the last thing that can change the operation.
 
 # -- the failure screen, before anything is powered off ----------------------
 #
@@ -2497,8 +2625,7 @@ if ([string] $result['status'] -eq 'Failed' -and
             & $say ("the failure screen was answered: {0} (shown: {1})" -f $chosen.Action, $chosen.Shown) 'Warning'
 
             if ([string] $chosen.Action -eq 'Restart') {
-                $ending = 'reboot'
-                $result['endedWith'] = 'wpeutil reboot'
+                $endingOperation = 'Restart'
             }
 
             if ([string] $chosen.Action -eq 'CommandPrompt') {
@@ -2517,6 +2644,54 @@ if ([string] $result['status'] -eq 'Failed' -and
     }
 }
 
+# -- AND THE COMMAND THAT CARRIES THAT OPERATION OUT, ON THIS LEG -------------
+#
+# THE LAST LINE OF THIS FILE RUNS AFTER THE CATCH, ON A MACHINE THAT MAY HAVE
+# FAILED BEFORE THE MODULE IMPORTED. So it cannot ask Get-HDTPowerCommand, which
+# is private to a module that may not be loaded, and it cannot use the
+# IPowerService built at section 3b, which is assigned inside the try. It
+# carries the plan itself - and a carried plan is exactly the kind of duplicate
+# that goes stale in silence, so the payload's own unit test extracts every
+# literal below and compares it with what Get-HDTPowerCommand really plans, for
+# BOTH worlds and every operation each world has.
+#
+# BRANCHED ON THE DERIVED PHASE, WHICH IS THE WHOLE POINT. shutdown.exe is NOT
+# IN WinPE - 05-06 mounted the boot image and looked - and wpeutil.exe is in no
+# installed Windows. A literal either way is a command the other leg does not
+# have, on the one line whose entire job is to end the machine.
+#
+# THE DELAY IS THE FIVE-SECOND SLEEP AT THE END OF THIS FILE, in both worlds, so
+# the full-OS plan asks shutdown.exe for none of its own: wpeutil takes no delay
+# argument at all, and one world sleeping while the other counted down would put
+# two different pauses in front of one behaviour.
+#
+# /f BECAUSE NOTHING IS LEFT TO SAVE. A deployment has just finished or just
+# failed; an application refusing to close is not a reason to leave a bench
+# machine on overnight, and MDT's own restart is equally unconditional.
+if ($endingPhase -eq 'WinPE') {
+    $endingCommand = "$env:SystemRoot\System32\wpeutil.exe"
+    $endingArgument = @('shutdown')
+
+    if ($endingOperation -eq 'Restart') { $endingArgument = @('reboot') }
+} else {
+    $endingCommand = "$env:SystemRoot\System32\shutdown.exe"
+    $endingArgument = @('/s', '/t', '0', '/f')
+
+    if ($endingOperation -eq 'Restart') { $endingArgument = @('/r', '/t', '0', '/f') }
+
+    # shutdown.exe REFUSES /l ALONGSIDE /t and exits with a usage error rather
+    # than logging off, which is why Get-HDTPowerCommand plans it bare and lets
+    # the caller sleep. WinPE never reaches this: Get-HDTFinishAction resolves
+    # LOGOFF to None there, because nobody is logged in.
+    if ($endingOperation -eq 'Logoff') { $endingArgument = @('/l') }
+}
+
+# THE EXECUTABLE WITHOUT ITS EXTENSION, which is the spelling every RESULT.json
+# in this lab already carries and what tests/e2e reads back. 'wpeutil shutdown'
+# on the leg that booted the RAM disk; 'shutdown /r /t 0 /f' on a Refresh.
+$result['endedWith'] = '{0} {1}' -f
+    [System.IO.Path]::GetFileNameWithoutExtension($endingCommand), (@($endingArgument) -join ' ')
+
 # EXCEPT WHEN A TECHNICIAN IS STANDING AT A PROMPT ON THIS MACHINE. Open CMD
 # exists to debug a machine that is behaving badly, and a run that opened the
 # prompt and then powered the machine off five seconds later gave the technician
@@ -2524,11 +2699,11 @@ if ([string] $result['status'] -eq 'Failed' -and
 # instead: startnet.cmd's own console is still there, and so is the prompt that
 # was asked for.
 #
-# $ending IS NOT CLEARED TO SAY SO. Its two values are compared against
-# Get-HDTPowerCommand's by a test that exists to stop this duplicate going
-# stale, and a third value would be a third thing to keep in step. The verb
-# stays what the machine WOULD have done; whether it does it is the guard at
-# the end of this file.
+# $endingCommand IS NOT CLEARED TO SAY SO. It and $endingOperation are compared
+# against Get-HDTPowerCommand's by a test that exists to stop the duplicate
+# above going stale, and a value that meant "nothing" would be a fourth thing to
+# keep in step. The plan stays what the machine WOULD have done; whether it does
+# it is the guard at the end of this file.
 if ([bool] $result['leftAtCommandPrompt']) {
     $result['endedWith'] = 'nothing - the technician was left at a command prompt'
 }
@@ -2614,18 +2789,43 @@ if (-not [string]::IsNullOrWhiteSpace([string] $result['resolvedDeployRoot'])) {
     } catch {
         Write-Information ("could not write RESULT.json to the deploy root: {0}" -f $_.Exception.Message)
     }
-} else {
-    [void] $transcript.Add('no deploy root was resolved, so X:\HDT\RESULT.json is the only copy and it dies with the RAM disk')
-    $result['message'] = ('{0} (no deploy root was resolved, so this result exists only on the RAM disk)' -f $result['message']).Trim()
+}
+
+# THE FALLBACK IS THIS MACHINE'S OWN HDT FOLDER, AND WHICH DRIVE THAT IS DEPENDS
+# ON THE LEG.
+#
+# IT WAS THE LITERAL X:\HDT, and it was right for every run this file had ever
+# done: WinPE's system drive IS the RAM disk, so X:\HDT was the machine's own
+# folder as well as the RAM disk's. A Refresh runs this same file in the running
+# Windows, where X: is not a drive at all - so the last-resort copy of the
+# evidence for the run least likely to have reached a deploy root went nowhere,
+# quietly, into an Information line inside a catch.
+#
+# <SystemDrive>\HDT IS NOT INVENTED FOR THIS. Get-HDTRefreshLaunchPlan already
+# writes the bootstrap document there, Get-HDTLogPath puts the full-OS logs
+# under the same root, and refresh.yaml's CleanVolume keeps the folder standing
+# for exactly that reason. In WinPE that root resolves to X:, so the leg this
+# line was written for behaves exactly as it did.
+#
+# [IO.Path]::Combine, NEVER Join-Path. The drive may not be mounted in the
+# session judging this - Join-Path resolves the provider and throws
+# DriveNotFound, which is the trap CLAUDE.md rule 8 names and the reason this
+# line can be proven from a desk at all.
+$fallbackRoot = [System.IO.Path]::Combine($endingDrive + '\', 'HDT')
+
+if ([string]::IsNullOrWhiteSpace([string] $result['resolvedDeployRoot'])) {
+    [void] $transcript.Add(('no deploy root was resolved, so {0}\RESULT.json is the only copy of this run''s result' -f $fallbackRoot))
+    $result['message'] = ('{0} (no deploy root was resolved, so this result exists only on this machine)' -f $result['message']).Trim()
     $document = ConvertTo-Json -InputObject $result -Depth 4
 }
 
 try {
-    New-Item -Path 'X:\HDT' -ItemType Directory -Force | Out-Null
-    [System.IO.File]::WriteAllText('X:\HDT\RESULT.json', $document, $utf8)
-    [System.IO.File]::WriteAllLines('X:\HDT\LAUNCHER.log', [string[]] @($transcript), $utf8)
+    New-Item -Path $fallbackRoot -ItemType Directory -Force | Out-Null
+    [System.IO.File]::WriteAllText([System.IO.Path]::Combine($fallbackRoot, 'RESULT.json'), $document, $utf8)
+    [System.IO.File]::WriteAllLines([System.IO.Path]::Combine($fallbackRoot, 'LAUNCHER.log'),
+        [string[]] @($transcript), $utf8)
 } catch {
-    Write-Information ("could not write the fallback RESULT.json: {0}" -f $_.Exception.Message)
+    Write-Information ("could not write the fallback RESULT.json to '{0}': {1}" -f $fallbackRoot, $_.Exception.Message)
 }
 
 if ($null -ne $content) {
@@ -2667,7 +2867,11 @@ if (-not $machineEnding.EndMachine) {
 if ($machineEnding.EndMachine) {
     Start-Sleep -Seconds 5
 
-    & "$env:SystemRoot\System32\wpeutil.exe" $ending
+    # PLANNED FURTHER UP, FROM THE PHASE THIS RUN DERIVED, and invoked here.
+    # This line named wpeutil outright until M9 made the file reachable from the
+    # running Windows, where wpeutil does not exist - so the one step whose whole
+    # job is to end the machine would have failed on the leg that needs it most.
+    & $endingCommand $endingArgument
 }
 
 exit 0

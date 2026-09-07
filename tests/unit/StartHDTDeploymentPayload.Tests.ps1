@@ -454,23 +454,90 @@ Describe 'Start-HDTDeployment.ps1' {
             }
         }
 
-        It 'tells the power service it is in WinPE' {
-            # THE DEFECT 05-06 FOUND. shutdown.exe is not in the boot image - a
-            # read-only mount says so and
-            # tests/integration/WinPeContent.Integration.Tests.ps1 keeps saying
-            # it - so a Restart step run from here through a power service built
-            # for the full OS would call a command that does not exist.
-            #
-            # This entry point IS the WinPE one; it hardcodes -Phase WinPE
-            # everywhere else. There is no detection to do, and -Environment is
-            # mandatory so it cannot be left out.
+        # M9 ITEM 2, THE OTHER HALF. THE POWER SERVICE ASSERTED ITS OWN WORLD.
+        #
+        # 05-06 mounted the boot image and found no shutdown.exe in it, so this
+        # line was pinned to WinPE and a test pinned the literal on purpose:
+        # this file WAS the WinPE entry point, every -Phase in it was the same
+        # literal, and a power service built for the full OS would have handed a
+        # Restart step a command the boot image does not contain. The comment
+        # said full-OS power was "M9's own work and it is not done here".
+        #
+        # M9 IS DONE, AND IT MADE THE PIN WRONG. Templates\refresh.yaml's first
+        # leg ends with a Restart under runIn: FullOS - a wipe-and-load launched
+        # from the RUNNING Windows (DESIGN 3.2), which reaches this same file
+        # with SystemDrive at C:. That leg would have called `wpeutil reboot` on
+        # a machine that has no wpeutil, and the deployment would have stopped
+        # at the one step whose whole job is to get to the next leg.
+        #
+        # SO THE ENVIRONMENT FOLLOWS THE DERIVATION, like every -Phase beside
+        # it. Not a new parameter and not a second read of SystemDrive: one
+        # value, decided once by Get-HDTDeploymentPhase, carried.
+        #
+        # AND THIS IS ASSERTED BY EXECUTION, NOT BY THE LITERAL IT USED TO BE.
+        # The payload's own -Environment expression is taken from the AST, bound
+        # to the phase each leg would really have derived, and run through the
+        # real New-HDTPowerService and the real Get-HDTPowerCommand. A literal
+        # WinPE fails the C: row; a literal FullOS fails the X: row; only the
+        # carried value answers both. Pinning a literal again cannot pass here.
+        It 'gives the power service the phase it derived, so each leg ends with a command that leg has' {
+            Import-Module -Name (Join-Path -Path $script:repoRoot -ChildPath 'src/Hephaestus/Hephaestus.psd1') -Force -ErrorAction Stop
+
             $power = @(& $script:commandNamed 'New-HDTPowerService')
 
             $power.Count | Should -Be 1
 
-            $element = & $script:elementOf $power[0]
-            $element | Should -Contain '-Environment'
-            $element | Should -Contain 'WinPE'
+            $element = @($power[0].CommandElements)
+            @($element | ForEach-Object { [string] $_.Extent.Text }) | Should -Contain '-Environment' -Because 'it is mandatory and undefaulted, deliberately'
+
+            $argument = $null
+            for ($i = 0; $i -lt $element.Count - 1; $i++) {
+                if ($element[$i] -is [System.Management.Automation.Language.CommandParameterAst] -and
+                    $element[$i].ParameterName -eq 'Environment') {
+
+                    $argument = $element[$i + 1]
+                }
+            }
+
+            $argument | Should -Not -BeNullOrEmpty
+
+            foreach ($case in @(
+                    @{ Drive = 'X:'; Phase = 'WinPE'; Command = 'wpeutil.exe'; Verb = 'reboot' },
+                    @{ Drive = 'C:'; Phase = 'FullOS'; Command = 'shutdown.exe'; Verb = '/r' })) {
+
+                # The phase this leg would really derive, from the command that
+                # derives it - not a string this test decided.
+                $phase = Get-HDTDeploymentPhase -SystemDrive ([string] $case.Drive)
+                $phase | Should -BeExactly ([string] $case.Phase)
+
+                # What the payload's own expression evaluates to on that leg. A
+                # variable resolves from the binding; anything else is a literal
+                # and evaluates to itself, which is how a re-pinned WinPE gets
+                # all the way to the assertion below and fails there.
+                if ($argument -is [System.Management.Automation.Language.VariableExpressionAst]) {
+                    $name = [string] $argument.VariablePath.UserPath
+
+                    $name | Should -BeExactly 'phase' -Because 'the derived phase is the only variable that answers for both legs'
+
+                    $environment = [string] $phase
+                } else {
+                    $environment = ([string] $argument.Extent.Text).Trim("'`"")
+                }
+
+                $service = New-HDTPowerService -Environment $environment
+
+                $plan = InModuleScope -ModuleName 'Hephaestus' -Parameters @{ Environment = [string] $service.Environment } {
+                    param([string] $Environment)
+
+                    Get-HDTPowerCommand -Environment $Environment -Operation 'Restart' -DelaySecond 0
+                }
+
+                [string] $plan.Command | Should -BeExactly ([string] $case.Command) -Because (
+                    "a leg that booted with SystemDrive '{0}' is {1}, and {2} is the only restart command that exists there" -f
+                    $case.Drive, $case.Phase, $case.Command)
+
+                [string] @($plan.Argument)[0] | Should -BeExactly ([string] $case.Verb)
+            }
         }
 
         # M9 ITEM 2. THE ENTRY POINT USED TO ASSERT ITS OWN PHASE, AND IT WAS
@@ -785,6 +852,50 @@ Describe 'Start-HDTDeployment.ps1' {
             $script:text | Should -BeLike '*endedWith*'
         }
 
+        It 'publishes the derived phase into the result document, which is the only way the tail can have it' {
+            # THE TAIL MAY ONLY READ WHAT A FAILED RUN HAS - the rule the
+            # assertion above this block enforces. Section 3b derives the phase
+            # INSIDE the top-level try, so a run that died on the module import
+            # never reached it and StrictMode turns reading it into a second
+            # error on top of the first, in the part of the file that writes
+            # RESULT.json.
+            #
+            # $result IS DECLARED BEFORE THE TRY for exactly this reason, and
+            # every field in it is initialised there. So the derivation publishes
+            # itself into the document, and the tail reads it back out.
+            $declared = @($script:ast.FindAll({
+                        param($node)
+                        $node -is [System.Management.Automation.Language.HashtableAst]
+                    }, $true) |
+                    ForEach-Object { $_.KeyValuePairs } |
+                    Where-Object { ([string] $_.Item1.Extent.Text).Trim("'`"") -eq 'phase' })
+
+            @($declared).Count | Should -BeGreaterOrEqual 1 -Because 'the result document declares every field the tail reads'
+
+            $published = @($script:ast.FindAll({
+                        param($node)
+                        $node -is [System.Management.Automation.Language.AssignmentStatementAst] -and
+                        ([string] $node.Left.Extent.Text) -match "^\`$result\[\s*'phase'\s*\]$"
+                    }, $true))
+
+            @($published).Count | Should -BeGreaterOrEqual 1 -Because 'the phase section 3b derived has to reach the tail somehow'
+        }
+
+        It 'writes its fallback RESULT.json to the machine it is running on, not to the RAM disk' {
+            # X:\HDT\RESULT.json WAS RIGHT UNTIL A REFRESH, and then it was a
+            # path to a drive that does not exist - so the one copy of the
+            # evidence for a full-OS run that never reached a deploy root went
+            # nowhere, silently, inside a catch that writes an Information line.
+            #
+            # THE FULL-OS LOCATION IS NOT INVENTED. Get-HDTRefreshLaunchPlan
+            # already writes the bootstrap document to <SystemDrive>\HDT, and
+            # Get-HDTLogPath puts the full-OS logs under the same root; in WinPE
+            # that root IS X:, so one expression answers both legs and the old
+            # behaviour is unchanged on the leg it was written for.
+            $script:codeOnly | Should -Match 'endingDrive'
+            $script:text | Should -Match '(?s)endingDrive.*?RESULT\.json'
+        }
+
         It 'prompts for a credential only when the bootstrap says to' {
             $prompt = @(& $script:commandNamed 'Get-Credential')
 
@@ -826,8 +937,15 @@ Describe 'Start-HDTDeployment.ps1' {
             $script:codeOnly | Should -Match 'Disconnect'
         }
 
-        It 'ends the machine with wpeutil' {
-            $script:text | Should -BeLike '*wpeutil*'
+        It 'ends the machine with the command the leg it is on actually has' {
+            # NOT `wpeutil` ANY MORE, AND THAT IS THE FIX. This file was the
+            # WinPE entry point and named wpeutil outright; a Refresh reaches it
+            # from the running Windows, which has no wpeutil at all. The verb is
+            # planned from the derived phase into $endingCommand, and the last
+            # line invokes that.
+            $script:codeOnly | Should -Match 'endingCommand'
+            $script:codeOnly | Should -Match 'wpeutil'
+            $script:codeOnly | Should -Match 'shutdown'
         }
 
         It 'does not power the machine off when the technician asked for a prompt' {
@@ -841,10 +959,10 @@ Describe 'Start-HDTDeployment.ps1' {
             # THE POWER LINE MUST THEREFORE BE CONDITIONAL. Asserted on the AST
             # rather than the text, because 'the last line is guarded' is the
             # property, not any particular spelling of the guard.
-            $power = @(& $script:commandNamed 'wpeutil.exe') + @($script:ast.FindAll({
+            $power = @($script:ast.FindAll({
                         param($node)
                         $node -is [System.Management.Automation.Language.CommandAst] -and
-                        $node.Extent.Text -like '*wpeutil*'
+                        $node.Extent.Text -like '*$endingCommand*'
                     }, $true))
 
             $power | Should -Not -BeNullOrEmpty
@@ -880,31 +998,84 @@ Describe 'Start-HDTDeployment.ps1' {
             $script:codeOnly | Should -Match 'RebootPending'
         }
 
-        It 'uses the same two verbs Get-HDTPowerCommand yields for WinPE' {
-            # THE ANTI-DRIFT ASSERTION. This last line runs after the catch, on a
-            # machine that may have failed before the module imported, so it
-            # invokes wpeutil directly rather than through the service - and that
-            # is exactly the sort of duplicate that goes stale in silence.
+        It 'carries the same commands Get-HDTPowerCommand plans, for BOTH worlds' {
+            # THE ANTI-DRIFT ASSERTION, NOW OVER TWO WORLDS INSTEAD OF ONE.
             #
-            # It cannot go stale here: the verbs the payload assigns to $ending
-            # are compared with the verbs the engine's own decision produces.
+            # This last line runs after the catch, on a machine that may have
+            # failed before the module imported, so it cannot ask
+            # Get-HDTPowerCommand - a private function inside a module that may
+            # not be loaded. It carries the plan itself, which is exactly the
+            # sort of duplicate that goes stale in silence.
+            #
+            # IT USED TO CARRY ONE WORLD'S HALF OF IT. The payload named wpeutil
+            # and its two verbs, this test compared them with WinPE's plan, and
+            # both were right for as long as this file could only be the WinPE
+            # entry point. A Refresh reaches it from the running Windows, where
+            # wpeutil does not exist - so the payload now branches on the derived
+            # phase, and every literal on both sides of that branch is compared
+            # with what the engine really plans.
             Import-Module -Name (Join-Path -Path $script:repoRoot -ChildPath 'src/Hephaestus/Hephaestus.psd1') -Force -ErrorAction Stop
 
-            $engineVerb = @(InModuleScope Hephaestus {
-                    foreach ($operation in @('Restart', 'Stop')) {
-                        [string] (Get-HDTPowerCommand -Environment WinPE -Operation $operation -DelaySecond 0).Argument[0]
+            # WHAT THE ENGINE PLANS, for every operation each world really has.
+            # WinPE has no logoff - Get-HDTPowerCommand refuses one there,
+            # because there is no session to end - so asking for one would throw
+            # rather than answer.
+            $engine = InModuleScope Hephaestus {
+                $command = @()
+                $argument = @()
+
+                foreach ($case in @(
+                        @{ Environment = 'WinPE'; Operation = @('Restart', 'Stop') },
+                        @{ Environment = 'FullOS'; Operation = @('Restart', 'Stop', 'Logoff') })) {
+
+                    foreach ($operation in @($case.Operation)) {
+                        $plan = Get-HDTPowerCommand -Environment ([string] $case.Environment) `
+                            -Operation ([string] $operation) -DelaySecond 0
+
+                        $command += [string] $plan.Command
+                        $argument += @($plan.Argument | ForEach-Object { [string] $_ })
                     }
-                }) | Sort-Object
+                }
 
-            $payloadVerb = @($script:ast.FindAll({
-                        param($node)
-                        $node -is [System.Management.Automation.Language.AssignmentStatementAst] -and
-                        ([string] $node.Left.Extent.Text) -eq '$ending'
-                    }, $true) |
-                    ForEach-Object { ([string] $_.Right.Extent.Text).Trim("'`"") }) | Sort-Object -Unique
+                return [pscustomobject] @{ Command = $command; Argument = $argument }
+            }
 
-            @($payloadVerb).Count | Should -Be 2 -Because 'the payload assigns $ending exactly twice: reboot and shutdown'
-            @($payloadVerb) | Should -Be @($engineVerb)
+            # WHAT THE PAYLOAD CARRIES. Every literal it assigns to the two
+            # variables the last line invokes - the command as a leaf name,
+            # because the payload spells the full System32 path and the engine
+            # spells the bare executable (which is right in both places: WinPE
+            # puts System32 on the PATH, and a tail running after a failure
+            # trusts nothing it does not have to).
+            $literalOf = {
+                param([string] $Name)
+
+                $wanted = $Name
+
+                return @($script:ast.FindAll({
+                            param($node)
+                            $node -is [System.Management.Automation.Language.AssignmentStatementAst] -and
+                            ([string] $node.Left.Extent.Text) -eq $wanted
+                        }, $true) |
+                        ForEach-Object {
+                            $_.Right.FindAll({
+                                    param($n)
+                                    $n -is [System.Management.Automation.Language.StringConstantExpressionAst] -or
+                                    $n -is [System.Management.Automation.Language.ExpandableStringExpressionAst]
+                                }, $true)
+                        } |
+                        ForEach-Object { ([string] $_.Extent.Text).Trim("'`"") })
+            }
+
+            $payloadCommand = @(& $literalOf '$endingCommand' |
+                    ForEach-Object { [System.IO.Path]::GetFileName($_) }) | Sort-Object -Unique
+
+            $payloadArgument = @(& $literalOf '$endingArgument') | Sort-Object -Unique
+
+            @($payloadCommand) | Should -Be (@($engine.Command) | Sort-Object -Unique) -Because (
+                'the tail invokes what it names, and the engine is the only thing that decides which executable a world has')
+
+            @($payloadArgument) | Should -Be (@($engine.Argument) | Sort-Object -Unique) -Because (
+                'a verb or switch in the tail that the engine never plans is a command line nobody has tested')
         }
 
         It 'ends the machine even when the run threw' {
@@ -913,7 +1084,7 @@ Describe 'Start-HDTDeployment.ps1' {
             $ended = @($script:ast.FindAll({
                         param($node)
                         $node -is [System.Management.Automation.Language.CommandAst] -and
-                        ([string] $node.Extent.Text) -like '*wpeutil*'
+                        ([string] $node.Extent.Text) -like '*$endingCommand*'
                     }, $true))
 
             $ended.Count | Should -BeGreaterOrEqual 1
@@ -1095,11 +1266,55 @@ Describe 'Start-HDTDeployment.ps1 and the finish action' {
         @(& $script:commandNamed 'Get-HDTFinishAction') | Should -Not -BeNullOrEmpty
     }
 
-    It 'tells it this is WinPE' {
-        # LOGOFF resolves to no action in WinPE, and only because the
-        # environment is passed truthfully. A payload that claimed FullOS here
-        # would plan a shutdown.exe /l for a machine with no shutdown.exe.
-        $script:text | Should -Match '(?s)Get-HDTFinishAction.*?WinPE'
+    It 'tells it which world this leg is really in' {
+        # IT WAS A LITERAL WinPE, AND IT WAS THE SAME DEFECT AS THE POWER
+        # SERVICE'S ONE FILE OVER. A Refresh is a wipe-and-load launched from
+        # the RUNNING Windows (DESIGN 3.2) and reaches this same file with
+        # SystemDrive at C:, so the literal made every finish action on that leg
+        # answer for a world the machine is not in.
+        #
+        # LOGOFF IS THE VALUE THAT PROVES IT, and it is the only one that
+        # differs: Get-HDTFinishAction resolves it to None in WinPE, where
+        # nobody is logged in, and to Logoff in the full OS. So a payload
+        # claiming WinPE silently drops an administrator's LOGOFF on the one leg
+        # where it means something.
+        #
+        # THE TAIL CANNOT READ $phase, which is why this is a second variable
+        # rather than the one section 3b derived. $phase is assigned inside the
+        # top-level try; a run that died on the module import never reached it,
+        # and StrictMode turns reading it into a second error on top of the
+        # first. The phase is published into $result - declared before the try
+        # for exactly this reason - and the tail reads it back.
+        Import-Module -Name (Join-Path -Path $script:repoRoot -ChildPath 'src/Hephaestus/Hephaestus.psd1') -Force -ErrorAction Stop
+
+        $call = @(& $script:commandNamed 'Get-HDTFinishAction')
+        $call.Count | Should -Be 1
+
+        $element = @($call[0].CommandElements)
+        $argument = $null
+
+        for ($i = 0; $i -lt $element.Count - 1; $i++) {
+            if ($element[$i] -is [System.Management.Automation.Language.CommandParameterAst] -and
+                $element[$i].ParameterName -eq 'Environment') {
+
+                $argument = $element[$i + 1]
+            }
+        }
+
+        $argument | Should -Not -BeNullOrEmpty -Because '-Environment is mandatory on Get-HDTFinishAction, deliberately'
+
+        ($argument -is [System.Management.Automation.Language.VariableExpressionAst]) |
+            Should -BeTrue -Because ("a leg that can be either world must carry the one it derived, and this names '{0}'" -f $argument.Extent.Text)
+
+        # AND THE TWO ANSWERS REALLY DO DIFFER, so the variable above is doing
+        # work rather than merely looking careful.
+        foreach ($case in @(
+                @{ Phase = 'WinPE'; Action = 'None' },
+                @{ Phase = 'FullOS'; Action = 'Logoff' })) {
+
+            [string] (Get-HDTFinishAction -Value 'LOGOFF' -Environment ([string] $case.Phase)).Action |
+                Should -BeExactly ([string] $case.Action)
+        }
     }
 
     It 'applies it only to a run that finished, never to one with a leg to come' {
@@ -1110,19 +1325,26 @@ Describe 'Start-HDTDeployment.ps1 and the finish action' {
         $script:text | Should -Match "(?s)Get-HDTFinishAction.*?Succeeded"
     }
 
-    It 'still assigns $ending only the two verbs the engine plans' {
-        # The finish action moves between the SAME two verbs rather than
-        # introducing a third. Get-HDTPowerCommand plans reboot and shutdown for
-        # WinPE and nothing else, and the assertion above this one compares the
-        # payload's literals against them.
+    It 'still assigns $endingOperation only operations IPowerService has' {
+        # THE VERBS BECAME OPERATIONS WHEN THE WORLD STOPPED BEING FIXED. It
+        # used to be `reboot` and `shutdown` - WinPE's two wpeutil verbs, chosen
+        # because that was the only world this file could be in. The full-OS leg
+        # spells the same two `/r` and `/s`, so the thing the tail decides is now
+        # the OPERATION, and the branch on the derived phase spells it.
+        #
+        # LOGOFF IS THE THIRD, AND IT ARRIVED WITH THE TRUTHFUL ENVIRONMENT.
+        # Get-HDTFinishAction returns Logoff only in the full OS; a payload that
+        # mapped Restart and Stop and nothing else would take an administrator's
+        # LOGOFF and reboot the machine instead - which is the same class of
+        # defect as the literal, one step further down.
         $assigned = @($script:ast.FindAll({
                     param($node)
                     $node -is [System.Management.Automation.Language.AssignmentStatementAst] -and
-                    ([string] $node.Left.Extent.Text) -eq '$ending'
+                    ([string] $node.Left.Extent.Text) -eq '$endingOperation'
                 }, $true) |
                 ForEach-Object { ([string] $_.Right.Extent.Text).Trim("'`"") }) | Sort-Object -Unique
 
-        @($assigned) | Should -Be @('reboot', 'shutdown')
+        @($assigned) | Should -Be @('Logoff', 'Restart', 'Stop')
     }
 
     It 'never lets the finish action change what the run reported' {

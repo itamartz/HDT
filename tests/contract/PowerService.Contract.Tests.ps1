@@ -121,3 +121,115 @@ Describe 'IPowerService contract: <Name>' -ForEach $script:HDTImplementation {
         }
     }
 }
+
+
+# EVERY CALLER OF THE POWER SERVICE, NOT THE ONE THAT WAS WRONG.
+#
+# -Environment is mandatory and undefaulted so nobody inherits the wrong world
+# by accident, and that was enough while every caller had exactly one world to
+# be in. M9 ended that: a Refresh is a wipe-and-load launched from the RUNNING
+# Windows (DESIGN 3.2), so Start-HDTDeployment.ps1 - which was THE WinPE entry
+# point, with a literal WinPE here and a unit test pinning it on purpose - can
+# now be started on a leg where that literal is a lie. Templates\refresh.yaml's
+# first leg ends with a Restart under runIn: FullOS, and the literal made it
+# `wpeutil reboot` on a machine that has no wpeutil.
+#
+# THE RULE IS ABOUT THE FILE, NOT ABOUT A LIST OF FILENAMES. A script that
+# DERIVES the phase can start on either leg, so its power service must carry the
+# derived value; a script that derives no phase has one world by construction -
+# Start-HDTResume.ps1 runs from RunOnce in the deployed OS, which has
+# shutdown.exe and no wpeutil - and a literal is the honest answer there.
+# Written this way, a THIRD entry point added tomorrow is judged by what it
+# does, and a fourth that starts deriving a phase is caught the moment it does.
+#
+# BOTH SIDES ARE ASSERTED NON-EMPTY. A set-driven rule that matches nothing
+# passes forever, and this one is looking for the absence of a literal.
+Describe 'every caller of the power service tells it the truth about its world' {
+
+    BeforeAll {
+        $script:repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
+
+        $script:caller = @()
+
+        foreach ($file in @(Get-ChildItem -LiteralPath (Join-Path -Path $script:repoRoot -ChildPath 'src/Hephaestus') -Filter '*.ps1' -Recurse -File |
+                    Where-Object { $_.Name -ne 'Hephaestus.bundle.ps1' })) {
+
+            $ast = [System.Management.Automation.Language.Parser]::ParseFile($file.FullName, [ref] $null, [ref] $null)
+
+            $build = @($ast.FindAll({
+                        param($node)
+                        $node -is [System.Management.Automation.Language.CommandAst] -and
+                        $node.GetCommandName() -eq 'New-HDTPowerService'
+                    }, $true))
+
+            if ($build.Count -eq 0) { continue }
+
+            # A file that asks Get-HDTDeploymentPhase can start on either leg.
+            # A file that never asks has one world by construction.
+            $derives = @($ast.FindAll({
+                        param($node)
+                        $node -is [System.Management.Automation.Language.CommandAst] -and
+                        $node.GetCommandName() -eq 'Get-HDTDeploymentPhase'
+                    }, $true)).Count -gt 0
+
+            foreach ($command in $build) {
+                $element = @($command.CommandElements)
+                $argument = $null
+
+                for ($i = 0; $i -lt $element.Count - 1; $i++) {
+                    if ($element[$i] -is [System.Management.Automation.Language.CommandParameterAst] -and
+                        $element[$i].ParameterName -eq 'Environment') {
+
+                        $argument = $element[$i + 1]
+                    }
+                }
+
+                # Computed before the literal, not inside it: an `if` in a
+                # hashtable value position is a parse error in 5.1.
+                $text = '<missing>'
+                if ($null -ne $argument) { $text = [string] $argument.Extent.Text }
+
+                $script:caller += [pscustomobject] @{
+                    File       = $file.Name
+                    Derives    = $derives
+                    Argument   = $argument
+                    IsVariable = ($argument -is [System.Management.Automation.Language.VariableExpressionAst])
+                    Text       = $text
+                }
+            }
+        }
+    }
+
+    It 'finds the callers at all' {
+        @($script:caller).Count | Should -BeGreaterOrEqual 2 -Because 'src/ has at least the two payload entry points, and a rule that matches nothing proves nothing'
+    }
+
+    It 'gives every one of them an -Environment' {
+        $missing = @($script:caller | Where-Object { $null -eq $_.Argument })
+
+        $missing | Should -BeNullOrEmpty -Because ('-Environment is mandatory, and these pass none: {0}' -f
+            (@($missing | ForEach-Object { $_.File }) -join ', '))
+    }
+
+    It 'makes a file that derives the phase carry that derived value, never a literal' {
+        $eitherLeg = @($script:caller | Where-Object { $_.Derives })
+
+        @($eitherLeg).Count | Should -BeGreaterOrEqual 1 -Because 'Start-HDTDeployment.ps1 derives its phase since M9, and is reached from both the WinPE startnet.cmd path and the full-OS Start-HDTRefresh launcher'
+
+        $pinned = @($eitherLeg | Where-Object { -not $_.IsVariable })
+
+        $pinned | Should -BeNullOrEmpty -Because ('a file that can start on either leg must not assert which one it is, and these do: {0}' -f
+            (@($pinned | ForEach-Object { '{0} -Environment {1}' -f $_.File, $_.Text }) -join ', '))
+    }
+
+    It 'leaves a single-world file its literal' {
+        $oneLeg = @($script:caller | Where-Object { -not $_.Derives })
+
+        @($oneLeg).Count | Should -BeGreaterOrEqual 1 -Because 'Start-HDTResume.ps1 runs from RunOnce in the deployed OS and derives nothing'
+
+        foreach ($row in $oneLeg) {
+            $row.Text | Should -BeIn @('WinPE', 'FullOS', "'WinPE'", "'FullOS'") -Because (
+                '{0} names one world for a reason; anything else there is a variable whose value nothing in this file decided' -f $row.File)
+        }
+    }
+}
