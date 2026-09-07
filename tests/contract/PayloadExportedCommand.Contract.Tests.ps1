@@ -6,11 +6,17 @@
 #
 #     Import-Module -Name 'Hephaestus'
 #
-# which imports the MANIFEST. FunctionsToExport is an explicit list (DESIGN
-# 15.1), so the 231 functions under Private\ exist inside the module and do not
-# exist in the caller's session. A payload line that names one is a
+# which imports the MANIFEST. FunctionsToExport is an explicit list, so the
+# hundreds of functions under Private\ exist inside the module and do not exist
+# in the caller's session. A payload line that names one is a
 # CommandNotFoundException on a booted machine and nowhere else: it parses, it
 # lints, it passes every AST test in the repository, and it fails only on iron.
+#
+# WHAT SAYS SO IS CLAUDE.md HARD RULE 9, held by
+# ExportedCommandReach.Contract.Tests.ps1. This comment used to cite "DESIGN
+# 15.1" for the explicit list; DESIGN section 15 is Open questions and
+# FunctionsToExport appears nowhere in that document, so the citation was wrong
+# from the day it was written.
 #
 # THIS CONTRACT WAS WRITTEN AFTER THAT HAPPENED. b08bb91 added a call to
 # Expand-HDTVariableToken - a private helper - inside the try/catch that starts

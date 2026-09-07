@@ -261,7 +261,14 @@
         'Resolve-HDTImageIndex',
         'Resolve-HDTVariable',
         'Save-HDTRunState',
+
+        # DESIGN 4.5.2's reboot-surviving secret bag is NOT here, deliberately.
+        # Save-HDTSecretBag, Restore-HDTSecretBag and Clear-HDTSecretBag are
+        # private: every caller is another file in this module, and each one
+        # takes an ILsaService nobody outside builds by hand. See
+        # tests/contract/ExportedCommandReach.Contract.Tests.ps1.
         'Restore-HDTRuleVariable',
+
         'Select-HDTTargetDisk',
         'Set-HDTApplication',
         'Set-HDTAutoLogon',

@@ -126,6 +126,13 @@ preference.
    resolves the drive and throws `DriveNotFound`, so the line cannot be tested
    at all (see `Get-HDTWorkspacePath`).
 
+9. **Public means somebody outside the module calls it.** A command whose every
+   caller is another file in `Public\` or `Private\`, and that takes an injected
+   service nobody outside builds, belongs in `Private\` and out of
+   `FunctionsToExport` — exporting it is the module holding a conversation with
+   itself in public. `ExportedCommandReach.Contract.Tests.ps1` is where an
+   operator entry point with no caller has to say why it is one.
+
 ## Architecture in one paragraph
 
 A **workspace** (deployment share) is a directory tree of YAML plus content.
