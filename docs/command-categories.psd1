@@ -305,6 +305,7 @@
             Command = @(
                 'Get-HDTBootstrapConfiguration'
                 'Import-HDTBootImageToWds'
+                'Initialize-HDTWdsBootFile'
                 'New-HDTPxePayload'
                 'New-HDTContentProvider'
                 'New-HDTSmbContentProvider'
@@ -332,8 +333,10 @@
                 'Set-HDTAutoLogon'
                 'Get-HDTAutoLogonState'
                 'Clear-HDTAutoLogon'
+                'Restore-HDTRuleVariable'
                 'Copy-HDTResumeAgent'
                 'Remove-HDTResumeAgent'
+                'Get-HDTRefreshLaunchPlan'
                 'Invoke-HDTBootReconciliation'
                 'Get-HDTResumeCandidate'
                 'Get-HDTFinishAction'
