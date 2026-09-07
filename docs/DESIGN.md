@@ -144,6 +144,9 @@ Seven concepts. Everything else is a property of one of them.
       update.yaml             # what the package said about itself
       windows11.0-kb5094126-x64_<sha>.msu
   Scripts\                    # user extension points (.ps1)
+    Start-HDTRefresh.cmd      # start a Refresh from the running OS (§5.1.1)
+    Start-HDTRefresh.ps1      # MDT's Scripts\LiteTouch.vbs, in HDT
+    UI\                       # the technician wizard pages (§11.2)
   Modules\                    # engine payload staged to clients
   Logs\                       # per-deployment logs, if logging to share
   Captures\                   # sysprepped WIMs land here
@@ -1968,6 +1971,116 @@ proves the engine was launched by the image rather than typed at the prompt.
 `wpeinit` runs **before** PowerShell because it is what brings networking up.
 `X:` is written literally and is the only drive letter allowed here — the RAM
 disk is the one letter WinPE guarantees (SPIKES S9.1). There is no drive scan.
+
+#### 5.1.1 The other entry point: a Refresh, from the running Windows
+
+**`startnet.cmd` is one of two doors into the engine, and this document used to
+describe only that one.** A Refresh is the same wipe-and-load entered from a
+machine that is already running Windows (§3.2), so it never boots the image and
+never reaches `startnet.cmd`. The engine has derived `FullOS` from its own system
+drive since M9 and `Start-HDTDeployment.ps1` is written to be started on that leg
+— but nothing in the product started it there, and a capability with no door
+into it is a capability an administrator does not have. `Templates\Launcher\`
+closes that.
+
+**MDT's shape, and HDT takes it.** A Refresh in MDT is
+`\server\Share$\Scripts\LiteTouch.vbs`, run by an administrator on the machine
+about to be replaced. That file is thin on purpose: it derives the share from its
+own location (`oFSO.GetParentFolderName(WScript.ScriptFullName)`), checks the
+machine can do this at all, and hands every argument to `LiteTouch.wsf`, which is
+the heavy lifting. HDT's heavy lifting already exists, so its launcher has
+`LiteTouch.vbs`'s job and no more.
+
+**Two files, seeded onto every share by `New-HDTWorkspace` into `Scripts\`** —
+the folder an administrator arriving from Deployment Workbench already looks in:
+
+| Path on the share | What |
+|---|---|
+| `Scripts\Start-HDTRefresh.cmd` | the double-clickable half, and where `HDT_LAUNCHED_BY` is set |
+| `Scripts\Start-HDTRefresh.ps1` | the launcher: reads the environment, asks for the plan, hands over |
+
+`Start-HDTRefresh.cmd` is five lines, ASCII with CRLF and no BOM, exactly as
+`startnet.cmd` is and for the same reasons:
+
+```
+@echo off
+rem Seeded by New-HDTWorkspace from Templates\Launcher. This copy is yours to edit.
+rem Start a Refresh: run this AS ADMINISTRATOR on the machine to be replaced.
+set HDT_LAUNCHED_BY=refresh
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0Start-HDTRefresh.ps1" %*
+```
+
+**There is a `.cmd` because a `.ps1` is not double-clickable.** MDT never had the
+problem — `.vbs` runs on a double-click — so without the wrapper HDT's launcher
+would sit one step behind `LiteTouch.vbs` rather than beside it. `%~dp0` is MDT's
+`sScriptDir`: the launcher finds its own `.ps1`, never a written-down path.
+`-ExecutionPolicy Bypass` is not optional — a script read off a UNC path is
+blocked by `RemoteSigned`, which is the default.
+
+**`HDT_LAUNCHED_BY=refresh`, not `startnet`.** It is the same field
+`Start-HDTDeployment.ps1` records into `RESULT.json`, and it is how the Refresh
+end-to-end test proves the run was started by the launcher rather than typed —
+the identical proof §5.1 already gives the WinPE leg. A shared value would make
+the two runs indistinguishable in the one record that says how each began.
+
+**The share is the launcher's own location.** The administrator reached
+`\server\Share\Scripts\` to run it, so that path demonstrably works from this
+machine right now; a `deployRoot` recorded months ago may not — a share published
+under a second name, a DFS path, a server renamed. MDT has always derived it this
+way and it is the one value that cannot be stale.
+
+**Every decision belongs to `Get-HDTRefreshLaunchPlan`, not to the script.** A
+`.ps1` on a share runs once, on a machine, against a real filesystem, and nothing
+can test it; the command takes `-ScriptRoot`, `-SystemDrive`, `-IsElevated` and an
+`IFileSystem` and is driven entirely by fakes — the same split as
+`Get-HDTDeploymentPhase` and for the same reason (rule 5). The launcher reads the
+environment through `IEnvironmentProvider`, asks once, and hands over. A contract
+test parses the file and asserts it names no disk cmdlet, no DISM and no
+`bcdedit`.
+
+**It refuses in this order, and the order is the design:**
+
+1. **an unelevated session** — first, because a standard user very often cannot
+   read the share either, so a launcher that checked the share first would report
+   a missing `rules.yaml` and send them looking for a file that is there;
+2. **a run started in WinPE** — `startnet.cmd` already ran the engine, so this
+   would mint a second run beside the one going;
+3. **a launcher that is not sitting in a share** — recognised by `rules.yaml`, the
+   same `contentMarker` every provider uses, so a folder merely called `Scripts`
+   does not pass;
+4. **a share with no engine staged in `Modules\`** — §2.1 already calls that folder
+   "engine payload staged to clients", and a machine being refreshed is somebody's
+   working laptop with nothing installed on it.
+
+**The bootstrap document is synthesised rather than baked.**
+`Update-HDTBootImage` writes one into `X:\HDT\bootstrap.json` because a booting
+machine has no other way to be told where it is; a Refresh knows, because it is
+standing in the share. Same reader, same shape, same refusals — so nothing
+downstream learns that this run began differently. It is written to
+`<SystemDrive>\HDT\bootstrap.json`, which is already the run's own directory in
+the full OS: `Get-HDTLogPath` puts the logs there and the Refresh sequence stages
+its WinPE to `<volume>\HDT\Boot`.
+
+**Its provider is `Local`, and that is about authentication rather than about
+UNC.** `Smb` means "connect to this share with these credentials first" — what a
+machine that has just booted a WIM must do, with nobody logged on and no token to
+reuse. An administrator who opened the share and ran the launcher has already
+authenticated; the content is reachable as a plain filesystem path.
+`Get-HDTBootstrapConfiguration` refuses an `Smb` document carrying neither a
+credential nor `promptForCredential` for precisely the boot-image case, and this
+is not that case.
+
+**Nothing declares the phase, and that is the whole point.** The launcher passes
+no phase and no deployment type. `Start-HDTDeployment.ps1` reads its own system
+drive, `Get-HDTDeploymentPhase` returns `FullOS` because it is not `X:`, and
+`Get-HDTDeploymentType` maps that to `REFRESH` — which is the one value that
+unlocks `ApplyImage` on a resumed leg (§3.2). A launcher that could assert the
+type could talk a run past that guard.
+
+**A share created before the launcher existed does not have one.**
+`New-HDTWorkspace` never writes over an existing share (§11.2), deliberately,
+because those files are somebody's edits. Adding the launcher to a share that
+predates it is a splice, not a re-create.
 
 `deployRoot` and `contentMarker` are carried into `bootstrap.json` **verbatim**,
 including the volume-relative form (`\Share`). A builder that expanded that to

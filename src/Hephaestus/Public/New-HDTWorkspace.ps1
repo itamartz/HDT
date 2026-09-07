@@ -370,27 +370,56 @@
     # puts the wizard on the share for exactly that reason: an administrator
     # changes a page without touching the toolkit. Which is also why an existing
     # file is never written over - that file is somebody's work.
-    $wizardTemplate = Join-Path -Path $script:HDTModuleRoot -ChildPath 'Templates\Wizard'
-    $wizardTarget = Get-HDTWorkspacePath -Root $Path -Kind Scripts -ChildPath 'UI'
-
+    # AND THE LAUNCHER BESIDE THEM, WHICH IS HOW A REFRESH IS STARTED.
+    # MDT's New Deployment Share also puts LiteTouch.vbs in Scripts\ - the file
+    # an administrator runs on a machine that is already running Windows - and
+    # until Templates\Launcher existed HDT had the whole of a Refresh and no door
+    # into it (09-VERIFICATION.md).
+    #
+    # THE FOLDERS ARE A TABLE, NOT TWO BLOCKS OF CODE. Get-HDTWorkspaceSeed is
+    # the one place that says which trees a share is seeded from, and each is
+    # copied WHOLE - a file added to one of them reaches every share created
+    # afterwards without this file being touched (CLAUDE.md rule 8). A test walks
+    # the same table, so a third row is proven against the SET the day it lands.
     $written = New-Object -TypeName System.Collections.ArrayList
+    $seeded = [System.Collections.Specialized.OrderedDictionary]::new()
 
-    if (Test-Path -LiteralPath $wizardTemplate) {
-        $FileSystem.CreateDirectory($wizardTarget)
+    foreach ($seed in @(Get-HDTWorkspaceSeed)) {
+        $source = Join-Path -Path $script:HDTModuleRoot -ChildPath ('Templates\{0}' -f $seed.Template)
 
-        foreach ($current in @(Get-ChildItem -LiteralPath $wizardTemplate -File)) {
+        $landed = New-Object -TypeName System.Collections.ArrayList
+        $seeded[[string] $seed.Template] = $landed
+
+        if (-not (Test-Path -LiteralPath $source)) { continue }
+
+        $child = @([string[]] @($seed.ChildPath) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+
+        if ($child.Count -gt 0) {
+            $target = Get-HDTWorkspacePath -Root $Path -Kind ([string] $seed.Kind) -ChildPath $child
+        } else {
+            $target = Get-HDTWorkspacePath -Root $Path -Kind ([string] $seed.Kind)
+        }
+
+        $FileSystem.CreateDirectory($target)
+
+        foreach ($current in @(Get-ChildItem -LiteralPath $source -File)) {
 
             # [IO.Path]::Combine, NOT Join-Path. Join-Path resolves the drive
             # and throws DriveNotFound on one that is not mounted, so this line
             # could not run against a fake file system at all - which is the
             # only way the seeding is testable, and the reason the rest of this
             # module combines paths this way (Get-HDTWorkspacePath).
-            $target = [System.IO.Path]::Combine($wizardTarget, $current.Name)
+            $file = [System.IO.Path]::Combine($target, $current.Name)
 
-            if ($FileSystem.TestPath($target)) { continue }
+            # NEVER WRITTEN OVER, AND THAT IS DELIBERATE (DESIGN 11.2). These
+            # files land on the share because they are meant to be edited, so an
+            # existing one is somebody's work. It is also why a template added
+            # today does not reach a share created yesterday.
+            if ($FileSystem.TestPath($file)) { continue }
 
-            $FileSystem.WriteAllText($target, [System.IO.File]::ReadAllText($current.FullName))
-            [void] $written.Add($target)
+            $FileSystem.WriteAllText($file, [System.IO.File]::ReadAllText($current.FullName))
+            [void] $landed.Add($file)
+            [void] $written.Add($file)
         }
     }
 
@@ -405,6 +434,15 @@
 
         # THE WIZARD PAGES THIS CREATED, so a caller can say what a new share
         # came with rather than going and looking.
-        WizardPage = [string[]] @($written)
+        WizardPage = [string[]] @($seeded['Wizard'])
+
+        # AND THE LAUNCHER, reported separately because it answers a different
+        # question - not "what will the technician be asked" but "how does an
+        # administrator start a Refresh on this share".
+        Launcher   = [string[]] @($seeded['Launcher'])
+
+        # EVERYTHING THE SEED TABLE PUT THERE, whatever rows it holds. A caller
+        # that wants the whole list should not have to learn the row names.
+        Seeded     = [string[]] @($written)
     }
 }

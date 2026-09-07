@@ -86,6 +86,7 @@
         'Get-HDTNetworkConfiguration',
         'Get-HDTOperatingSystem',
         'Get-HDTOsRelease',
+        'Get-HDTRefreshLaunchPlan',
         'Get-HDTResumeCandidate',
         'Get-HDTRunLogRecord',
         'Get-HDTShareAccessRule',
