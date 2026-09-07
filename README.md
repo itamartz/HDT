@@ -165,9 +165,16 @@ there is no `pwsh` there. Everything under `src/Hephaestus/` must therefore pars
 and run under 5.1. No `??`, no `?.`, no ternary, no `ForEach-Object -Parallel`,
 no `$PSStyle`, no `clean` blocks, no `ConvertFrom-Json -AsHashtable`.
 
-5.1 is also the edition the gate runs under. CI used to run a matrix over both
-engines; a green `pwsh` leg proves nothing WinPE cares about, and a red one
-blocks a merge over a shell the product never runs under.
+5.1 is also the edition the gate runs under, and CI runs both. The matrix was cut
+once, on the argument that a red `pwsh` leg blocks a merge over a shell the
+product never runs under — and cutting it put two contracts to sleep. The seven
+schema suites open with `-Skip:(-not (Get-Command Test-Json))` and `Test-Json`
+does not exist in 5.1, so on a 5.1-only gate nothing anywhere validated
+`schemas/*.schema.json`; and a forbidden operator is a parse error under 5.1 and
+an ordinary AST node under 7, so only the pair of runs proves the compatibility
+contract. The original argument is answered rather than ignored: `fail-fast:
+false` means neither leg can cancel the other, and the badge and the release come
+from the 5.1 leg alone. **7 is evidence; it never speaks for the run.**
 
 ## Repo layout
 
@@ -236,11 +243,19 @@ turn the real suite red. See `tests/helpers/README.md` section 9.
 
 ## Continuous integration
 
-`.github/workflows/ci.yml` runs on `windows-latest` under `shell: powershell`,
-which *is* Windows PowerShell 5.1 — the edition the engine has to work under.
-Module versions are pinned, and the workflow runs `./build.ps1 -Task ci
--Coverage`, the same entry point developers use; CI never grows its own build
-logic (DESIGN §12.2.5).
+`.github/workflows/ci.yml` runs on `windows-latest` over a two-leg matrix,
+`shell: powershell` and `shell: pwsh`. The first *is* Windows PowerShell 5.1 —
+the edition the engine has to work under, and the one the badge and the release
+come from; the second is there for the evidence 5.1 cannot produce, above.
+Module versions are pinned, and both legs run `./build.ps1 -Task ci`, the same
+entry point developers use; CI never grows its own build logic (DESIGN §12.2.5).
+
+**Coverage is not on the gate.** Pester measures it by tracing every command the
+suite executes, which turns a 10 minute run into a 98 minute one on a developer
+machine and a multi-hour one on a hosted runner — standing in front of every
+push. It lives in `.github/workflows/coverage.yml`, nightly at 03:00 UTC and on
+demand, where nobody is waiting for it. A test asserts `-Task ci -Coverage`
+appears nowhere in the gate.
 
 ### Reports
 
@@ -256,8 +271,12 @@ writes three things into `out/`:
 | `out/coverage/coverage.xml` | JaCoCo coverage of `src/Hephaestus` |
 | `out/badges/{tests,coverage}.json` | shields.io endpoint documents — the numbers on the badges above |
 
-Both XML files are uploaded as artifacts of every run, pass or fail, and the two
-numbers are written to the run's own summary page.
+Each workflow uploads what it produced, pass or fail: the gate uploads the NUnit
+results under a per-leg artefact name — `upload-artifact@v4` refuses a name that
+already exists — and writes the test number to the run's own summary page, and
+the nightly coverage run uploads the JaCoCo report. Both push their badge
+document to the `badges` branch, so the two badges refresh on different clocks:
+tests on every push, coverage once a night.
 
 Coverage measures **the engine only** — coverage of a test file is a tautology,
 and coverage of the fakes measures the harness rather than the product. It runs

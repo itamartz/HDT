@@ -1,13 +1,28 @@
 # DESIGN 12.2.5: unit + contract + PSScriptAnalyzer on every push, on a Windows
 # runner, and a red suite blocks merge.
 #
-# ONE EDITION, AND IT IS 5.1. The engine runs inside WinPE, which has no pwsh,
-# so 5.1 is the edition that decides whether HDT works. CI used to run a matrix
-# over both; a pwsh leg proves nothing WinPE cares about and can block a merge
-# over a shell the product never runs under, so the matrix came out. Which
-# edition the runner uses is therefore asserted here rather than eyeballed in a
-# review - a silent drift back to pwsh would move the gate off the only edition
-# that counts.
+# BOTH EDITIONS, FOR TWO DIFFERENT REASONS, AND THE MATRIX IS ASSERTED HERE
+# RATHER THAN EYEBALLED IN A REVIEW - either leg going missing is silent.
+#
+# 5.1 IS THE GATE. The engine runs inside WinPE, which has no pwsh, so 5.1 is
+# the edition that decides whether HDT works.
+#
+# 7 IS THE EVIDENCE 5.1 CANNOT PRODUCE. Seven contract suites - AppSchema,
+# OsSchema, RulesSchema, SequenceSchema, ShippedDocumentSchema, StateSchema,
+# WorkspaceSchema - guard themselves with
+# `-Skip:(-not (Get-Command Test-Json))`, and Test-Json does not exist in 5.1.
+# On a 5.1-only gate all seven Describe blocks skip whole, so nothing anywhere
+# validates schemas/*.schema.json or proves the hand-written Assert-HDT*Document
+# validators still agree with them. PowerShell51Compatibility.Contract says the
+# same thing in its own header: a forbidden operator is a parse error under 5.1
+# and an ordinary AST node under 7, and only the pair of runs proves the
+# constraint.
+#
+# The matrix was cut once, on the argument that a red pwsh leg blocks a merge
+# over a shell the product never runs under. That is answered by fail-fast:
+# false - both legs always report - and by the badge and the release coming
+# from the 5.1 leg alone, so 7 is evidence and never the thing that speaks for
+# the run.
 #
 # YAML 1.1 gotcha: ConvertFrom-Yaml turns the GitHub Actions 'on:' key into the
 # BOOLEAN $true. Never assert on a key named 'on' - trigger assertions are made
@@ -56,22 +71,44 @@ Describe 'CI workflow (DESIGN 12.2.5)' {
         $script:job['runs-on'] | Should -BeExactly 'windows-latest'
     }
 
-    It 'runs every step under Windows PowerShell 5.1' -Skip:$script:HDTYamlMissing {
-        # shell: powershell on windows-latest IS Windows PowerShell 5.1. This is
-        # what makes the 5.1 constraint enforced rather than aspirational.
+    It 'runs both PowerShell editions' -Skip:$script:HDTYamlMissing {
+        # Asserted as a SET, not as "pwsh appears somewhere": dropping either
+        # entry has to fail this, and a leg named in a comment is not a leg.
         #
-        # It is set once on defaults.run and inherited by every run: step. A
-        # step-level shell: key cannot read the matrix context - GitHub rejects
-        # the whole workflow with "Unrecognized named-value: 'matrix'" and
-        # produces a run with zero jobs - which is why it lives here even now
-        # that there is no matrix to read.
-        $script:job['defaults']['run']['shell'] | Should -BeExactly 'powershell'
+        # shell: powershell on windows-latest IS Windows PowerShell 5.1, and it
+        # is the edition WinPE ships. shell: pwsh is the one with Test-Json, so
+        # it is the only leg on which the seven schema contracts execute at all.
+        $script:job['strategy'] | Should -Not -BeNullOrEmpty
+
+        $shell = @($script:job['strategy']['matrix']['shell'])
+
+        $shell | Should -Contain 'powershell'
+        $shell | Should -Contain 'pwsh'
+        $shell.Count | Should -Be 2
     }
 
-    It 'runs no second edition' -Skip:$script:HDTYamlMissing {
-        # A matrix leg over pwsh gates a merge on a shell WinPE does not ship.
-        $script:job.ContainsKey('strategy') | Should -BeFalse
-        $script:workflowText | Should -Not -Match '(?m)^\s*shell:\s*\[?.*pwsh'
+    It 'reports both legs rather than cancelling one' -Skip:$script:HDTYamlMissing {
+        # fail-fast would hide a 5.1-only break behind a pwsh-only break, or the
+        # other way round. The second leg exists to produce evidence the first
+        # cannot, which it does not do if the first can cancel it mid-run.
+        $script:job['strategy']['fail-fast'] | Should -BeFalse
+    }
+
+    It 'selects the shell on defaults.run, where the matrix context is readable' -Skip:$script:HDTYamlMissing {
+        # A step-level shell: key cannot read the matrix context - GitHub rejects
+        # the whole workflow with "Unrecognized named-value: 'matrix'" and
+        # produces a run with zero jobs. jobs.<id>.defaults.run can, so the
+        # shell is chosen once here and inherited by every run: step.
+        $script:job['defaults']['run']['shell'] | Should -BeExactly '${{ matrix.shell }}'
+    }
+
+    It 'is given a deadline rather than left burning for six hours' -Skip:$script:HDTYamlMissing {
+        # GitHub's default job timeout is 360 minutes. The suite is ~10 minutes
+        # on a developer machine and ~20 here, so a hung DISM or a wedged Pester
+        # runner would burn six hours of runner time in front of every push
+        # behind it. coverage.yml has had a deadline all along; this had none.
+        $script:job['timeout-minutes'] | Should -BeGreaterThan 30
+        $script:job['timeout-minutes'] | Should -BeLessThan 90
     }
 
     It 'checks out the repository' {
@@ -115,6 +152,20 @@ Describe 'CI workflow (DESIGN 12.2.5)' {
             $script:badgeStep.Count | Should -Be 1
         }
 
+        It 'publishes from the 5.1 leg alone' {
+            # THE ONE PLACE THE TWO LEGS COULD COLLIDE. Everything else in a
+            # matrix is per-runner - its own VM, its own checkout, its own out/ -
+            # and -Task ci runs only tests/unit and tests/contract, so neither
+            # leg touches a real DISM artefact or any path the other can see.
+            # The badges BRANCH is not per-runner: both legs write
+            # out/badges/tests.json and both would push it to the same remote
+            # ref, so the badge would report whichever runner finished last and
+            # the two pushes would race for the same commit parent.
+            #
+            # 5.1 is the gate, so 5.1 is the leg that speaks for the run.
+            $script:badgeStep[0]['if'] | Should -BeLike "*matrix.shell == 'powershell'*"
+        }
+
         It 'publishes only from a push to main' {
             # A pull request from a fork has a read-only token, and a badge that
             # moved with every PR would report whatever was proposed last rather
@@ -153,6 +204,17 @@ Describe 'CI workflow (DESIGN 12.2.5)' {
         $uploadStep.Count | Should -BeGreaterThan 0
         $uploadStep[0].ContainsKey('if') | Should -BeTrue
         $uploadStep[0]['if'] | Should -BeExactly 'always()'
+    }
+
+    It 'uploads each leg under its own artefact name' -Skip:$script:HDTYamlMissing {
+        # actions/upload-artifact@v4 REFUSES to append to a name that already
+        # exists - the second leg to finish fails the step outright rather than
+        # merging into the first. The two legs must not share a name.
+        $uploadStep = @($script:job['steps'] | Where-Object {
+                $_.ContainsKey('uses') -and $_['uses'] -like 'actions/upload-artifact*'
+            })
+
+        $uploadStep[0]['with']['name'] | Should -BeLike '*matrix.shell*'
     }
 
     It 'triggers on push and pull_request' {
