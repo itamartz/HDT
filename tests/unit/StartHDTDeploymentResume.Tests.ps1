@@ -277,3 +277,65 @@ Describe 'Start-HDTDeployment.ps1 and a run already in progress' {
         }
     }
 }
+
+Describe 'Start-HDTDeployment.ps1 and a secret the checkpoint redacted' {
+
+    # THE ONE THING THE DOCUMENT MUST NOT WIN. 'the document wins over the rules'
+    # above is right for every value the run actually DECIDED - HDTOSVolume,
+    # HDTComputerName, a wizard answer. It was wrong for exactly one case, and
+    # the case is not a value at all.
+    #
+    # Save-HDTRunState writes '(set, not shown)' in place of every secret on the
+    # way to state.json, because that file travels to the share and to
+    # C:\Windows\Logs\HDT. That marker is a PLACEHOLDER, not a decision - and
+    # the unconditional overlay put it over a real value this leg had just
+    # resolved from rules.yaml, one line after Resolve-HDTVariable produced it.
+    # The redaction beat the value, every time, and no share edit could fix it.
+    #
+    # Restore-HDTSecretBag states the correct rule in its own header - "a rule
+    # that resolved on this leg is newer than the bag" - and the overlay here
+    # defeated it for secrets before the bag was ever consulted.
+
+    # AND THE FIX IS THE RESUME AGENT'S FIX, NOT A SECOND ONE. The obvious
+    # repair here is to compare each incoming value against the redaction and
+    # skip it - but Protect-HDTSecretValue, which is the one place that defines
+    # what a redaction looks like, is a PRIVATE helper and does not exist in a
+    # payload's session (b08bb91 learned that on a live run). Writing the
+    # literal here instead would make this file a second source of truth about
+    # the wording, and it would go stale in silence.
+    #
+    # So the overlay stays exactly as it was - it is right for every value the
+    # run decided - and the redaction is repaired AFTERWARDS by the same public
+    # command Start-HDTResume.ps1 uses, which owns the missing/empty/redacted
+    # rule and is proven against fakes in Restore-HDTRuleVariable.Tests.ps1. One
+    # mechanism, both payloads.
+
+    It 'repairs the redaction with the same command the resume agent uses' {
+        $script:text | Should -Match 'Restore-HDTRuleVariable'
+    }
+
+    It 'repairs it AFTER the state document has been overlaid' {
+        # Order is the whole point. Run before the overlay and the document's
+        # redaction lands on top of the repair, which is the defect itself.
+        #
+        # COMPARED BY POSITION, NOT BY A CHARACTER WINDOW. A '.{0,N}' regex
+        # between the two names asserts the order AND a maximum distance, and
+        # the distance is prose - so writing a paragraph of comment between them
+        # fails a test that is supposed to be about sequence.
+        $overlay = $script:text.IndexOf('$resumedState.variable.Keys', [System.StringComparison]::Ordinal)
+        $repair = $script:text.IndexOf('Restore-HDTRuleVariable', [System.StringComparison]::Ordinal)
+
+        $overlay | Should -BeGreaterThan -1
+        $repair | Should -BeGreaterThan -1
+        $repair | Should -BeGreaterThan $overlay
+    }
+
+    It 'still overlays every value that is not the redaction' {
+        # THE GUARD MUST BE NARROW. A resumed leg that stopped taking the
+        # document's values would lose HDTOSVolume and fail the capture step of
+        # a reference build after the sysprep - which is the defect the overlay
+        # was added to fix in the first place.
+        $script:text | Should -Match '\$resumedState\.variable\.Keys'
+        $script:text | Should -Match '(?s)\$resolved\.Variable\.Keys.{0,2600}\$resumedState\.variable\.Keys'
+    }
+}

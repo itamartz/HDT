@@ -560,6 +560,71 @@ try {
         $variable[[string] $name] = $state.variable[$name]
     }
 
+    # -- AND THEN rules.yaml, WHICH THIS LEG HAD NEVER ONCE READ --------------
+    #
+    # THE GAP THIS CLOSES, AND IT MADE A WHOLE STEP TYPE UNPROVABLE. Until now
+    # the bag above was this leg's ONLY source. state.json carries
+    # '(set, not shown)' in place of every secret (Save-HDTRunState - that file
+    # travels to the share and to C:\Windows\Logs\HDT), and DESIGN 4.5.2's LSA
+    # secret bag cannot cross the WinPE -> full-OS boundary because WinPE's LSA
+    # is a RAM disk. So on a NewComputer run every secret a full-OS step needed
+    # arrived redacted with NOTHING able to supply it, and the two steps that
+    # need one refused - correctly, and for a reason no share edit could fix:
+    # Invoke-HDTJoinDomainStep, which is why JoinDomain had never joined a real
+    # domain, and AD-DC-2025's promotion on HDTDsrmPassword.
+    #
+    # rules.yaml is the source DESIGN 4.5.2 names for exactly this, and the
+    # workspace root and filesystem are both already in hand here.
+    #
+    # ONLY MISSING, EMPTY OR REDACTED NAMES ARE FILLED. Restore-HDTRuleVariable
+    # owns that rule and its reasoning; the short version is that state.json is
+    # what the run already DECIDED and rules.yaml is the source the wizard, the
+    # command line and the machine override all beat on leg one.
+    #
+    # IT CANNOT END THE LEG. A share that has gone away or a rules document that
+    # will not parse costs the refill and nothing else - the command catches its
+    # own failures and the step that needs the value refuses by name, which is
+    # where an administrator can act on it.
+    #
+    # [IO.Path]::Combine AND NEVER Join-Path. The workspace root may be a share
+    # this leg cannot reach, and Join-Path resolves the drive and throws
+    # DriveNotFound - which would make this line untestable against a fake
+    # (CLAUDE.md rule 8, and Get-HDTWorkspacePath's own header).
+    #
+    # THE MARKER IS THE BOOTSTRAP'S WHERE THERE IS ONE, so this cannot become a
+    # second source of truth about what the rules file is called; 'rules.yaml'
+    # is the fallback for a leg that found no bootstrap document, and
+    # $bootstrap is only assigned inside the branch that read one, so its
+    # existence is tested rather than assumed under Set-StrictMode.
+    $ruleDocument = $null
+    try {
+        $ruleMarker = 'rules.yaml'
+        $bootstrapVariable = Get-Variable -Name 'bootstrap' -Scope 0 -ErrorAction SilentlyContinue
+        if ($null -ne $bootstrapVariable -and $null -ne $bootstrapVariable.Value -and
+            -not [string]::IsNullOrWhiteSpace([string] $bootstrapVariable.Value.ContentMarker)) {
+
+            $ruleMarker = [string] $bootstrapVariable.Value.ContentMarker
+        }
+
+        $rulePath = [System.IO.Path]::Combine([string] $workspaceRoot, $ruleMarker)
+
+        if ($fileSystem.TestPath($rulePath)) {
+            $ruleDocument = Import-HDTRuleDocument -Path $rulePath -FileSystem $fileSystem
+        } else {
+            Write-HDTLog -Context $log -Severity Warning -Component 'RuleVariable' `
+                -Message ("no rules.yaml at '{0}', so this leg runs on the checkpoint's bag alone. A secret that only the rules supply will reach its step as the redaction and that step will refuse by name." -f $rulePath) `
+                -Data ([ordered] @{ rulePath = [string] $rulePath })
+        }
+    } catch {
+        Write-HDTLog -Context $log -Severity Warning -Component 'RuleVariable' `
+            -Message ("rules.yaml could not be read on this leg, so this leg runs on the checkpoint's bag alone: {0}: {1}" -f
+                $_.Exception.GetType().FullName, $_.Exception.Message) `
+            -Data ([ordered] @{ exceptionType = [string] $_.Exception.GetType().FullName })
+    }
+
+    Restore-HDTRuleVariable -RuleDocument $ruleDocument -Variable $variable `
+        -ScriptInvoker (New-HDTScriptInvoker -Root $workspaceRoot) -LogContext $log | Out-Null
+
     # -- and the share sees this leg too, as it happens -----------------------
     #
     # MDT'S SLShareDynamicLogging COVERS THE WHOLE DEPLOYMENT. It was set here

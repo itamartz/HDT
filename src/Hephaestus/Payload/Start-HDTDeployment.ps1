@@ -1932,6 +1932,35 @@ try {
         }
 
         & $say ("{0} variable(s) restored from the state document" -f @($resumedState.variable.Keys).Count)
+
+        # -- EXCEPT THE ONE THING IN THAT DOCUMENT THAT IS NOT A DECISION -----
+        #
+        # Save-HDTRunState writes '(set, not shown)' in place of every secret on
+        # the way to state.json, because that file travels to the deployment
+        # share and to C:\Windows\Logs\HDT. The overlay above is right for every
+        # value the run actually DECIDED - HDTOSVolume, HDTComputerName, a
+        # wizard answer typed hours ago - but that marker is a PLACEHOLDER, and
+        # it was landing on top of a real value this leg had resolved from
+        # rules.yaml four hundred lines above. The redaction beat the value,
+        # every time, and nothing an administrator could put on the share would
+        # fix it.
+        #
+        # Restore-HDTSecretBag states the correct rule in its own header - "a
+        # rule that resolved on this leg is newer than the bag" - and this
+        # overlay quietly defeated it for secrets before the bag was consulted
+        # at all.
+        #
+        # THE SAME COMMAND THE RESUME AGENT USES, DELIBERATELY. The obvious
+        # repair is to compare each incoming value against the redaction here,
+        # but Protect-HDTSecretValue - the one place that defines what a
+        # redaction looks like - is a PRIVATE helper and does not exist in a
+        # payload's session (b08bb91 learned that on a live run). A literal
+        # written here would be a second source of truth about the wording and
+        # would go stale in silence. Restore-HDTRuleVariable owns the
+        # missing/empty/redacted rule, knows the redaction, catches its own
+        # failures, and is proven against fakes.
+        Restore-HDTRuleVariable -RuleDocument $ruleDocument -Variable $variable `
+            -ScriptInvoker $scriptInvoker | Out-Null
     }
 
     # WHEN THIS RUN STARTED, IN UTC. A tattoo step subtracts it from a matching

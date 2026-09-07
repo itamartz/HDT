@@ -1119,3 +1119,69 @@ Describe 'Start-HDTResume.ps1 and the cleanup at the end of a deployment' {
         }
     }
 }
+
+Describe 'Start-HDTResume.ps1 re-resolves rules.yaml' {
+
+    # THE LEG THAT NEVER READ THE RULES. Until this landed, the bag built from
+    # state.json was this leg's ONLY source, and state.json carries
+    # '(set, not shown)' in place of every secret. The LSA secret bag cannot
+    # cross the WinPE -> full-OS boundary (WinPE's LSA is a RAM disk), so on a
+    # NewComputer run every secret a full-OS step needed arrived redacted with
+    # nothing able to supply it - which is why JoinDomain had never joined a
+    # real domain and why AD-DC-2025's promotion refused on HDTDsrmPassword.
+    #
+    # THESE ARE WIRING ASSERTIONS, and that is the most they can be: this file
+    # tests the payload by PARSING it. What the fill-in actually decides is
+    # proven against fakes in Restore-HDTRuleVariable.Tests.ps1. What is proven
+    # here is that the payload still calls it at all, because a leg that
+    # silently stopped calling it would fail only on real hardware, hours in,
+    # at a step whose refusal names a variable and not this file.
+
+    It 'reads the rules document off the workspace' {
+        @(& $script:commandNamed 'Import-HDTRuleDocument').Count |
+            Should -BeGreaterThan 0 -Because 'the full-OS leg has to read rules.yaml to have a source for a secret the checkpoint redacted'
+    }
+
+    It 'fills the bag from it' {
+        @(& $script:commandNamed 'Restore-HDTRuleVariable').Count |
+            Should -Be 1 -Because 'without this call a secret that only rules.yaml supplies reaches its step as the redaction'
+    }
+
+    It 'composes the rules path with [IO.Path]::Combine and never Join-Path' {
+        # The workspace root may be a share this leg cannot reach, and Join-Path
+        # resolves the drive and throws DriveNotFound - which would make the
+        # line untestable against a fake (CLAUDE.md rule 8).
+        $call = @(& $script:commandNamed 'Import-HDTRuleDocument')[0]
+        $call | Should -Not -BeNullOrEmpty
+
+        $script:text | Should -Match '\[System\.IO\.Path\]::Combine\(\[string\] \$workspaceRoot'
+    }
+
+    It 'fills the bag BEFORE the engine is handed it' {
+        # Order is the whole point: Invoke-HDTTaskSequence copies the bag into
+        # the execution context, so a fill-in after that call would put values
+        # into a dictionary nothing reads.
+        $fill = @(& $script:commandNamed 'Restore-HDTRuleVariable')[0]
+        $loop = @(& $script:commandNamed 'Invoke-HDTTaskSequence')[0]
+
+        $fill | Should -Not -BeNullOrEmpty
+        $loop | Should -Not -BeNullOrEmpty
+
+        $fill.Extent.StartOffset | Should -BeLessThan $loop.Extent.StartOffset
+    }
+
+    It 'cannot end the leg when the share has gone away' {
+        # A rules read that threw would be a deployment stopped by its own
+        # recovery mechanism. The read is wrapped; the fill-in catches its own.
+        $call = @(& $script:commandNamed 'Import-HDTRuleDocument')[0]
+
+        $guarded = $false
+        $node = $call.Parent
+        while ($null -ne $node) {
+            if ($node -is [System.Management.Automation.Language.TryStatementAst]) { $guarded = $true; break }
+            $node = $node.Parent
+        }
+
+        $guarded | Should -BeTrue -Because 'an unreachable share must cost the refill and nothing else'
+    }
+}

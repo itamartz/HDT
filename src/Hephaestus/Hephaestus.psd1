@@ -259,6 +259,7 @@
         'Resolve-HDTImageIndex',
         'Resolve-HDTVariable',
         'Save-HDTRunState',
+        'Restore-HDTRuleVariable',
         'Select-HDTTargetDisk',
         'Set-HDTApplication',
         'Set-HDTAutoLogon',
