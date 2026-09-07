@@ -93,6 +93,13 @@ steps:
       #     delaySeconds: 30
       #     backoff: exponential
 
+      # BEFORE THE UPDATES AND THE APPLICATIONS, WHICH IS MDT'S ORDER - its
+      # Client task sequence runs Tattoo and then Install Applications.
+      # Everything after this point can hang, reboot or be abandoned; the
+      # machine says what built it either way.
+      - name: Tattoo
+        type: Tattoo
+
       # TWICE, AND THE ORDER IS THE POINT (DESIGN 10.1). The first pass patches
       # the base image so an installer meets a current machine; the second
       # catches the updatable components an install pulled in - .NET, the VC

@@ -81,6 +81,13 @@ steps:
       - name: Restart After Roles
         type: Restart
 
+      # STAMPED AS SOON AS THE FULL OS IS SETTLED, WHICH IS MDT'S ORDER - its
+      # Client task sequence runs Tattoo and then Install Applications, ahead of
+      # both update passes. A role install that reboots and then stalls still
+      # leaves a server that says what built it.
+      - name: Tattoo
+        type: Tattoo
+
       # AFTER THE RESTART, AND THAT IS DELIBERATE. A role install that asked for
       # a reboot has to land before the update agent runs: WUA refuses to
       # install while a restart is pending on some servicing paths, and where it

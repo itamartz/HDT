@@ -59,6 +59,10 @@ steps:
         type: PowerShell
         script: Scripts\Set-CorpBaseline.ps1
 
+      # Where MDT puts it: State Restore, before anything that can hang.
+      - name: Tattoo
+        type: Tattoo
+
       - name: WinPE Only Task
         type: NoOp
         runIn: WinPE

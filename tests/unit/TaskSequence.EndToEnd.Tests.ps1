@@ -400,11 +400,33 @@ Describe 'the DEMO-M2 task sequence, end to end against fakes' {
                 'LsaService.SetSecret'          # HDTSecretBag, current as of the restart
                 'PowerService.Restart'
 
-                # -- leg 3: the user script, then the DESIGN 4.5.3 teardown -----
+                # -- leg 3: the user script, the stamp, then the DESIGN 4.5.3 teardown
                 'LsaService.GetSecret'          # HDTSecretBag - what leg 2 stored
                 'LsaService.SetSecret'          # HDTSecretBag - and this leg's own values
 
                 'ScriptInvoker.Invoke'          # Scripts\Set-CorpBaseline.ps1
+
+                # THE TATTOO: the key, then one REG_SZ per stamped value, in the
+                # order Invoke-HDTTattooStep builds them - identity, provenance,
+                # when, then the metal. SetValue fails on a key that is not
+                # there, which is why NewKey leads and why it appears once.
+                'RegistryService.NewKey'
+                'RegistryService.SetValue'      # ComputerName
+                'RegistryService.SetValue'      # DeployRoot
+                'RegistryService.SetValue'      # TaskSequenceID
+                'RegistryService.SetValue'      # TaskSequenceName
+                'RegistryService.SetValue'      # TaskSequenceVersion
+                'RegistryService.SetValue'      # DeploymentType
+                'RegistryService.SetValue'      # DeploymentMethod
+                'RegistryService.SetValue'      # DeploymentStart
+                'RegistryService.SetValue'      # DeploymentEnd
+                'RegistryService.SetValue'      # DeploymentDuration
+                'RegistryService.SetValue'      # RunId
+                'RegistryService.SetValue'      # EngineVersion
+                'RegistryService.SetValue'      # Make
+                'RegistryService.SetValue'      # Model
+                'RegistryService.SetValue'      # SerialNumber
+
                 'RegistryService.GetValue'      # AutoAdminLogon - present
                 'RegistryService.RemoveValue'
                 'RegistryService.GetValue'      # DefaultUserName - present
@@ -484,6 +506,7 @@ Describe 'the DEMO-M2 task sequence, end to end against fakes' {
                     'Run Installer',
                     'Reboot After Install',
                     'Corp Baseline',
+                    'Tattoo',
                     'Finish')
         }
 
@@ -497,11 +520,12 @@ Describe 'the DEMO-M2 task sequence, end to end against fakes' {
                 'Completed',   # 6  Run Installer
                 'Completed',   # 7  Reboot After Install
                 'Completed',   # 8  Corp Baseline
-                'Skipped',     # 9  WinPE Only Task - the phase filter
-                'Failed',      # 10 Optional Task - tolerated by continueOnError
-                'Completed',   # 11 Finish
-                'Skipped',     # 12 Install Roles Placeholder - the group condition
-                'Skipped')     # 13 Configure Roles Placeholder - the same one
+                'Completed',   # 9  Tattoo - the deployment stamp, MDT's order
+                'Skipped',     # 10 WinPE Only Task - the phase filter
+                'Failed',      # 11 Optional Task - tolerated by continueOnError
+                'Completed',   # 12 Finish
+                'Skipped',     # 13 Install Roles Placeholder - the group condition
+                'Skipped')     # 14 Configure Roles Placeholder - the same one
         }
 
         It 'ran no step twice' {
@@ -524,7 +548,7 @@ Describe 'the DEMO-M2 task sequence, end to end against fakes' {
         }
 
         It 'skipped both Server Only steps, naming the group' {
-            $skipped = @($script:leg3.Result.Result | Where-Object { $_.Index -ge 12 })
+            $skipped = @($script:leg3.Result.Result | Where-Object { $_.Index -ge 13 })
 
             $skipped.Count | Should -Be 2
             foreach ($row in $skipped) {
@@ -544,8 +568,8 @@ Describe 'the DEMO-M2 task sequence, end to end against fakes' {
         }
 
         It 'tolerated Optional Task and carried on' {
-            @($script:finalState.step | Where-Object { $_.index -eq 10 })[0].status | Should -BeExactly 'Failed'
-            @($script:finalState.step | Where-Object { $_.index -eq 11 })[0].status | Should -BeExactly 'Completed'
+            @($script:finalState.step | Where-Object { $_.index -eq 11 })[0].status | Should -BeExactly 'Failed'
+            @($script:finalState.step | Where-Object { $_.index -eq 12 })[0].status | Should -BeExactly 'Completed'
             $script:leg3.Result.Status | Should -BeExactly 'Succeeded'
         }
 
@@ -737,7 +761,7 @@ Describe 'the DEMO-M2 task sequence, end to end against fakes' {
             # The defect's signature: leg 3 reported FEWER completed steps than
             # leg 1, because its counters started at zero with its process.
             @($script:record | Where-Object { $_.event -eq 'run.end' } |
-                    ForEach-Object { [int] $_.data.completed }) | Should -Be @(4, 7, 9)
+                    ForEach-Object { [int] $_.data.completed }) | Should -Be @(4, 7, 10)
         }
 
         # WHAT THE CHECKPOINT SAYS A STEP DID, THE LOG SAYS TOO.
@@ -785,7 +809,7 @@ Describe 'the DEMO-M2 task sequence, end to end against fakes' {
             }
 
             $progress.Status | Should -BeExactly 'Succeeded'
-            $progress.CompletedCount | Should -Be 12   # 9 Completed + 3 Skipped; only Optional Task failed
+            $progress.CompletedCount | Should -Be 13   # 10 Completed + 3 Skipped; only Optional Task failed
             $progress.PercentComplete | Should -Be 92  # 12 of 13, and the one that is missing genuinely failed
         }
 
@@ -801,7 +825,8 @@ Describe 'the DEMO-M2 task sequence, end to end against fakes' {
             }
 
             foreach ($name in @('005-Record-Stage.log', '006-Run-Installer.log', '007-Reboot-After-Install.log',
-                    '008-Corp-Baseline.log', '010-Optional-Task.log', '011-Finish.log')) {
+                    '008-Corp-Baseline.log', '009-Tattoo.log', '011-Optional-Task.log',
+                    '012-Finish.log')) {
 
                 $script:fs.TestPath(('{0}\Steps\{1}' -f $script:fullosLog, $name)) | Should -BeTrue -Because "the full OS legs wrote $name"
             }

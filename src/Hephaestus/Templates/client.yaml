@@ -329,6 +329,16 @@ steps:
           count: 2
           delaySeconds: 30
 
+      # THE STAMP, AND IT SITS HERE FOR MDT'S OWN REASON. Templates\Client.xml
+      # runs Tattoo immediately before Install Applications, ahead of both
+      # Windows Update passes - so the machine is already identifiable by the
+      # time anything unpredictable runs on it: an installer that hangs, an
+      # update that reboots, a build somebody abandons half way. A stamp written
+      # at the end of the sequence is a stamp that is missing on exactly the
+      # machines somebody needs to ask about six months later.
+      - name: Tattoo
+        type: Tattoo
+
       # WINDOWS UPDATE, TWICE, AND BOTH DISABLED - WHICH IS WHAT MDT DOES.
       # Templates\Client.xml ships <step name="Windows Update (Pre-Application
       # Installation)" disable="true" continueOnError="true"> and the same for
