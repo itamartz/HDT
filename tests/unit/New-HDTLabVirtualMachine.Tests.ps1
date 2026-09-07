@@ -12,18 +12,31 @@
 # guard has never been told about, so it fails for the next VM the user builds
 # and not only for the two somebody remembered.
 #
-# EVERY ASSERTION IN THIS FILE IS A REFUSAL, and every refusal happens before
-# the first Hyper-V command - so this file runs in the normal unit suite, on a
-# machine with no Hyper-V at all, and never creates, starts or removes anything.
+# THIS FILE CREATES, STARTS AND REMOVES NOTHING, and runs on a machine with no
+# Hyper-V role at all. Most of it is refusals, and every refusal happens before
+# the first hypervisor call; the rest runs against a module named Hyper-V that
+# has no hypervisor code path in it (see below).
 #
-# WHY THERE IS NO Mock ON Hyper-V\New-VM. The plan asked for one. It cannot
-# work: the helpers call 'Hyper-V\New-VM' module-qualified (SPIKES S8 - PowerCLI
-# shadows Get-VM on this host), and a module-qualified call resolves straight
-# into the module without going through the function table Pester's Mock injects
-# into. A mock that is never consulted is an assertion that always passes, which
-# is worse than no assertion. What replaces it is stronger and runs everywhere:
-# the AST assertions below prove every Hyper-V command in the helpers is
-# module-qualified, and that the safety guard is called before the first one.
+# WHY THERE IS NO Mock ON Hyper-V\New-VM, AND WHAT REPLACED IT. A Mock cannot
+# work here: the helpers call 'Hyper-V\New-VM' module-qualified (SPIKES S8 -
+# PowerCLI shadows Get-VM on this host), and a module-qualified call resolves
+# straight into the module without going through the function table Pester's
+# Mock injects into. A mock that is never consulted is an assertion that always
+# passes, which is worse than no assertion.
+#
+# That left the guards on the far side of the refusals - the stamp, Generation
+# 2, the VM root, and a budget that counts stamped VMs only - proved by AST
+# offset alone, which proves a line is in the file and not what the code does.
+# Remove-HDTLabVirtualMachine's -WhatIf defect is the recorded cost of the
+# difference: by every offset measure its stamp guard came before Stop-VM, and
+# it sat after the ShouldProcess early return, so a dry run offered to destroy
+# the lab's WSUS server with these tests green.
+#
+# The answer is in the same sentence as the problem. A module-qualified call
+# goes to THE MODULE OF THAT NAME - so tests/helpers/HDTFakeHyperV/Hyper-V is a
+# module of that name which records calls and touches nothing, imported by path.
+# The AST assertions stay: they are what proves every hypervisor call IS
+# module-qualified, which is what makes the substitution total.
 
 BeforeAll {
     $script:repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
@@ -301,6 +314,384 @@ Describe 'New-HDTLabVirtualMachine' {
                     })
 
             $stamping.Count | Should -BeGreaterOrEqual 1 -Because 'the VM must carry the stamp the budget and the teardown helper read'
+        }
+    }
+    Context 'what it actually does, proven by invoking it' {
+
+        # THE GUARDS BEYOND THE REFUSALS ARE READ, NOT RUN, and that is what
+        # this Context closes. Everything in 'the refusals' invokes the command,
+        # but every one of those refusals happens BEFORE the first hypervisor
+        # call - so the four rules on the other side of it were asserted by AST
+        # offset alone: the stamp, Generation 2, the VM root, and a budget that
+        # counts stamped VMs only. An AST assertion proves a line is in the
+        # file. Remove-HDTLabVirtualMachine's -WhatIf defect is the standing
+        # proof that this is not the same as proving what the code does: the
+        # stamp guard sat before Stop-VM by every offset measure and after the
+        # ShouldProcess early return, so a dry run offered to destroy the lab's
+        # WSUS server while the AST tests stayed green.
+        #
+        # HOW IT IS RUN WITHOUT A HYPERVISOR. The old header here said a Mock
+        # could not work, and it was right about Mock: the helpers call
+        # 'Hyper-V\New-VM' module-qualified (SPIKES S8 - PowerCLI shadows Get-VM
+        # on this host), and a module-qualified call resolves straight into the
+        # module without going through the function table Pester's Mock injects
+        # into. What it missed is that the same fact points at the answer. A
+        # module-qualified call goes to THE MODULE OF THAT NAME, so a module of
+        # that name which touches no hypervisor is a complete substitute -
+        # tests/helpers/HDTFakeHyperV/Hyper-V, imported BY PATH below.
+        #
+        # NOTHING HERE MAY CREATE A VM, AND NOTHING HERE CAN. The fake has no
+        # hypervisor code path in it at all. The danger runs the other way -
+        # this file reaching the REAL Hyper-V module on the user's live lab host
+        # - so BeforeAll refuses to let a single test run until it has proved
+        # that the one loaded module named Hyper-V is the file in this
+        # repository. New-Item is mocked for the same reason: the helper creates
+        # the VM folder before New-VM, and the unit suite writes nothing into
+        # the lab.
+
+        BeforeAll {
+            $script:fakeHyperVPath = Join-Path -Path $script:repoRoot `
+                -ChildPath 'tests/helpers/HDTFakeHyperV/Hyper-V/Hyper-V.psd1'
+
+            # THE REAL Hyper-V MODULE IS ALREADY LOADED BY THIS POINT, and it
+            # was not this file that asked for it: the 'accepts HDT External'
+            # test above runs the memory budget, Get-HDTLabMemoryUse calls
+            # Hyper-V\Get-VM, and PowerShell auto-loads the real module to
+            # answer it. Two modules of the same name in one session is exactly
+            # the state in which nobody can say which one Hyper-V\New-VM
+            # resolves to - so it is evicted here, from this session only, and
+            # the assertion below refuses to continue unless the fake is the one
+            # and only.
+            Remove-Module -Name 'Hyper-V' -Force -ErrorAction SilentlyContinue
+
+            Import-Module -Name $script:fakeHyperVPath -Force -ErrorAction Stop
+
+            # THE PRECONDITION, AND IT THROWS RATHER THAN FAILS. If the real
+            # Hyper-V module were the one loaded, the tests below would create
+            # VMs on the user's lab host. Throwing here takes every test in this
+            # Context down with it and invokes nothing.
+            $loaded = @(Get-Module -Name 'Hyper-V')
+            $expected = [System.IO.Path]::ChangeExtension($script:fakeHyperVPath, '.psm1')
+
+            if (@($loaded).Count -ne 1 -or $loaded[0].Path -ne $expected) {
+                throw ("the loaded Hyper-V module is not the fake at '{0}'. Refusing to invoke anything. Loaded: {1}" -f
+                    $expected, (@($loaded | ForEach-Object { $_.Path }) -join '; '))
+            }
+
+            Mock -CommandName 'New-Item' -ModuleName 'HDTTestTools' -MockWith { }
+
+            $script:goodName = 'HDT-Fake-Probe'
+            $script:goodVhd = 'C:\HDTLab\vms\HDT-Fake-Probe\os.vhdx'
+            $script:fourGb = 4294967296
+        }
+
+        AfterAll {
+            # Nothing else in the fast suites invokes Hyper-V - they all read
+            # the AST - but a module called Hyper-V left loaded in a shared
+            # Pester process is exactly the kind of thing that is true until it
+            # is not.
+            Remove-Module -Name 'Hyper-V' -Force -ErrorAction SilentlyContinue
+        }
+
+        BeforeEach {
+            Clear-HDTFakeHyperVCall
+            Set-HDTFakeHyperVVirtualMachine @()
+        }
+
+        It 'is running against the fake hypervisor and not the real one' {
+            # Asserted as a test as well as a precondition, so the guarantee is
+            # visible in the output rather than only in a thrown BeforeAll.
+            $loaded = @(Get-Module -Name 'Hyper-V')
+
+            @($loaded).Count | Should -Be 1
+            $loaded[0].Path | Should -BeLike '*HDTFakeHyperV*'
+        }
+
+        It 'creates a Generation 2 VM' {
+            # PROJECT.md rule 6. UEFI and Secure Boot is what HDT targets and
+            # what the -NoPromptForKey UEFI ISO needs.
+            $null = New-HDTLabVirtualMachine -Name $script:goodName -MemoryByte $script:fourGb `
+                -ProcessorCount 2 -SwitchName 'HDT Lab' -VhdPath $script:goodVhd -Confirm:$false
+
+            $created = @(Get-HDTFakeHyperVCall -Command 'New-VM')
+
+            $created.Count | Should -Be 1
+            $created[0].Argument.Generation | Should -Be 2
+        }
+
+        It 'creates it on the switch it was given, and on no other' {
+            $null = New-HDTLabVirtualMachine -Name $script:goodName -MemoryByte $script:fourGb `
+                -ProcessorCount 2 -SwitchName 'HDT External' -VhdPath $script:goodVhd -Confirm:$false
+
+            @(Get-HDTFakeHyperVCall -Command 'New-VM')[0].Argument.SwitchName | Should -BeExactly 'HDT External'
+        }
+
+        It 'puts the VM under the HDT lab VM root and not the host default' {
+            # PROJECT.md rule 5: C:\HyperVVMs is where the user's own machines
+            # live.
+            $null = New-HDTLabVirtualMachine -Name $script:goodName -MemoryByte $script:fourGb `
+                -ProcessorCount 2 -SwitchName 'HDT Lab' -VhdPath $script:goodVhd -Confirm:$false
+
+            @(Get-HDTFakeHyperVCall -Command 'New-VM')[0].Argument.Path | Should -BeExactly 'C:\HDTLab\vms'
+        }
+
+        It 'stamps the VM it created' {
+            # THE MARKER IS HOW MEMBERSHIP IS KNOWN WITHOUT A NAME LIST. Proven
+            # here by reading what Set-VM was actually handed rather than by
+            # finding the line in the source: an unstamped VM is uncounted by
+            # the budget and, far worse, unremovable by the teardown helper.
+            $null = New-HDTLabVirtualMachine -Name $script:goodName -MemoryByte $script:fourGb `
+                -ProcessorCount 2 -SwitchName 'HDT Lab' -VhdPath $script:goodVhd -Confirm:$false
+
+            $stamping = @(Get-HDTFakeHyperVCall -Command 'Set-VM' |
+                    Where-Object { $_.Argument.Notes -eq (Get-HDTLabVmStamp) })
+
+            $stamping.Count | Should -Be 1
+            $stamping[0].Argument.Name | Should -BeExactly $script:goodName
+        }
+
+        It 'attaches every VHD it was given, in order' {
+            $second = 'C:\HDTLab\vms\HDT-Fake-Probe\content.vhdx'
+
+            $null = New-HDTLabVirtualMachine -Name $script:goodName -MemoryByte $script:fourGb `
+                -ProcessorCount 2 -SwitchName 'HDT Lab' -VhdPath @($script:goodVhd, $second) -Confirm:$false
+
+            @(Get-HDTFakeHyperVCall -Command 'Add-VMHardDiskDrive' | ForEach-Object { $_.Argument.Path }) |
+                Should -Be @($script:goodVhd, $second)
+        }
+
+        It 'turns Secure Boot on with the Microsoft Windows template' {
+            # SPIKES S3 booted the no-prompt ISO in exactly this configuration.
+            $null = New-HDTLabVirtualMachine -Name $script:goodName -MemoryByte $script:fourGb `
+                -ProcessorCount 2 -SwitchName 'HDT Lab' -VhdPath $script:goodVhd -Confirm:$false
+
+            $firmware = @(Get-HDTFakeHyperVCall -Command 'Set-VMFirmware')[0]
+
+            $firmware.Argument.EnableSecureBoot | Should -BeExactly 'On'
+            $firmware.Argument.SecureBootTemplate | Should -BeExactly 'MicrosoftWindows'
+        }
+
+        It 'attaches no DVD drive when it was given no ISO' {
+            $null = New-HDTLabVirtualMachine -Name $script:goodName -MemoryByte $script:fourGb `
+                -ProcessorCount 2 -SwitchName 'HDT Lab' -VhdPath $script:goodVhd -Confirm:$false
+
+            @(Get-HDTFakeHyperVCall -Command 'Add-VMDvdDrive').Count | Should -Be 0
+        }
+
+        It 'puts the DVD first in the boot order when it was given an ISO' {
+            # This is what makes the VM boot WinPE on its first start, and what
+            # makes ConfigureBoot's firmware reorder observable on the second.
+            $null = New-HDTLabVirtualMachine -Name $script:goodName -MemoryByte $script:fourGb `
+                -ProcessorCount 2 -SwitchName 'HDT Lab' -VhdPath $script:goodVhd `
+                -IsoPath 'C:\HDTLab\scratch\pe\HDTPE_x64_uefi.iso' -Confirm:$false
+
+            @(Get-HDTFakeHyperVCall -Command 'Add-VMDvdDrive').Count | Should -Be 1
+
+            $boot = @(Get-HDTFakeHyperVCall -Command 'Set-VMFirmware' |
+                    Where-Object { $null -ne $_.Argument.FirstBootDevice })
+
+            $boot.Count | Should -Be 1
+        }
+
+        It 'creates nothing at all under -WhatIf' {
+            # A dry run that reaches a hypervisor is the defect this repository
+            # has already shipped once, in Remove-HDTLabVirtualMachine.
+            $null = New-HDTLabVirtualMachine -Name $script:goodName -MemoryByte $script:fourGb `
+                -ProcessorCount 2 -SwitchName 'HDT Lab' -VhdPath $script:goodVhd -WhatIf
+
+            @(Get-HDTFakeHyperVCall -Command 'New-VM').Count | Should -Be 0
+            @(Get-HDTFakeHyperVCall -Command 'Set-VM').Count | Should -Be 0
+        }
+    }
+
+    Context 'a refusal reaches no hypervisor at all' {
+
+        # THE REFUSALS ABOVE PROVE THE MESSAGE. These prove that nothing
+        # happened - which is the part an AST offset can only argue for. Each
+        # case invokes the command with the fake loaded and asserts that not one
+        # hypervisor command was made.
+
+        BeforeAll {
+            $script:fakeHyperVPath = Join-Path -Path $script:repoRoot `
+                -ChildPath 'tests/helpers/HDTFakeHyperV/Hyper-V/Hyper-V.psd1'
+
+            # THE REAL Hyper-V MODULE IS ALREADY LOADED BY THIS POINT, and it
+            # was not this file that asked for it: the 'accepts HDT External'
+            # test above runs the memory budget, Get-HDTLabMemoryUse calls
+            # Hyper-V\Get-VM, and PowerShell auto-loads the real module to
+            # answer it. Two modules of the same name in one session is exactly
+            # the state in which nobody can say which one Hyper-V\New-VM
+            # resolves to - so it is evicted here, from this session only, and
+            # the assertion below refuses to continue unless the fake is the one
+            # and only.
+            Remove-Module -Name 'Hyper-V' -Force -ErrorAction SilentlyContinue
+
+            Import-Module -Name $script:fakeHyperVPath -Force -ErrorAction Stop
+
+            $loaded = @(Get-Module -Name 'Hyper-V')
+            $expected = [System.IO.Path]::ChangeExtension($script:fakeHyperVPath, '.psm1')
+
+            if (@($loaded).Count -ne 1 -or $loaded[0].Path -ne $expected) {
+                throw ("the loaded Hyper-V module is not the fake at '{0}'. Refusing to invoke anything." -f $expected)
+            }
+
+            Mock -CommandName 'New-Item' -ModuleName 'HDTTestTools' -MockWith { }
+
+            $script:fourGb = 4294967296
+        }
+
+        AfterAll {
+            Remove-Module -Name 'Hyper-V' -Force -ErrorAction SilentlyContinue
+        }
+
+        BeforeEach {
+            Clear-HDTFakeHyperVCall
+            Set-HDTFakeHyperVVirtualMachine @()
+        }
+
+        It 'makes no hypervisor call for <Case>' -ForEach @(
+            @{ Case = 'Default Switch, which is not the deployment subnet'; VmName = 'HDT-Fake-Probe'; Switch = 'Default Switch'; Gen = 2; Vhd = 'C:\HDTLab\vms\HDT-Fake-Probe\os.vhdx' }
+            @{ Case = 'a switch that is neither of the two'; VmName = 'HDT-Fake-Probe'; Switch = 'FSE Switch'; Gen = 2; Vhd = 'C:\HDTLab\vms\HDT-Fake-Probe\os.vhdx' }
+            @{ Case = 'a name this repository did not create'; VmName = 'FileServer'; Switch = 'HDT Lab'; Gen = 2; Vhd = 'C:\HDTLab\vms\HDT-Fake-Probe\os.vhdx' }
+            @{ Case = 'a wildcard name'; VmName = 'HDT-*'; Switch = 'HDT Lab'; Gen = 2; Vhd = 'C:\HDTLab\vms\HDT-Fake-Probe\os.vhdx' }
+            @{ Case = 'Generation 1'; VmName = 'HDT-Fake-Probe'; Switch = 'HDT Lab'; Gen = 1; Vhd = 'C:\HDTLab\vms\HDT-Fake-Probe\os.vhdx' }
+            @{ Case = 'a VHD outside the VM root'; VmName = 'HDT-Fake-Probe'; Switch = 'HDT Lab'; Gen = 2; Vhd = 'C:\HyperVVMs\os.vhdx' }
+        ) {
+            { New-HDTLabVirtualMachine -Name $VmName -MemoryByte $script:fourGb -ProcessorCount 2 `
+                    -SwitchName $Switch -VhdPath $Vhd -Generation $Gen -Confirm:$false } | Should -Throw
+
+            @(Get-HDTFakeHyperVCall).Count | Should -Be 0 -Because 'a refusal must happen before the first hypervisor call'
+        }
+    }
+
+    Context 'the memory budget counts the stamped VMs and no others' {
+
+        # PROJECT.md rule 4, RUN rather than read. The budget is spent across
+        # the VMs THIS HARNESS CREATED - the lab's own WSUS and WDS servers
+        # match HDT-* and must not eat it - and until now nothing proved that
+        # through New-HDTLabVirtualMachine: Get-HDTLabMemoryUse asks
+        # Hyper-V\Get-VM, so the rule could only be tested by handing rows
+        # straight to the helper underneath. With a Hyper-V module that answers,
+        # the whole path runs.
+        #
+        # THE NUMBERS COME FROM Get-HDTLabMemoryBudget AND ARE NOT WRITTEN HERE.
+        # They existed in six places once; raising the budget meant finding all
+        # six (CLAUDE.md rule 8).
+
+        BeforeAll {
+            $script:fakeHyperVPath = Join-Path -Path $script:repoRoot `
+                -ChildPath 'tests/helpers/HDTFakeHyperV/Hyper-V/Hyper-V.psd1'
+
+            # THE REAL Hyper-V MODULE IS ALREADY LOADED BY THIS POINT, and it
+            # was not this file that asked for it: the 'accepts HDT External'
+            # test above runs the memory budget, Get-HDTLabMemoryUse calls
+            # Hyper-V\Get-VM, and PowerShell auto-loads the real module to
+            # answer it. Two modules of the same name in one session is exactly
+            # the state in which nobody can say which one Hyper-V\New-VM
+            # resolves to - so it is evicted here, from this session only, and
+            # the assertion below refuses to continue unless the fake is the one
+            # and only.
+            Remove-Module -Name 'Hyper-V' -Force -ErrorAction SilentlyContinue
+
+            Import-Module -Name $script:fakeHyperVPath -Force -ErrorAction Stop
+
+            $loaded = @(Get-Module -Name 'Hyper-V')
+            $expected = [System.IO.Path]::ChangeExtension($script:fakeHyperVPath, '.psm1')
+
+            if (@($loaded).Count -ne 1 -or $loaded[0].Path -ne $expected) {
+                throw ("the loaded Hyper-V module is not the fake at '{0}'. Refusing to invoke anything." -f $expected)
+            }
+
+            Mock -CommandName 'New-Item' -ModuleName 'HDTTestTools' -MockWith { }
+
+            $script:budget = Get-HDTLabMemoryBudget
+            $script:goodVhd = 'C:\HDTLab\vms\HDT-Fake-Probe\os.vhdx'
+
+            # Enough VMs at the per-VM cap to fill the combined budget exactly,
+            # so one more of any size is over it.
+            $script:fullCount = [int] ($script:budget.CombinedByte / $script:budget.PerVmByte)
+
+            $script:newRow = {
+                param([string] $Name, [string] $State, [string] $Note)
+
+                return [pscustomobject] @{
+                    Name           = $Name
+                    State          = $State
+                    MemoryAssigned = $script:budget.PerVmByte
+                    Notes          = $Note
+                }
+            }
+        }
+
+        AfterAll {
+            Remove-Module -Name 'Hyper-V' -Force -ErrorAction SilentlyContinue
+        }
+
+        BeforeEach {
+            Clear-HDTFakeHyperVCall
+            Set-HDTFakeHyperVVirtualMachine @()
+        }
+
+        It 'fills the budget with the harness own VMs and then refuses' {
+            $stamped = @(1..$script:fullCount | ForEach-Object {
+                    & $script:newRow ('HDT-Stamped-{0}' -f $_) 'Running' (Get-HDTLabVmStamp)
+                })
+
+            Set-HDTFakeHyperVVirtualMachine $stamped
+
+            { New-HDTLabVirtualMachine -Name 'HDT-Fake-Probe' -MemoryByte $script:budget.PerVmByte `
+                    -ProcessorCount 2 -SwitchName 'HDT Lab' -VhdPath $script:goodVhd -Confirm:$false } |
+                Should -Throw ('*{0}*' -f $script:budget.CombinedText)
+
+            @(Get-HDTFakeHyperVCall -Command 'New-VM').Count | Should -Be 0
+        }
+
+        It 'ignores running HDT-* VMs this harness did not stamp' {
+            # THE LAB'S OWN INFRASTRUCTURE MATCHES THE PREFIX. Counting it would
+            # make the harness refuse to run at all on a host doing its job.
+            $unstamped = @(1..$script:fullCount | ForEach-Object {
+                    & $script:newRow ('HDT-WSUS-{0}' -f $_) 'Running' 'The lab WSUS server. Not ours.'
+                })
+
+            Set-HDTFakeHyperVVirtualMachine $unstamped
+
+            { New-HDTLabVirtualMachine -Name 'HDT-Fake-Probe' -MemoryByte $script:budget.PerVmByte `
+                    -ProcessorCount 2 -SwitchName 'HDT Lab' -VhdPath $script:goodVhd -Confirm:$false } |
+                Should -Not -Throw
+
+            @(Get-HDTFakeHyperVCall -Command 'New-VM').Count | Should -Be 1
+        }
+
+        It 'ignores a stamped VM that is not running' {
+            # A shut-down VM has no memory assigned to it, so it cannot be
+            # holding any of the budget.
+            $stopped = @(1..$script:fullCount | ForEach-Object {
+                    & $script:newRow ('HDT-Stamped-{0}' -f $_) 'Off' (Get-HDTLabVmStamp)
+                })
+
+            Set-HDTFakeHyperVVirtualMachine $stopped
+
+            { New-HDTLabVirtualMachine -Name 'HDT-Fake-Probe' -MemoryByte $script:budget.PerVmByte `
+                    -ProcessorCount 2 -SwitchName 'HDT Lab' -VhdPath $script:goodVhd -Confirm:$false } |
+                Should -Not -Throw
+
+            @(Get-HDTFakeHyperVCall -Command 'New-VM').Count | Should -Be 1
+        }
+
+        It 'says how many running HDT-* VMs it ignored, so nobody hunts a bug that is not there' {
+            # Somebody reading "0 bytes already assigned" with machines plainly
+            # running in Hyper-V Manager would otherwise conclude the check is
+            # broken.
+            $mixed = @(1..$script:fullCount | ForEach-Object {
+                    & $script:newRow ('HDT-Stamped-{0}' -f $_) 'Running' (Get-HDTLabVmStamp)
+                })
+            $mixed += @(& $script:newRow 'HDT-WDS-01' 'Running' 'The lab WDS server. Not ours.')
+
+            Set-HDTFakeHyperVVirtualMachine $mixed
+
+            { New-HDTLabVirtualMachine -Name 'HDT-Fake-Probe' -MemoryByte $script:budget.PerVmByte `
+                    -ProcessorCount 2 -SwitchName 'HDT Lab' -VhdPath $script:goodVhd -Confirm:$false } |
+                Should -Throw '*1 other running*ignored*'
         }
     }
 }
