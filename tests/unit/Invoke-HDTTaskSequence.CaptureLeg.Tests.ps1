@@ -176,8 +176,16 @@ Describe 'a restart whose next leg runs in WinPE' {
     It 'stores no autologon secret either' {
         $run = & $script:runLeg $script:captureLegYaml @{ HDTAdminPassword = 'Set-By-The-Rules-1' } $null
 
+        # BY NAME, BECAUSE 'no autologon secret' IS THE CLAIM AND THERE IS NOW
+        # MORE THAN ONE SECRET. DESIGN 4.5.2's bag lives under HDTSecretBag and
+        # carries the run's own secrets across a restart; it is not what Winlogon
+        # reads and it is not what sysprep cleared. It has its own two guards -
+        # Invoke-HDTSysprepStep drops the secrets out of the variable bag before
+        # generalizing, so no later checkpoint can write them back into a machine
+        # about to be captured, and Clear-HDTAutoLogon removes it at teardown.
         $secretWrite = @($run.Harness.Journal |
-                Where-Object { $_.Service -eq 'LsaService' -and $_.Operation -eq 'SetSecret' })
+                Where-Object { $_.Service -eq 'LsaService' -and $_.Operation -eq 'SetSecret' -and
+                    [string] $_.Arguments[0] -eq 'DefaultPassword' })
 
         $secretWrite | Should -BeNullOrEmpty -Because (
             'sysprep cleared this secret one step earlier, precisely so the image would not carry it')

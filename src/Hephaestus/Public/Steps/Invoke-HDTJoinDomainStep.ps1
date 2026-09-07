@@ -85,11 +85,20 @@ function Invoke-HDTJoinDomainStep {
             wrong-password attempt against a privileged account, once per
             machine, on every machine being built: a lab of forty overnight is a
             lockout policy tripped forty times on the one account that can join
-            anything to the directory. DESIGN 4.5.2 already names this as open
-            and names the durable answer - an LSA-carried secret bag written
-            alongside each checkpoint - which is not built. Until it is, the
-            password has to be set in the leg that uses it, and the refusal says
-            so in words an administrator can act on.
+            anything to the directory.
+
+            DESIGN 4.5.2's SECRET BAG IS NOW BUILT, AND THIS REFUSAL STAYS.
+            Save-HDTSecretBag carries every classified secret across the restart
+            in an LSA secret and Restore-HDTSecretBag puts it back into the
+            variable bag before the first step of the resumed leg runs, so the
+            ordinary case reaching here holds a real password. The refusal is
+            what happens when that did NOT work - the LSA store refused the
+            write, the leg ran without an LSA service, or the value was set after
+            the last checkpoint before the restart - and it must not soften into
+            an attempt, because the cost of guessing has not changed. What the
+            message says HAS changed: the answer is no longer "set it in this
+            leg" alone, it is "the bag did not carry it, and here is what to
+            look at".
 
             MDT'S OU RECOVERY IS DERIVED. A refused join is retried once with no
             OU, because a pre-staged computer account already living in a
@@ -358,8 +367,8 @@ function Invoke-HDTJoinDomainStep {
     $marker = [string] (Protect-HDTSecretValue -Name 'HDTDomainAdminPassword' -Value 'not the real value')
 
     if ([string]::Equals($secret, $marker, [System.StringComparison]::Ordinal)) {
-        return (& $fail ("step '{0}' joins {1} as {2}, and the value it has for HDTDomainAdminPassword is the redaction '{3}' rather than a password. A secret does not survive a restart: the checkpoint redacts it and the leg after the restart rehydrates its variables from that file (DESIGN 4.5.2, which names an LSA-carried secret bag as the answer and records that it is not built). HDT has NOT attempted the join - one wrong-password attempt per machine would lock out the account that joins every machine in the estate. Set HDTDomainAdminPassword in the leg that runs this step, with a SetVariable step in the same group or a rule that resolves there." -f
-                $stepName, $domainName, $account, $marker) $data)
+        return (& $fail ("step '{0}' joins {1} as {2}, and the value it has for HDTDomainAdminPassword is the redaction '{3}' rather than a password. HDT has NOT attempted the join - one wrong-password attempt per machine would lock out the account that joins every machine in the estate. The checkpoint redacts every secret and the leg after a restart rehydrates its variables from that file, so the value should have come back from the run's secret bag (DESIGN 4.5.2): the LSA secret '{4}', written at every checkpoint and read at the start of every leg. It did not, so look for a SecretBag warning earlier in this log - the three causes are an LSA store that refused the write, a leg started without an LSA service, and a value first set AFTER the last checkpoint before the restart. Setting HDTDomainAdminPassword in the leg that runs this step - a SetVariable step in the same group, or a rule that resolves there - works whatever the cause." -f
+                $stepName, $domainName, $account, $marker, (Get-HDTSecretBagName)) $data)
     }
 
     # -- the join -------------------------------------------------------------

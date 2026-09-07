@@ -9,17 +9,25 @@
             (registry AND LSA secret), AutoLogonCount, the RunOnce entry, the
             staged unattend, and the deployment password from state.json."
 
-            Nine items, attempted INDEPENDENTLY:
+            Ten items, attempted INDEPENDENTLY:
 
               1  AutoAdminLogon              registry
               2  DefaultUserName             registry
               3  DefaultDomainName           registry
               4  DefaultPassword             registry
               5  DefaultPassword             LSA secret
-              6  AutoLogonCount              registry
-              7  RunOnce\HDTResume           registry
-              8  the staged unattend files   filesystem
-              9  autoLogon.armed             state document, then saved
+              6  HDTSecretBag                LSA secret
+              7  AutoLogonCount              registry
+              8  RunOnce\HDTResume           registry
+              9  the staged unattend files   filesystem
+             10  autoLogon.armed             state document, then saved
+
+            ITEM 6 IS DESIGN 4.5.2's SECRET BAG, and it is here rather than in a
+            step for the same reason as everything else on this list. It carries
+            the run's secrets - a domain-join credential among them - across a
+            restart in LSA private data, and a machine whose deployment FAILED is
+            both the one most likely to still be holding one and the one nobody
+            comes back to tidy up. See Clear-HDTSecretBag.
 
             ONE ITEM FAILING MUST NOT STOP THE OTHERS, and that is the whole
             design of this function. Teardown runs on machines in unknown states
@@ -137,6 +145,10 @@
     $secretName = 'DefaultPassword'
     $runOnceName = 'HDTResume'
 
+    # ASKED, NOT WRITTEN DOWN AGAIN. Four commands have to agree about this name
+    # and a fifth copy of the literal is a fifth chance to disagree.
+    $bagName = Get-HDTSecretBagName
+
     $cleared = New-Object -TypeName System.Collections.ArrayList
     $failed = New-Object -TypeName System.Collections.ArrayList
 
@@ -147,7 +159,7 @@
             })
     }
 
-    # Items 1-4 and 6: the Winlogon values. AutoLogonCount is last of them so
+    # Items 1-4 and 7: the Winlogon values. AutoLogonCount is last of them so
     # that a failure there - the case the tests exercise - is provably not what
     # stopped the LSA secret from going.
     foreach ($name in @('AutoAdminLogon', 'DefaultUserName', 'DefaultDomainName', $secretName, 'AutoLogonCount')) {
@@ -173,7 +185,19 @@
         [void] $failed.Add([pscustomobject] @{ Item = "LsaSecret:$secretName"; Message = $_.Exception.Message })
     }
 
-    # Item 7: the RunOnce entry.
+    # Item 6: DESIGN 4.5.2's secret bag, beside the other LSA artifact and for
+    # the same reason - it is a credential rather than a switch, so it is never
+    # behind an earlier item's failure. Clear-HDTSecretBag reports rather than
+    # throws, which is what this checklist needs from every item on it.
+    try {
+        if (Clear-HDTSecretBag -Lsa $Lsa -LogContext $LogContext -Confirm:$false) {
+            [void] $cleared.Add("LsaSecret:$bagName")
+        }
+    } catch {
+        [void] $failed.Add([pscustomobject] @{ Item = "LsaSecret:$bagName"; Message = $_.Exception.Message })
+    }
+
+    # Item 8: the RunOnce entry.
     try {
         if ($null -ne $Registry.GetValue($runOncePath, $runOnceName)) {
             $Registry.RemoveValue($runOncePath, $runOnceName)
@@ -183,7 +207,7 @@
         [void] $failed.Add([pscustomobject] @{ Item = "RunOnce:$runOnceName"; Message = $_.Exception.Message })
     }
 
-    # Item 8: the staged unattend files. Each one independently, because one
+    # Item 9: the staged unattend files. Each one independently, because one
     # being locked says nothing about the others.
     if ($null -ne $FileSystem) {
         foreach ($path in $UnattendPath) {
@@ -198,7 +222,7 @@
         }
     }
 
-    # Item 9: the armed flag in the state document, and the save.
+    # Item 10: the armed flag in the state document, and the save.
     #
     # THERE IS NO PASSWORD TO CLEAR HERE ANY MORE. The state used to carry a
     # generated per-deployment secret; the engine now arms autologon with

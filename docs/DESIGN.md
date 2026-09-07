@@ -1595,29 +1595,121 @@ These are the reasons to reimplement rather than copy:
   **A consequence, and it is load-bearing.** A leg that resumes after a reboot
   rehydrates its variable bag from `state.json`, so it sees the redaction where
   a secret was. `HDTAdminPassword` is recovered from the autologon LSA secret,
-  which is admin-only and holds the same value by construction. Any *other*
-  secret consumed by a full-OS step after a reboot has no such recovery — see
-  the note below.
+  which is admin-only and holds the same value by construction. Every *other*
+  secret consumed by a full-OS step after a reboot is recovered from the secret
+  bag below, which is the general form of that same recovery.
 
-  **Open, and named here rather than left to be rediscovered.**
-  `HDTBitLockerPin`, `HDTProductKey` and `HDTDomainAdminPassword` are read from
-  the variable bag by their steps. The unattend is applied in WinPE and the
-  EnableBitLocker step's PIN is authored in the sequence rather than resolved
-  across a leg, so neither of the first two regresses today. The durable answer
-  is an LSA-carried secret bag written alongside each checkpoint, which is the
-  same mechanism this section already chose for the autologon password; it is
-  not built.
+  **THE SECRET BAG, AND IT IS BUILT.** `HDTBitLockerPin`, `HDTProductKey` and
+  `HDTDomainAdminPassword` are read from the variable bag by their steps, and
+  a leg that resumed after a restart used to hand them the redaction. The
+  durable answer is an LSA-carried secret bag written alongside each
+  checkpoint — the same mechanism this section already chose for the autologon
+  password — and it is `Save-HDTSecretBag` / `Restore-HDTSecretBag` /
+  `Clear-HDTSecretBag`, over the same `ILsaService`:
 
-  **`JoinDomain` reached it first, on 2026-09-01, and it is no longer
-  hypothetical.** The step joins online in the full OS — §4.2, and §4.1's own
-  example sequence puts it in State Restore — so it runs in the leg *after* a
-  restart and is handed `(set, not shown)` where the password was. **It refuses
-  rather than attempting the join**, and that refusal is not a nicety: trying a
-  redacted value is one wrong-password attempt per machine against the one
-  account that can join anything to the directory, so a lab of forty deployed
-  overnight would trip a lockout policy forty times on it. Until the secret bag
-  exists, an unattended domain join needs `HDTDomainAdminPassword` set in the
-  leg that runs the step.
+  - **Written twice per leg: once at the start, once immediately after the
+    restart is armed.** The second is the one that matters — the bag is current
+    at the instant the machine goes down, and it is written *after*
+    `Set-HDTAutoLogon` so a store that refuses can never stop the machine coming
+    back at all. The first covers the restart HDT did not issue: a step can
+    bring the machine down *through* a servicing operation (SPIKES S25) and
+    never reach the arming. It carries exactly what `Test-HDTSecretVariable`
+    classifies secret, so the writer and the redactor cannot disagree about
+    which names count.
+
+    **An earlier cut wrote it at every checkpoint**, which is what this section
+    used to say. A checkpoint happens per step, and an LSA call per step buried
+    `TaskSequence.EndToEnd.Tests.ps1`'s ordered operation list — §12.2.1's
+    written specification of what HDT does to a machine — under twenty-six lines
+    of bookkeeping that changed nothing. Two writes per leg cost nine lines
+    there, one of which is a line the bag *removed*: leg 2 no longer reads
+    `DefaultPassword` back out of the LSA to recover `HDTAdminPassword`, because
+    the bag has already restored it. The residual gap is worth naming rather
+    than hiding: a secret first set by a `SetVariable` step **mid-leg**, on a leg
+    then taken down by a surprise servicing restart, is not in the bag.
+    Everything resolved from the rules, the wizard or a per-machine override is,
+    because all of that is in the bag before the leg's first step runs.
+  - **Read at the start of every leg, before the first step.** The live leg
+    always wins: a name this leg already resolved is newer than the bag and is
+    left alone. Only a name that is missing, empty, or holding the redaction is
+    filled in.
+  - **Cleared with the autologon**, as item 6 of §4.5.4's checklist — so it goes
+    in the `finally` on success and on failure alike, and again at the boot-time
+    reconcile.
+  - **It never takes a run down.** Both halves are best effort and log a
+    Warning: a run that died at step 1 because it could not store a credential
+    it might never have needed is worse than one that reaches the step that
+    *does* need it and refuses there, naming the variable.
+  - **The value is in no artefact and no log line, at any level.** The names,
+    the count, the secret it lives under and its lifetime are logged; the value
+    never is. `state.json` still carries `(set, not shown)` — nothing about this
+    relaxes the redaction, which is the guarantee the rest of this section is
+    about.
+
+  **Two boundaries it deliberately does not cross, written down because both
+  look like defects otherwise.**
+
+  - **WinPE → full OS.** WinPE's LSA is on a RAM disk that does not exist after
+    the restart, and nothing can write the *target* machine's LSA from outside
+    it. So a secret collected in WinPE does not arrive in the first full-OS leg
+    through the bag. `HDTAdminPassword` is the exception and needs no bag: the
+    unattend sets the account's password and arms the first logon with it, and
+    Windows itself puts it in the target's LSA (§4.5.1, SPIKES S7/S8). Every
+    other secret needed by a full-OS step of a **NewComputer** run must resolve
+    in that leg — from `rules.yaml`. The bag covers full-OS leg to full-OS leg,
+    which is every restart after the first.
+
+    **`Restore-HDTRuleVariable` is what makes that sentence true, and it was not
+    true when this paragraph was first written.** The claim then was that "the
+    resumed leg can read `rules.yaml` again", and the resumed leg did no such
+    thing: `Start-HDTResume.ps1` — the RunOnce agent that runs *every* full-OS
+    leg — built its variable bag from `state.json` and from nothing else, and
+    never opened `rules.yaml` at all. `Start-HDTDeployment.ps1` did read the
+    rules on its WinPE resume path, and then overlaid the state document over
+    the result unconditionally, so `(set, not shown)` landed on top of a real
+    value it had resolved moments earlier. Between them there was **no path at
+    all** by which a rules-supplied secret could reach a full-OS step, and the
+    two steps that need one — `JoinDomain`, and the forest promotion in
+    `AD-DC-2025` — refused on every NewComputer run for a reason no share edit
+    could fix. This was found on 2026-09-07 while trying to give `JoinDomain`
+    its first hardware evidence, and the specification was wrong rather than the
+    code being behind it.
+
+    The command re-resolves `rules.yaml` and fills in **only** names that are
+    missing, empty, or holding the redaction — `Restore-HDTSecretBag`'s
+    precedence rule exactly, and for its reason: `state.json` is what the run
+    already *decided*, and every higher source in §3.1 already beat the rules
+    once on leg one. It is given **leg one's facts, out of the bag**, never a
+    fresh gather: the operating system has changed underneath the run, so a rule
+    keyed on `HDTOSVersion` or `HDTIsUEFI` would otherwise answer differently on
+    the second reading than on the first and the leg would act on a decision the
+    run never made. Both payloads call it — the resume agent after building its
+    bag, and `Start-HDTDeployment.ps1` immediately after its state overlay — so
+    there is one mechanism and not two.
+
+    Note what this does **not** widen: nothing else was being lost across the
+    reboot. `Save-HDTRunState` writes the *whole* bag and swaps only the values
+    of names `Test-HDTSecretVariable` classifies, so a non-secret resolved on
+    leg one is already in `state.json` intact. The redaction was the only hole.
+  - **A machine about to be captured.** `Invoke-HDTSysprepStep` drops the
+    classified secrets out of the run's variables before generalizing, as well
+    as clearing the bag itself. Clearing alone was not enough: the very next
+    checkpoint would write the credential back into the SECURITY hive moments
+    before DISM read the volume into a `.wim`, and every machine built from that
+    image would carry it.
+
+  **`JoinDomain` reached this first, on 2026-09-01.** The step joins online in
+  the full OS — §4.2, and §4.1's own example sequence puts it in State Restore —
+  so it runs in the leg *after* a restart and was handed `(set, not shown)` where
+  the password was. **It refuses rather than attempting the join**, and that
+  refusal stays exactly as it is: trying a redacted value is one wrong-password
+  attempt per machine against the one account that can join anything to the
+  directory, so a lab of forty deployed overnight would trip a lockout policy
+  forty times on it. What changed is that the ordinary case no longer reaches it
+  — the bag hands the step the real password — and that the refusal's message
+  now names the three things that stop it (an LSA store that refused the write,
+  a leg started without an LSA service, a value first set after the last
+  checkpoint before the restart) instead of saying the mechanism does not exist.
 
   It is worth saying why the obvious escape is not one: **the join is not moved
   into the unattend to dodge this.** MDT's `Microsoft-Windows-UnattendedJoin`
@@ -1720,8 +1812,9 @@ rather than guarded.
 
 At sequence end — success or failure — the engine clears: `AutoAdminLogon`,
 `DefaultUserName`, `DefaultDomainName`, `DefaultPassword` (registry *and* LSA
-secret), `AutoLogonCount`, the `RunOnce` entry, the staged unattend, and the
-protected password from `state.json`.
+secret), **the `HDTSecretBag` LSA secret (§4.5.2)**, `AutoLogonCount`, the
+`RunOnce` entry, the staged unattend, and the protected password from
+`state.json`.
 
 **The Administrator password itself is not changed at teardown.** It is the one
 the administrator configured (§4.5.2), so the deployed machine keeps it and a

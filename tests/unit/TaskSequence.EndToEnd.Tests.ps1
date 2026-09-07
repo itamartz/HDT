@@ -1,4 +1,4 @@
-# THE DESIGN 12.2.1 HEADLINE TEST, and ROADMAP M2's exit criterion:
+﻿# THE DESIGN 12.2.1 HEADLINE TEST, and ROADMAP M2's exit criterion:
 #
 #   "the entire task sequence engine can execute a full sequence end-to-end in a
 #    Pester run against fake services, asserting the ordered list of operations
@@ -345,6 +345,17 @@ Describe 'the DEMO-M2 task sequence, end to end against fakes' {
             $script:operation | Should -Be @(
 
                 # -- leg 1, in WinPE: Preinstall runs, the first Restart arms ---
+
+                # THE SECRET BAG OPENS EVERY LEG (DESIGN 4.5.2). The read asks
+                # what the leg before this one left; on leg 1 there is nothing
+                # there, which is the normal state of a first leg. The write puts
+                # what THIS leg resolved somewhere that survives a restart the
+                # engine did not issue - a step that brings the machine down
+                # through a servicing operation (SPIKES S25) never reaches the
+                # arming below.
+                'LsaService.GetSecret'          # HDTSecretBag - absent on leg 1
+                'LsaService.SetSecret'          # HDTSecretBag - what leg 1 resolved
+
                 'RegistryService.SetValue'      # Winlogon AutoAdminLogon = 1
                 'RegistryService.SetValue'      # Winlogon DefaultUserName = Administrator
                 'RegistryService.SetValue'      # Winlogon DefaultDomainName (empty: a workgroup machine mid-build)
@@ -352,20 +363,33 @@ Describe 'the DEMO-M2 task sequence, end to end against fakes' {
                 'RegistryService.RemoveValue'   # any registry DefaultPassword, unconditionally and defensively
                 'LsaService.SetSecret'          # the per-deployment password, as an LSA secret (DESIGN 4.5.2)
                 'RegistryService.SetValue'      # RunOnce\HDTResume
+
+                # AND THE BAG AGAIN, REFRESHED AT THE MOMENT THE MACHINE GOES
+                # DOWN, so the leg that logs on next sees the values this one
+                # resolved rather than the "(set, not shown)" state.json carries.
+                # AFTER the arming, never before it: a bag that fails to store
+                # must not stop the machine coming back at all.
+                'LsaService.SetSecret'          # HDTSecretBag, current as of the restart
+
                 'PowerService.Restart'
 
                 # -- leg 2, in the full OS: the installer, then the second Restart
+
+                # THE PASSWORD COMES BACK HERE, AND THIS IS THE READ THAT DOES
+                # IT. Leg 1 held HDTAdminPassword in its own variable bag; leg 2
+                # rehydrated its bag from the checkpoint, where the value is
+                # "(set, not shown)". Restore-HDTSecretBag puts every secret back
+                # before the first step runs - which is why the arming below no
+                # longer reads DefaultPassword out of the LSA to recover that one
+                # value. That read used to sit between ProcessService.Start and
+                # the Winlogon writes, and the bag made it unnecessary: a step
+                # like JoinDomain, which needs a secret the autologon secret
+                # could never have supplied, now works for the same reason.
+                'LsaService.GetSecret'          # HDTSecretBag - what leg 1 stored
+                'LsaService.SetSecret'          # HDTSecretBag - rewritten for leg 3
+
                 'ProcessService.Start'          # cmd.exe /c echo HDT demo installer
 
-                # THE PASSWORD COMES BACK OUT OF THE LSA, and this read is the
-                # whole visible cost of not writing it into state.json. Leg 1
-                # held HDTAdminPassword in its own variable bag; leg 2
-                # rehydrated its bag from the checkpoint, where the value is now
-                # "(set, not shown)" - so it reads the autologon secret leg 1
-                # stored, which is admin-only and the same value by
-                # construction. It appears only on a RESUMED leg: leg 1 above
-                # arms without it.
-                'LsaService.GetSecret'          # DefaultPassword, to arm the next leg with a real password
                 'RegistryService.SetValue'      # AutoAdminLogon
                 'RegistryService.SetValue'      # DefaultUserName
                 'RegistryService.SetValue'      # DefaultDomainName
@@ -373,9 +397,13 @@ Describe 'the DEMO-M2 task sequence, end to end against fakes' {
                 'RegistryService.RemoveValue'   # the registry DefaultPassword again
                 'LsaService.SetSecret'          # the SAME password: one machine, one secret per run
                 'RegistryService.SetValue'      # RunOnce\HDTResume, re-registered every leg
+                'LsaService.SetSecret'          # HDTSecretBag, current as of the restart
                 'PowerService.Restart'
 
                 # -- leg 3: the user script, then the DESIGN 4.5.3 teardown -----
+                'LsaService.GetSecret'          # HDTSecretBag - what leg 2 stored
+                'LsaService.SetSecret'          # HDTSecretBag - and this leg's own values
+
                 'ScriptInvoker.Invoke'          # Scripts\Set-CorpBaseline.ps1
                 'RegistryService.GetValue'      # AutoAdminLogon - present
                 'RegistryService.RemoveValue'
@@ -386,8 +414,15 @@ Describe 'the DEMO-M2 task sequence, end to end against fakes' {
                 'RegistryService.GetValue'      # DefaultPassword - ABSENT, so nothing to remove
                 'RegistryService.GetValue'      # AutoLogonCount - present
                 'RegistryService.RemoveValue'
-                'LsaService.GetSecret'          # the secret itself, never behind an earlier item's failure
+                'LsaService.GetSecret'          # the autologon secret, never behind an earlier failure
                 'LsaService.RemoveSecret'
+
+                # ITEM 6 OF THE CHECKLIST: the secret bag goes with the autologon
+                # secret. A machine whose deployment is over - succeeded OR
+                # failed - must not be left holding the run's credentials.
+                'LsaService.GetSecret'          # HDTSecretBag - present
+                'LsaService.RemoveSecret'
+
                 'RegistryService.GetValue'      # RunOnce\HDTResume
                 'RegistryService.RemoveValue'
             )
@@ -409,23 +444,23 @@ Describe 'the DEMO-M2 task sequence, end to end against fakes' {
             # one when its outcome is known. Leg 1: four steps x 2, plus the
             # save after arming, THE SAVE IMMEDIATELY BEFORE THE RESTART, the
             # finally save and the seq-only save after run.end = 12. Leg 2:
-            # three steps x 2 plus those same four = 10. Leg 3: three steps that
-            # ran x 2, three that were skipped x 1, the finally save and the
-            # teardown's own save = 11 - it never reboots, so it has no save
-            # before a restart. Both full-OS legs write the same file, so
-            # 10 + 11 = 21.
+            # three steps x 2 plus those same four = 10. Leg 3: FOUR steps that
+            # ran x 2 - Corp Baseline, Tattoo, Optional Task, Finish - three
+            # that were skipped x 1, the finally save and the teardown's own
+            # save = 13 - it never reboots, so it has no save before a restart.
+            # Both full-OS legs write the same file, so 10 + 13 = 23.
             #
             # THE SAVE BEFORE THE RESTART IS THE LAST DURABLE ACT OF A LEG. On a
             # real machine the finally never runs: Windows kills the process
             # moments after the restart is issued, so a checkpoint taken any
             # earlier leaves records the next leg does not know were written.
             @($script:stateWrite | Where-Object { $_.Arguments[0] -eq $script:winpeState }).Count | Should -Be 12
-            @($script:stateWrite | Where-Object { $_.Arguments[0] -eq $script:fullosState }).Count | Should -Be 21
+            @($script:stateWrite | Where-Object { $_.Arguments[0] -eq $script:fullosState }).Count | Should -Be 23
         }
 
         It 'checkpointed every step as Running before it ran' {
             # The property that makes an interrupted step detectable at all.
-            $ran = @(1, 2, 3, 4, 5, 6, 7, 8, 10, 11)
+            $ran = @(1, 2, 3, 4, 5, 6, 7, 8, 9, 11, 12)
 
             $runningIndex = @($script:stateWrite | ForEach-Object {
                     $document = ConvertFrom-Json -InputObject ([string] $_.Arguments[1])

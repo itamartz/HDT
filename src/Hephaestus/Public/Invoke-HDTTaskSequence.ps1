@@ -586,6 +586,48 @@
     # error - and a state document written by an engine older than the
     # deploymentType field does not carry one. That absence is safe: it unlocks
     # nothing, so an older document loses a permission rather than gaining one.
+    # -- the secrets this leg was left, before anything reads one -------------
+    #
+    # DESIGN 4.5.2. This leg's variable bag came out of state.json, where every
+    # secret is '(set, not shown)'; the values themselves were carried in an LSA
+    # secret by the leg that checkpointed before the restart. Putting them back
+    # HERE - before the first condition is evaluated and before the first step
+    # runs - is what makes a JoinDomain step in State Restore see the password
+    # the wizard collected two legs ago.
+    #
+    # IT RUNS ON EVERY LEG, NOT ONLY A RESUMED ONE, and deliberately so. A first
+    # leg has no bag and Restore-HDTSecretBag says so at Debug and does nothing,
+    # which costs one LSA read; a leg that IS a resume but does not know it -
+    # a re-entered step, a state document handed in by a payload - is the case
+    # that would otherwise be missed, and those are exactly the legs nobody
+    # tests by hand.
+    #
+    # A LIVE VALUE IS NEVER OVERWRITTEN: a rule that resolved on this leg is
+    # newer than the bag. See Restore-HDTSecretBag.
+    #
+    # AND WRITTEN BACK, ONCE, FOR THE RESTART NOBODY ASKED FOR. The arming path
+    # below refreshes the bag immediately before it takes the machine down,
+    # which covers every restart HDT itself issues. This write covers the one it
+    # does not: a step that restarts the machine THROUGH a servicing operation
+    # (SPIKES S25, where a cumulative update took the machine down and the
+    # engine never reached its own Restart step). It costs one LSA write per
+    # leg, and it means the values this leg resolved are durable from its first
+    # step rather than from its last.
+    #
+    # NOT AT EVERY CHECKPOINT, and that is a deliberate narrowing of DESIGN
+    # 4.5.2's wording. A checkpoint happens per step; an LSA call per step buried
+    # TaskSequence.EndToEnd.Tests.ps1's ordered operation list - the written
+    # specification of what HDT does to a machine (DESIGN 12.2.1) - under
+    # twenty-six lines of bookkeeping that changed nothing. The residual gap is
+    # narrow and worth naming: a secret first set by a SetVariable step MID-leg,
+    # on a leg that is then taken down by a surprise servicing restart, is not in
+    # the bag. Everything resolved from the rules, the wizard or a per-machine
+    # override is, because all of that is in the bag before the first step runs.
+    if ($null -ne $Context.Service.Lsa) {
+        Restore-HDTSecretBag -Lsa $Context.Service.Lsa -Variable $Context.Variable -LogContext $log | Out-Null
+        Save-HDTSecretBag -Lsa $Context.Service.Lsa -Variable $Context.Variable -LogContext $log | Out-Null
+    }
+
     $runDeploymentType = ''
     if ($null -ne $state.PSObject.Properties['deploymentType']) {
         $runDeploymentType = [string] $state.deploymentType
@@ -1228,6 +1270,22 @@
                 }
 
                 Set-HDTAutoLogon @armArgument
+                # THE SECRETS THIS LEG RESOLVED, MADE DURABLE BEFORE THE
+                # MACHINE GOES DOWN (DESIGN 4.5.2's secret bag).
+                #
+                # HERE, BESIDE THE ARMING, BECAUSE IT IS THE SAME PROMISE:
+                # Set-HDTAutoLogon makes sure somebody can log the machine back
+                # on, and this makes sure the leg that logs on can still see the
+                # values this one resolved. state.json carries '(set, not shown)'
+                # for every one of them, so without this the next leg rehydrates
+                # a redaction - which is what made a JoinDomain step in State
+                # Restore refuse instead of joining.
+                #
+                # AFTER Set-HDTAutoLogon RATHER THAN BEFORE IT, so a failure to
+                # store the bag can never stop the machine coming back at all.
+                # The bag is a convenience the next leg can live without; the
+                # autologon is not.
+                Save-HDTSecretBag -Lsa $restartLsa -Variable $Context.Variable -LogContext $log | Out-Null
 
                 } else {
                     Write-HDTLog -Context $log -Component 'Restart' `

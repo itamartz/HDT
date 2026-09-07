@@ -197,7 +197,15 @@
 
         [Parameter()]
         [AllowNull()]
-        [hashtable] $Secret
+        [hashtable] $Secret,
+
+        # AN IDomainService, FOR THE ONE STEP THAT NEEDS ONE ACROSS A REBOOT.
+        # JoinDomain runs in State Restore - the leg AFTER a restart - so the
+        # secret bag tests need a whole sequence driven through the engine with
+        # a domain service in the catalog, not a step invoked on its own.
+        [Parameter()]
+        [AllowNull()]
+        [object] $Domain
     )
 
     Set-StrictMode -Version Latest
@@ -280,8 +288,12 @@
         }
     }
 
+    $catalogArgument = @{}
+    if ($null -ne $Domain) { $catalogArgument['Domain'] = $Domain }
+
     $catalog = New-HDTServiceCatalog -FileSystem $fileSystem -Clock $clock -Registry $registry `
-        -Lsa $lsa -Process $process -Power $power -ScriptInvoker $scriptInvoker -Cim $cim -Environment $environment
+        -Lsa $lsa -Process $process -Power $power -ScriptInvoker $scriptInvoker -Cim $cim -Environment $environment `
+        @catalogArgument
 
     $trimmed = $LogPath.TrimEnd('\', '/')
     $statePath = '{0}\state.json' -f $trimmed
@@ -316,7 +328,10 @@
         -Variable $live -Service $catalog -Log $log -State $runState
 
     # The journal goes on LAST. Everything above is seeding.
-    foreach ($fake in @($fileSystem, $clock, $registry, $lsa, $process, $power, $scriptInvoker, $cim, $environment)) {
+    $journalled = @($fileSystem, $clock, $registry, $lsa, $process, $power, $scriptInvoker, $cim, $environment)
+    if ($null -ne $Domain) { $journalled += $Domain }
+
+    foreach ($fake in $journalled) {
         $fake.Journal = $journal
     }
 
@@ -331,6 +346,7 @@
             ScriptInvoker = $scriptInvoker
             Cim           = $cim
             Environment   = $environment
+            Domain        = $Domain
             Catalog       = $catalog
             Log           = $log
             State         = $runState

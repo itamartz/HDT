@@ -389,8 +389,17 @@ steps:
 
         # THE JOURNAL REDACTS IT, WHICH IS THE POINT OF THE JOURNAL - so what
         # was actually armed is read from the store Winlogon would read.
+        #
+        # FILTERED BY SECRET NAME, BECAUSE THERE ARE TWO SECRETS NOW. This run
+        # also writes DESIGN 4.5.2's secret bag under HDTSecretBag, which carries
+        # HDTAdminPassword across the restart so the leg after it does not
+        # rehydrate the redaction. The assertion here is about the AUTOLOGON
+        # secret and always was - one arming, with the administrator's own
+        # password - and counting every SetSecret would make it fail the day any
+        # other LSA-backed feature landed, which is exactly what it just did.
         @($harness.Journal |
-                Where-Object { $_.Service -eq 'LsaService' -and $_.Operation -eq 'SetSecret' }) |
+                Where-Object { $_.Service -eq 'LsaService' -and $_.Operation -eq 'SetSecret' -and
+                    [string] $_.Arguments[0] -eq 'DefaultPassword' }) |
             Should -HaveCount 1
 
         $harness.Lsa.GetSecret('DefaultPassword') | Should -BeExactly 'Set-By-The-Rules-1'

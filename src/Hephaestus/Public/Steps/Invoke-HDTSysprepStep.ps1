@@ -352,6 +352,40 @@
             -Message ("cleared {0} resume artefact(s) before generalizing; an image that kept them would re-enter this deployment on every machine built from it." -f
                 @($cleared.Cleared).Count) `
             -Data ([ordered] @{ cleared = [string[]] @($cleared.Cleared) })
+
+        # AND THE SECRETS GO OUT OF THE VARIABLE BAG, NOT ONLY OUT OF LSA.
+        #
+        # Clear-HDTAutoLogon above removed DESIGN 4.5.2's secret bag from LSA
+        # private data. That is not enough on its own: the engine rewrites that
+        # bag from the live variable bag at every checkpoint, and the very next
+        # checkpoint is the one this step's own completion triggers - so the
+        # credential this line just deleted would be back inside the SECURITY
+        # hive moments before DISM reads the volume into a .wim, and every
+        # machine ever built from that image would carry it.
+        #
+        # DELETED RATHER THAN BLANKED, so nothing downstream can tell an emptied
+        # secret from one somebody deliberately set to nothing. The names go with
+        # the values, which costs the capture leg's state document a row saying
+        # 'HDTAdminPassword = (set, not shown)' - a fair price for a sealed
+        # machine that carries no credential at all.
+        #
+        # NOTHING AFTER THIS STEP NEEDS ONE. The machine is generalized: the
+        # remaining steps are the restart into the boot media and the capture
+        # itself, and there is no session for an autologon to open - which is
+        # the same fact Test-HDTAutoLogonNeeded answers for the restart.
+        $sealed = New-Object -TypeName System.Collections.ArrayList
+        foreach ($name in @($Context.Variable.Keys)) {
+            if (Test-HDTSecretVariable -Name ([string] $name)) { [void] $sealed.Add([string] $name) }
+        }
+
+        foreach ($name in $sealed) { $Context.Variable.Remove($name) }
+
+        if ($sealed.Count -gt 0) {
+            Write-HDTLog -Context $Context.Log -Component $component `
+                -Message ("dropped {0} secret(s) from this run's variables before generalizing, so the next checkpoint cannot write them back into an LSA secret this machine is about to be captured with: {1}." -f
+                    $sealed.Count, (@($sealed) -join ', ')) `
+                -Data ([ordered] @{ dropped = [string[]] @($sealed); count = $sealed.Count })
+        }
     } catch {
         return (& $fail ("the deployment's own resume hook could not be removed, and generalizing with it in place would put it inside the captured image: {0}" -f
                 [string] $_.Exception.Message) $null 0)

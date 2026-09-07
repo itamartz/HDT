@@ -114,13 +114,20 @@
     # $State.variable and out of the execution context beside it; only the bytes
     # that leave this process are redacted.
     #
-    # WHAT THAT COSTS, WRITTEN DOWN BECAUSE IT IS REAL: a leg that RESUMES after
-    # a reboot rehydrates its variable bag from this file, so it sees
-    # "(set, not shown)" where a secret was. Invoke-HDTTaskSequence recovers
-    # HDTAdminPassword from the autologon LSA secret for exactly that reason -
-    # see the Restart branch there. Any other secret consumed by a full-OS step
-    # after a reboot has no such recovery and needs a design decision, not a
-    # quiet return to writing the password down.
+    # WHAT THAT COSTS, AND WHAT PAYS IT: a leg that RESUMES after a reboot
+    # rehydrates its variable bag from this file, so it sees
+    # "(set, not shown)" where a secret was. DESIGN 4.5.2's secret bag is what
+    # gives the value back - Save-HDTSecretBag writes every classified secret
+    # into an LSA secret alongside each checkpoint and Restore-HDTSecretBag puts
+    # them back at the start of the next leg, before its first step runs.
+    # Invoke-HDTTaskSequence also recovers HDTAdminPassword from the AUTOLOGON
+    # LSA secret in its Restart branch; that path predates the bag and stays,
+    # because it is the one secret Windows itself stores and it therefore works
+    # on the first full-OS leg, which WinPE's RAM-disk LSA cannot reach.
+    #
+    # NONE OF WHICH RELAXES THE LINE ABOVE. The recovery is from a store that is
+    # admin-only and torn down with the run; it is never a reason to write the
+    # value into this document.
     $document = $State
 
     if ($null -ne $State.PSObject.Properties['variable'] -and $null -ne $State.variable) {

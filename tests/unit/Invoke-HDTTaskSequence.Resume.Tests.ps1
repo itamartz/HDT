@@ -388,9 +388,36 @@ steps:
                 Should -BeExactly '(set, not shown)'
         }
 
-        It 'gives the resumed leg the redaction rather than the password' {
+        It 'gives the resumed leg the password back out of the secret bag' {
+            # THIS ASSERTED THE OPPOSITE UNTIL DESIGN 4.5.2's SECRET BAG WAS
+            # BUILT, and the change is the whole point of that feature rather
+            # than a relaxation of this one.
+            #
+            # The document on disk still carries the redaction - the assertion
+            # above this one reads it out of the JSON and proves it - and that is
+            # the property that matters, because state.json is the file that
+            # travels to the share and to C:\Windows\Logs\HDT. What changed is
+            # that the VALUE now comes back from an LSA secret the leg before the
+            # restart wrote, so the steps in this leg see what the run resolved
+            # instead of a string that is not a password.
+            #
+            # It is why a JoinDomain step in State Restore can join at all: it
+            # used to be handed '(set, not shown)' and refuse rather than spend a
+            # wrong-password attempt on the account that joins every machine in
+            # the estate.
             [string] $script:secretLeg2.Harness.Context.Variable['HDTAdminPassword'] |
-                Should -BeExactly '(set, not shown)'
+                Should -BeExactly $script:adminPassword
+        }
+
+        It 'still leaves the password out of everything it wrote to disk' {
+            # THE BAG MUST NOT HAVE BOUGHT THE RECOVERY WITH THE LEAK BACK. The
+            # value is readable again in memory; it must still be in no file this
+            # run produced, over the SET of them rather than a named one.
+            $leaked = @($script:secretFs.File.Keys | Where-Object {
+                    ([string] $script:secretFs.File[$_]) -like ('*{0}*' -f $script:adminPassword)
+                })
+
+            $leaked | Should -BeNullOrEmpty
         }
 
         It 'arms the next logon with the real password all the same' {
