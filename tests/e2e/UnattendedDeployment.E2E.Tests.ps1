@@ -167,6 +167,7 @@ BeforeAll {
     $script:record = @()
     $script:rawJsonl = ''
     $script:relocatedJsonl = ''
+    $script:relocatedFirstByte = @()
     $script:relocatedRecord = @()
     $script:logFirstByte = @()
     $script:state = $null
@@ -614,6 +615,14 @@ variables:
 
                         if ($relative -eq 'HDT\Logs\HDT.jsonl') {
                             $script:relocatedJsonl = [System.IO.File]::ReadAllText($path)
+
+                            # THE FIRST BYTES OFF THE MACHINE'S OWN COPY, for the
+                            # same reason the text is read: under MEDIA there is
+                            # no copy on the deploy root to take them from, and
+                            # the BOM assertion is about how the ENGINE writes a
+                            # log rather than about which path carried it.
+                            $script:relocatedFirstByte = @([System.IO.File]::ReadAllBytes($path) |
+                                    Select-Object -First 4)
                         }
                     }
                 }
@@ -636,6 +645,36 @@ variables:
                 $script:relocatedRecord = @(($script:relocatedJsonl -split "`r?`n") |
                         Where-Object { -not [string]::IsNullOrWhiteSpace($_) } |
                         ForEach-Object { ConvertFrom-Json $_ })
+            }
+
+            # -- THE MEDIA PATH WRITES NO COPY BACK, SO READ THE MACHINE'S OWN --
+            #
+            # THE EVIDENCE WAS ALWAYS HERE; THIS SUITE WAS LOOKING IN ONE PLACE.
+            # Under HDTDeploymentMethod MEDIA the engine deliberately does NOT
+            # copy the log back to the deploy root - the deploy root is
+            # read-only content on a disc (phase 06, carry-over 3), and the log
+            # says so in as many words. So Share\Logs\<name>-<runid>\ never
+            # exists on that path and $script:record came back empty, which read
+            # as "the deployment produced nothing" when in fact all five steps
+            # had Completed.
+            #
+            # That is what failed the E2E workflow on GHRUNNER01 on 2026-09-07:
+            # the runner deploys from media, not over SMB, and five assertions
+            # reported a working deployment as a silent one.
+            #
+            # The relocated copy above is the SAME log, written by 05-03's
+            # Set-HDTLogPath onto the volume DiskPartition had just formatted.
+            # Falling back to it makes this suite read the evidence the method
+            # actually produces rather than the evidence one method produces.
+            if (@($script:record).Count -eq 0 -and @($script:relocatedRecord).Count -gt 0) {
+                $script:record = $script:relocatedRecord
+                $script:rawJsonl = $script:relocatedJsonl
+
+                if (@($script:logFirstByte).Count -eq 0) {
+                    $script:logFirstByte = @($script:relocatedFirstByte)
+                }
+
+                Write-Information ("the share carried no run folder, so the evidence was read off the deployed volume instead - which is what HDTDeploymentMethod MEDIA produces") -InformationAction Continue
             }
         } finally {
             Dismount-DiskImage -ImagePath $script:osDiskPath -ErrorAction SilentlyContinue | Out-Null
@@ -921,8 +960,28 @@ Describe 'the log survived the machine' -Tag 'E2E' -Skip:$skipDeployment {
         $script:targetFile['HDT\state.json'] | Should -BeTrue
     }
 
-    It 'copied the logs back to the deploy root' {
-        $script:runFolderName | Should -BeLike 'HDT-M4-01-*'
+    It 'put the log where this deployment method puts it' {
+        # TWO METHODS, TWO CORRECT ANSWERS, AND THIS USED TO KNOW ONLY ONE.
+        #
+        # Over UNC the engine copies the run back to Share\Logs\<name>-<runid>        # and the folder name is the assertion. Under MEDIA it deliberately does
+        # not - the deploy root is read-only content on a disc - and the log
+        # lives on the machine's own volume instead. Demanding the copy-back
+        # regardless failed a media deployment for behaving exactly as designed.
+        $method = ''
+        if (-not [string]::IsNullOrWhiteSpace($script:launcherLog) -and
+            $script:launcherLog -match 'deployment method\s+(\w+)') {
+            $method = $Matches[1]
+        }
+
+        if ($method -eq 'MEDIA') {
+            $script:targetFile['HDT\Logs\HDT.jsonl'] | Should -BeTrue -Because (
+                'under MEDIA the deploy root is read-only, so the log has to be on the machine')
+        } else {
+            $script:runFolderName | Should -BeLike 'HDT-M4-01-*'
+        }
+
+        # EITHER WAY THERE IS A LOG. Whichever path wrote it, the run has to
+        # have left one somewhere this suite can read.
         $script:rawJsonl | Should -Not -BeNullOrEmpty
     }
 }
