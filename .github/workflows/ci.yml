@@ -111,9 +111,27 @@ jobs:
       - name: Build, lint, test, self-check
         run: ./build.ps1 -Task ci
 
+      # AND IT CANNOT FAIL THE RUN. Run 34250900149 built, linted, tested and
+      # self-checked clean - 15693 passed, the badge pushed brightgreen - and
+      # reported failure, because upload-artifact got HTTP 403 from GitHub's
+      # artifact service while finalising. The bytes were already up; only the
+      # finalise handshake was refused, the action calls a 403 non-retryable and
+      # exits 1, and one optional copy of a report sank the whole gate. The
+      # identical step, name and path had succeeded four hours earlier.
+      #
+      # THE VERDICT IS build.ps1's. What goes up here is a convenience copy of
+      # numbers the run already states twice over - the step summary below and
+      # the badge, both written before it. Storage refusing to take that file
+      # says nothing about whether HDT works, and it is not worth a merge.
+      #
+      # continue-on-error IS NOT if-no-files-found, which is already `warn`: a
+      # missing report has never failed this step, so the only thing tolerated
+      # here is the service refusing a file that exists. The step still shows
+      # red on the run page - the failure stays visible, it just stops voting.
       - name: Upload test results
         if: always()
         uses: actions/upload-artifact@v4
+        continue-on-error: true
         with:
           name: pester-powershell
           path: out/testResults/*.xml

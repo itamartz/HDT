@@ -329,3 +329,81 @@ Describe 'Coverage workflow' {
         $script:coverageText | Should -Match 'Publish badges'
     }
 }
+
+Describe 'Artefact uploads (every workflow)' {
+
+    # A GREEN GATE MUST NOT GO RED BECAUSE GITHUB'S STORAGE SAID NO.
+    #
+    # Run 34250900149 built, linted, tested and self-checked clean - 15693
+    # passed, the badge pushed brightgreen - and reported failure, because
+    # actions/upload-artifact@v4 got HTTP 403 from the artifact service while
+    # finalising. The bytes had already gone up; only the finalise handshake was
+    # refused, the action calls that non-retryable and exits 1, and one optional
+    # diagnostic copy sank the whole run. The identical step, name and path had
+    # succeeded four hours earlier on the same runner image.
+    #
+    # THE VERDICT BELONGS TO build.ps1, NOT TO A BLOB STORE. Every one of these
+    # steps uploads a convenience copy of something the run already reports
+    # another way - the NUnit xml behind a summary and a badge that are written
+    # before it, the e2e screenshots behind an assertion that already failed. A
+    # transport error on any of them is worth an annotation and is not worth a
+    # merge.
+    #
+    # continue-on-error IS NOT if-no-files-found. The latter is already `warn`
+    # (or `ignore`), so a missing report has never failed a step; the only thing
+    # this suppresses is the service refusing to take a file that exists. The
+    # step still shows red on the run page, so the failure stays visible.
+    #
+    # ACROSS THE SET, because the coupling is in every one of them and fixing
+    # only the step that happened to break leaves the next one to be diagnosed
+    # from scratch. Same class as the lab-safety guards that failed CI for being
+    # a CI runner: the environment, not the code.
+
+    BeforeAll {
+        $script:uploadRepoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
+
+        $script:uploadWorkflow = @(Get-ChildItem `
+                -LiteralPath (Join-Path -Path $script:uploadRepoRoot -ChildPath '.github/workflows') `
+                -Filter '*.yml' -File)
+
+        $script:uploadStep = @(
+            if (Test-HDTModuleAvailable -Name 'powershell-yaml') {
+                foreach ($file in $script:uploadWorkflow) {
+                    $document = ConvertFrom-Yaml (Get-Content -LiteralPath $file.FullName -Raw)
+                    if (-not ($document -is [System.Collections.IDictionary]) -or -not $document.Contains('jobs')) { continue }
+
+                    foreach ($jobName in @($document['jobs'].Keys)) {
+                        $job = $document['jobs'][$jobName]
+                        if (-not ($job -is [System.Collections.IDictionary]) -or -not $job.Contains('steps')) { continue }
+
+                        foreach ($step in @($job['steps'])) {
+                            if (-not ($step -is [System.Collections.IDictionary]) -or -not $step.Contains('uses')) { continue }
+                            if ($step['uses'] -notlike 'actions/upload-artifact*') { continue }
+
+                            [pscustomobject] @{
+                                Workflow  = $file.Name
+                                Step      = [string] $step['name']
+                                Tolerated = $step.Contains('continue-on-error') -and [bool] $step['continue-on-error']
+                            }
+                        }
+                    }
+                }
+            })
+    }
+
+    It 'finds the upload steps at all, so the sweep below cannot pass by finding none' -Skip:$script:HDTYamlMissing {
+        # ci.yml uploads the NUnit results; coverage.yml the JaCoCo report and
+        # its own results; e2e.yml the results and the deployment diagnostics.
+        @($script:uploadStep).Count | Should -BeGreaterThan 4
+    }
+
+    It 'never lets a refused upload decide the run' -Skip:$script:HDTYamlMissing {
+        $offender = @($script:uploadStep |
+                Where-Object { -not $_.Tolerated } |
+                ForEach-Object { '{0} / {1}' -f $_.Workflow, $_.Step })
+
+        $offender -join '; ' | Should -BeExactly '' -Because (
+            'an upload-artifact step without continue-on-error hands GitHub artifact storage a veto over ' +
+            'the gate. Run 34250900149 passed every check and reported failure on a 403 while finalising')
+    }
+}

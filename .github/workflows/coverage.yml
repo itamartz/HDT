@@ -52,9 +52,13 @@ jobs:
       - name: Test with coverage
         run: ./build.ps1 -Task test -Coverage -Verbosity None
 
+      # continue-on-error on both, for the reason ci.yml's upload step spells
+      # out: a 403 from GitHub's artifact storage is not a verdict on the code,
+      # and a diagnostic copy does not get to fail the run that produced it.
       - name: Upload coverage report
         if: always()
         uses: actions/upload-artifact@v4
+        continue-on-error: true
         with:
           name: coverage-jacoco
           path: out/coverage/coverage.xml
@@ -62,6 +66,7 @@ jobs:
       - name: Upload test results
         if: always()
         uses: actions/upload-artifact@v4
+        continue-on-error: true
         with:
           name: pester-coverage-run
           path: out/testResults/*.xml

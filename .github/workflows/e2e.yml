@@ -184,9 +184,15 @@ jobs:
       - name: End-to-end
         run: ./build.ps1 -Task e2e
 
+      # continue-on-error on this and the diagnostics below, for the reason
+      # ci.yml's upload step spells out: a 403 from GitHub's artifact storage is
+      # not a verdict on the code. It matters more here - the screenshots are
+      # the only record of why a VM did not come up, so the upload failing must
+      # not also erase which assertion failed.
       - name: Upload test results
         if: always()
         uses: actions/upload-artifact@v4
+        continue-on-error: true
         with:
           name: pester-e2e
           path: out/testResults/*.xml
@@ -198,6 +204,7 @@ jobs:
       - name: Upload deployment diagnostics
         if: always()
         uses: actions/upload-artifact@v4
+        continue-on-error: true
         with:
           name: e2e-diagnostics
           path: |
