@@ -30,9 +30,66 @@ permissions:
   contents: write        # gh release create is a repository write; there is no narrower scope for it.
 
 jobs:
-  publish:
-    name: powershell gallery
+
+  # ==========================================================================
+  # preflight -> ci -> lab -> publish, AND THE ORDER IS THE POINT OF THIS FILE.
+  #
+  # Until v0.24.0 a `v*` tag ran clean,bundle,build,lint,test,selfcheck on a
+  # hosted runner and went straight to the PowerShell Gallery. tests/e2e - the
+  # only suite that proves HDT can deploy a machine at all - was not in that
+  # path. It ran on a Sunday cron, and a release never waited for it.
+  #
+  # THE CHAIN IS ORDERED BY WHAT IT COSTS TO FIND OUT SOMETHING IS WRONG.
+  #
+  # preflight  the two questions answerable in a minute that building cannot
+  #            change: does the tag match the manifest, and does the Gallery
+  #            already hold this version. A tag that disagrees with the
+  #            manifest must not burn an hour and a half of somebody's Hyper-V
+  #            host before saying so.
+  #
+  # ci         ci.yml, CALLED rather than copied - the same two-edition matrix
+  #            the branch runs, on hosted runners, on this exact commit.
+  #            "The tagged commit already passed CI on main" is true right up
+  #            until it is not: a tag on an older commit, a tag pushed while
+  #            the branch's own run is still going, a commit that reached main
+  #            by a route that did not run CI. In each of those the shape
+  #            without this job spent the lab and the approval FIRST and found
+  #            the lint failure afterwards.
+  #
+  # lab        e2e.yml, also called. Runs on GHRUNNER01, behind the `lab`
+  #            environment's required reviewer, so a release stops and waits
+  #            for a human. That is deliberate: shipping to a public gallery
+  #            is the one thing here that cannot be undone.
+  #
+  # publish    stages the artefact, then the Gallery, then the Release. It
+  #            `needs` both gates and carries no `if:` of its own - which is
+  #            what makes them unbypassable. A job that needs another runs
+  #            only when that one SUCCEEDED; add always() and "the gates
+  #            passed" silently becomes "the gates finished, or were
+  #            cancelled, or never ran". PublishWorkflow.Tests.ps1 fails the
+  #            file on always() here, and on an `if:` on either gate.
+  # ==========================================================================
+
+  preflight:
+    name: tag and gallery
     runs-on: windows-latest
+
+    # Two manifest reads and one Find-Module. If this is still going at ten
+    # minutes, the Gallery is not answering, and the release should say so now
+    # rather than after the lab has run.
+    timeout-minutes: 10
+
+    # Nothing here writes. The write this workflow needs is for `gh release
+    # create`, and it belongs to the job that makes the Release.
+    permissions:
+      contents: read
+
+    # THE GALLERY ANSWER HAS TO OUTLIVE THIS JOB. It used to be read as
+    # steps.gallery.outputs.published by two later steps in the same job;
+    # those steps are now in a different job, so it is published as a job
+    # output and read as needs.preflight.outputs.published.
+    outputs:
+      published: ${{ steps.gallery.outputs.published }}
 
     defaults:
       run:
@@ -40,19 +97,6 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-
-      - name: Install build dependencies
-        run: |
-          [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-
-          Install-PackageProvider -Name NuGet -MinimumVersion 2.8.5.201 -Force | Out-Null
-
-          Set-PSRepository -Name PSGallery -InstallationPolicy Trusted
-          Install-Module Pester            -RequiredVersion 5.7.1  -Scope CurrentUser -Force -SkipPublisherCheck
-          Install-Module PSScriptAnalyzer  -RequiredVersion 1.25.0 -Scope CurrentUser -Force
-          Install-Module powershell-yaml   -RequiredVersion 0.4.12 -Scope CurrentUser -Force
-
-          "$($PSVersionTable.PSEdition) $($PSVersionTable.PSVersion): dependencies installed"
 
       # THE VERSION IS THE TAG, OR THE TAG IS WRONG. A tag that does not match
       # the manifest publishes a version nobody asked for and leaves the
@@ -115,6 +159,116 @@ jobs:
 
           "the Gallery does not have $version yet"
 
+      # A RUN THAT STOPS WITH NO EXPLANATION LOOKS BROKEN. The next job waits
+      # on the `lab` environment's required reviewer, and GitHub renders that
+      # as a job sitting there doing nothing at all. Somebody who tagged a
+      # release and came back to a still-running run needs to be told it is
+      # waiting for THEM, not for the runner.
+      - name: Say what happens next
+        run: |
+          $lines = @(
+              '## What this run does next'
+              ''
+              '1. **Lab (end-to-end)** - `e2e.yml` on the self-hosted runner GHRUNNER01: it builds a boot image, creates Hyper-V VMs and deploys Windows to them.'
+              '2. **Publish** - the full build and suite, then the Gallery, then the Release. Only if the lab job succeeds.'
+              ''
+              '**This run is now waiting for an approval.** The lab job uses the `lab` environment, which carries a required reviewer, so it will not start until somebody approves it on this run page. It is not hung.'
+              ''
+              'If GHRUNNER01 is switched off the lab job stays queued and GitHub cancels it after 24 hours; the release then fails rather than publishing something no lab ever ran.'
+          )
+
+          [System.IO.File]::AppendAllText($env:GITHUB_STEP_SUMMARY, ($lines -join "`n") + "`n")
+
+          $lines -join "`n"
+
+  # THE GATE, AND IT IS ci.yml ITSELF. Same argument as the lab below: one
+  # definition, two callers. A copy of the matrix, the dependency pins and the
+  # build invocation would be a second source of truth, and the branch's copy
+  # would be the one still green after somebody fixed the release's.
+  #
+  # NO `if:` ON THIS JOB, EVER - see the note on the lab job.
+  #
+  # contents: write, AND IT IS NOT A WIDENING. ci.yml declares that at workflow
+  # level for the badges branch, and a called workflow may not ask for more
+  # than the calling job grants - hand it read and the call is refused, not
+  # quietly narrowed. What stops a release touching the badges is the REF: the
+  # badge step requires refs/heads/main and a release runs on refs/tags/v*, so
+  # it is skipped and cannot race the branch's own run. That guard is asserted
+  # in CiWorkflow.Tests.ps1.
+  #
+  # ./build.ps1 -Task ci RUNS version, WHICH REWRITES ModuleVersion - the
+  # v0.4.0 defect, where a bump between the tag check and the upload put 0.5.0
+  # on the Gallery under a tag reading 0.4.0. It is harmless HERE and only
+  # here: a job gets its own runner and its own checkout, so the bump lands in
+  # a tree that is thrown away, and the publish job below reads the manifest at
+  # the tag. Move these steps into that job and the defect comes back.
+  ci:
+    name: gate
+    needs: preflight
+    uses: ./.github/workflows/ci.yml
+    permissions:
+      contents: write
+
+  # THE LAB, AND IT IS e2e.yml ITSELF. Rule 8 applied to CI: one definition,
+  # two callers. The Sunday cron and this both run the same job, so a fix to
+  # the runner's dependency checks reaches both or neither.
+  #
+  # NO `if:` ON THIS JOB, EVER. An `if:` here is the bypass - a condition that
+  # evaluates false skips the job, and GitHub then skips everything that needs
+  # it, so a mistyped guard would not fail the release, it would publish
+  # without a lab run. That includes the dry-run path: a rehearsal that skips
+  # the thing being rehearsed is not a rehearsal.
+  #
+  # READ, AND NO SECRETS. This job runs on a machine in somebody's lab. It has
+  # no use for the token that creates Releases or for PSGALLERY_API_KEY, so it
+  # is handed neither. `secrets:` is absent rather than `inherit`.
+  #
+  # 180 MINUTES, NOT THE CRON'S 360. Four of the nine e2e suites skip on
+  # GHRUNNER01 for want of the 50 GB share, so what actually runs there is
+  # roughly ninety minutes of VM time. Three hours is double that and still
+  # half of what the Sunday run is allowed, because a release nobody can ship
+  # gets worse the longer it takes to find out. It bounds EXECUTION, not the
+  # wait for a runner - see the note on timeout-minutes in e2e.yml.
+  #
+  # THE HOURLY CHECKPOINT REVERT DOES NOT REACH IT. MS-A2 rolls GHRUNNER01
+  # back to its `clean` checkpoint every hour, and that task skips while
+  # Runner.Worker.exe exists in the guest (PROJECT.md, "GHRUNNER01"). A job
+  # longer than an hour is therefore not at risk of being reverted underneath
+  # itself; the reverts happen in the gaps between jobs.
+  lab:
+    name: end-to-end
+    needs: ci
+    uses: ./.github/workflows/e2e.yml
+    permissions:
+      contents: read
+    with:
+      timeoutMinutes: 180
+
+  publish:
+    name: powershell gallery
+    needs: [preflight, ci, lab]
+    runs-on: windows-latest
+
+    defaults:
+      run:
+        shell: powershell
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+
+          Install-PackageProvider -Name NuGet -MinimumVersion 2.8.5.201 -Force | Out-Null
+
+          Set-PSRepository -Name PSGallery -InstallationPolicy Trusted
+          Install-Module Pester            -RequiredVersion 5.7.1  -Scope CurrentUser -Force -SkipPublisherCheck
+          Install-Module PSScriptAnalyzer  -RequiredVersion 1.25.0 -Scope CurrentUser -Force
+          Install-Module powershell-yaml   -RequiredVersion 0.4.12 -Scope CurrentUser -Force
+
+          "$($PSVersionTable.PSEdition) $($PSVersionTable.PSVersion): dependencies installed"
+
       # EVERY ci TASK EXCEPT version, AND THAT IS THE WHOLE POINT. The version
       # task REWRITES ModuleVersion in the manifest when the sources have moved
       # since the last recorded bump - it is a source edit somebody makes and
@@ -128,14 +282,37 @@ jobs:
       #
       # BUMP IT BEFORE YOU TAG: ./build.ps1 -Task version, commit the manifest,
       # tag that commit.
-      - name: Build, lint, test, self-check
-        run: ./build.ps1 -Task clean,bundle,build,lint,test,selfcheck
+      # STAGES THE ARTEFACT. IT IS NO LONGER THE GATE - the ci job is, on this
+      # same commit, on both editions, minutes earlier.
+      #
+      # WHAT SURVIVED. bundle and build are not verification, they are how
+      # out/Hephaestus/<version> comes to exist at all - and build carries the
+      # only checks that look at the PACKAGE rather than the sources:
+      # Test-ModuleManifest, FunctionsToExport compared against what the module
+      # really exports, and a refusal if Hephaestus.bundle.ps1 was not staged
+      # (a package with neither the bundle nor the sources imports nothing, and
+      # the Gallery keeps a published version for ever). clean is there so the
+      # stage cannot inherit anything from an earlier run.
+      #
+      # WHAT WENT, AND WHY. lint, test and selfcheck all run in the ci job and
+      # none of them reads the staged folder: lint analyses src/, test runs
+      # tests/unit and tests/contract, and selfcheck watches a deliberately
+      # failing test fail - it proves the harness, not the package. Running
+      # them again here was twenty minutes per release buying a second opinion
+      # from the same code about the same commit.
+      #
+      # STILL NOT version, AND STILL NOT ci. Both move ModuleVersion, and this
+      # is the job whose manifest the upload below re-reads.
+      - name: Stage the module
+        run: ./build.ps1 -Task clean,bundle,build
 
       # SKIPPED WHEN THE GALLERY ALREADY HAS THIS VERSION, and only then. The
       # output is empty on a dry run - that step does not run at all there - so
-      # the comparison has to be against 'false' rather than for 'true'.
+      # the comparison has to be against 'false' rather than for 'true'. It is
+      # read from the preflight JOB now, because the check that produces it
+      # runs in front of the lab rather than in this job.
       - name: Publish to the PowerShell Gallery
-        if: steps.gallery.outputs.published != 'false'
+        if: needs.preflight.outputs.published != 'false'
         env:
           PSGALLERY_API_KEY: ${{ secrets.PSGALLERY_API_KEY }}
         run: |
@@ -197,7 +374,7 @@ jobs:
       #
       # SAME GUARD AS THE GALLERY PUBLISH, so the two cannot drift: a dry run
       # (workflow_dispatch) and a version the Gallery already has both leave
-      # steps.gallery.outputs.published as anything but the string 'false' is
+      # needs.preflight.outputs.published as anything but the string 'false' is
       # wrong to read here too, and a Release that appeared for a publish that
       # did not happen is worse than one that is late.
       #
@@ -206,7 +383,7 @@ jobs:
       # by construction and needs nothing added here when the commit style
       # changes.
       - name: Create a GitHub Release
-        if: github.event_name == 'push' && steps.gallery.outputs.published != 'false'
+        if: github.event_name == 'push' && needs.preflight.outputs.published != 'false'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |

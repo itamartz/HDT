@@ -61,6 +61,33 @@ on:
     # they wait on ci.yml.
     - cron: '0 2 * * 0'
 
+  # AND FROM publish.yml, WHICH IS WHY A RELEASE NOW HAS EVIDENCE BEHIND IT.
+  # Until v0.24.0 a `v*` tag went straight to the PowerShell Gallery on a
+  # hosted runner: build, lint, unit and contract tests, ship. The one suite
+  # that proves HDT can actually deploy a machine ran on a Sunday cron that
+  # nobody was watching, and no release ever waited for it.
+  #
+  # CALLED, NOT COPIED. publish.yml names this file with `uses:`, so the cron
+  # and the release path run the SAME job definition - the dependency checks,
+  # the elevation check, the diagnostics upload, all of it. A copy of these
+  # steps in publish.yml would be the copy still green after somebody fixed
+  # this one. That is rule 8 applied to CI.
+  #
+  # workflow_call IS NOT A TRIGGER A STRANGER CAN PULL. It fires only when a
+  # workflow in THIS repository names this file, and the caller's own triggers
+  # decide who can reach it. Which is the new way to hand the lab host to a
+  # fork: not by adding pull_request here, but by adding a `uses:` line to a
+  # workflow that already has one. ci.yml does have one, and must.
+  # E2eWorkflow.Tests.ps1 asserts that over the whole set of workflow files,
+  # because the file that breaks it will be one somebody adds later.
+  workflow_call:
+    inputs:
+      timeoutMinutes:
+        description: 'Minutes before the job is cancelled. The release path wants a shorter one than the cron.'
+        type: number
+        required: false
+        default: 360
+
 # READ ONLY, AND NOTHING ELSE. ci.yml needs contents: write for the badges
 # branch; this needs nothing at all. A self-hosted job is the last place to hand
 # out a writable token.
@@ -74,8 +101,25 @@ jobs:
     environment: lab
 
     # It deploys Windows to VMs from a WinPE image it builds first. Six hours is
-    # not a target, it is the point past which something has hung.
-    timeout-minutes: 360
+    # not a target, it is the point past which something has hung - and it is
+    # what the Sunday cron gets, where nobody is waiting.
+    #
+    # A RELEASE PASSES A SHORTER ONE. `timeout-minutes` is not a key GitHub
+    # allows on a job that calls a reusable workflow, so the caller cannot set
+    # this from outside; it hands in a number and this job applies it.
+    #
+    # THE `|| 360` IS NOT DECORATION. An input declared under workflow_call
+    # gets its default only when the workflow is CALLED. On the cron and on a
+    # workflow_dispatch, `inputs.timeoutMinutes` is null, and a bare
+    # `timeout-minutes: ${{ inputs.timeoutMinutes }}` is then an empty value
+    # and an invalid workflow file - a run with zero jobs, not an error.
+    #
+    # AND IT DOES NOT BOUND THE WAIT FOR A RUNNER. timeout-minutes starts when
+    # the job starts. GHRUNNER01 is a VM on another host and is not always up;
+    # a job with nowhere to run sits queued, and GitHub cancels it after 24
+    # hours. That is the outer bound on a release whose lab is switched off:
+    # slow, but it fails rather than publishing unproven.
+    timeout-minutes: ${{ inputs.timeoutMinutes || 360 }}
 
     defaults:
       run:

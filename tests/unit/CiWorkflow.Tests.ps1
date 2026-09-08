@@ -174,6 +174,29 @@ Describe 'CI workflow (DESIGN 12.2.5)' {
             $script:badgeStep[0]['if'] | Should -BeLike "*push*"
         }
 
+        It 'cannot fire when the release path calls this workflow' {
+            # THE ONE THING A RELEASE-PATH INVOCATION MUST NOT DO. publish.yml
+            # calls this workflow, and a called workflow sees the CALLER's
+            # github context - so on a release `github.event_name` really is
+            # 'push' and the first half of this guard is satisfied.
+            #
+            # `github.ref` IS WHAT STOPS IT. A release runs on refs/tags/v0.25.0
+            # and this requires refs/heads/main, which no tag ref can ever
+            # equal - so the badge step is skipped, nothing is pushed to the
+            # badges branch, and a release cannot race the branch's own run for
+            # the same commit parent. The manual publish path is skipped twice
+            # over: workflow_dispatch is not 'push' either.
+            #
+            # THIS IS THE GUARD, NOT THE TOKEN. The calling job has to grant
+            # contents: write, because a called workflow may not ask for more
+            # than its caller holds and this file declares write at workflow
+            # level. So the ref comparison is the whole defence, and it is
+            # asserted here rather than left as a happy accident of the
+            # condition written for a different reason.
+            $script:badgeStep[0]['if'] | Should -BeLike '*refs/heads/main*'
+            $script:badgeStep[0]['if'] | Should -BeLike "*github.ref ==*"
+        }
+
         It 'pushes to a branch and never to the checkout the build ran from' {
             # An orphan checkout of THIS working tree is one `git rm -rf .` away
             # from deleting the tree the build just ran in.
@@ -188,6 +211,19 @@ Describe 'CI workflow (DESIGN 12.2.5)' {
             $permission['contents'] | Should -BeExactly 'write'
             @($permission.Keys) | Should -Be @('contents')
         }
+    }
+
+    It 'is one definition the release path can call, not a shape to copy' {
+        # publish.yml RUNS THIS FILE BEFORE IT SHIPS ANYTHING. A tag used to go
+        # to the Gallery on the strength of "the commit passed CI on main",
+        # which is true until the tag points at an older commit, or is pushed
+        # while the branch's own run is still going, or names a commit that
+        # reached main by a route that did not run CI.
+        #
+        # CALLED, NOT COPIED, for the same reason as e2e.yml: the release then
+        # runs the IDENTICAL matrix the branch does, and a change to the pins
+        # or the editions reaches both callers or neither.
+        $script:workflowText | Should -Match '(?m)^\s{2}workflow_call:'
     }
 
     It 'invokes ./build.ps1 with the ci task' {

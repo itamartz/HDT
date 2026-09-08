@@ -55,6 +55,28 @@ on:
   pull_request:
   workflow_dispatch:
 
+  # AND FROM publish.yml, SO A RELEASE RUNS THE GATE RATHER THAN ASSUMING IT.
+  # A tag used to reach the PowerShell Gallery on the strength of "the commit
+  # it points at passed CI on main". That holds until the tag names an older
+  # commit, or is pushed while the branch's own run is still going, or names a
+  # commit that reached main by a route that did not run this. In each of
+  # those the release path spent ninety minutes of the lab host and a human's
+  # approval click before finding a lint failure.
+  #
+  # CALLED, NOT COPIED, for the same reason as e2e.yml: the release runs the
+  # IDENTICAL matrix the branch does - 5.1 for the gate, 7 for the seven
+  # schema contracts that skip whole under 5.1 - and a change to the pins or
+  # the editions reaches both callers or neither.
+  #
+  # THE BADGES DO NOT MOVE WHEN IT IS CALLED. A called workflow sees the
+  # CALLER's github context, so on a release `github.event_name` is genuinely
+  # 'push' - but `github.ref` is refs/tags/v0.25.0, and the badge step below
+  # requires refs/heads/main. It is skipped, nothing reaches the badges
+  # branch, and a release cannot race the branch's own run for the same commit
+  # parent. CiWorkflow.Tests.ps1 asserts that guard on purpose rather than
+  # leaving it as a happy side effect of a condition written for forks.
+  workflow_call:
+
 permissions:
   contents: write        # the badges branch, below. Nothing else is written.
 
