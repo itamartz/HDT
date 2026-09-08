@@ -57,6 +57,27 @@ BeforeAll {
 
     $script:sideEffectService = @('RegistryService', 'LsaService', 'PowerService', 'ProcessService', 'ScriptInvoker')
 
+    # -- what this machine had BEFORE the run ------------------------------
+    #
+    # The 'it touched nothing real' context compares these readings against the
+    # same readings taken after the run. It used to assert the paths were
+    # ABSENT, which is a claim about the MACHINE and not about the run - and it
+    # went red the day the gate moved onto GHRUNNER01, a machine HDT ITSELF
+    # DEPLOYED, whose C:\HDT\Logs holds the log of the deployment that built it
+    # (run-20260907-072951). Green on a laptop, red on the runner for being a
+    # runner: fb3ef00 fixed the same defect in the lab-safety guards.
+    #
+    # A reading that has not moved proves what the assertion always meant -
+    # this run created nothing, grew nothing and rewrote nothing out there -
+    # on a bare machine and on a deployed one alike.
+    $script:realDiskPath = @('X:\HDT\Logs\HDT.jsonl', 'C:\HDT\Logs\HDT.jsonl', 'C:\HDT\Logs\state.json', 'C:\ws\TaskSequences')
+    $script:realRegistryPath = @(
+        'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnce',
+        'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon')
+
+    $script:realDiskBefore = @(Get-HDTRealMachineState -Path $script:realDiskPath)
+    $script:realRegistryBefore = @(Get-HDTRealMachineState -Path $script:realRegistryPath)
+
     # -- one machine's worth of doubles, built once -----------------------
 
     $script:journal = [System.Collections.ArrayList]::new()
@@ -882,21 +903,31 @@ Describe 'the DEMO-M2 task sequence, end to end against fakes' {
         }
 
         It 'wrote no file to the real disk' {
-            foreach ($path in @('X:\HDT\Logs\HDT.jsonl', 'C:\HDT\Logs\HDT.jsonl', 'C:\HDT\Logs\state.json', 'C:\ws\TaskSequences')) {
-                Test-Path -LiteralPath $path | Should -BeFalse -Because "$path exists only inside the fake"
+            # C:\HDT\Logs IS THE ENGINE'S OWN PATH ON A DEPLOYED MACHINE, which
+            # is why absence was the wrong proof: the machine that runs this
+            # gate was deployed by HDT and legitimately owns that tree. What is
+            # asserted is that the run did not MOVE it (see BeforeAll).
+            $after = @(Get-HDTRealMachineState -Path $script:realDiskPath)
+
+            for ($index = 0; $index -lt $script:realDiskPath.Count; $index++) {
+                $after[$index].State | Should -BeExactly $script:realDiskBefore[$index].State -Because (
+                    "{0} was '{1}' before this run and every write in it went to a fake" -f
+                    $script:realDiskPath[$index], $script:realDiskBefore[$index].State)
             }
         }
 
         It 'touched no real registry key' {
-            $runOnce = Get-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnce' -ErrorAction SilentlyContinue
+            # The reading is the key's VALUE NAMES, never their data - the whole
+            # point of this run is that DefaultPassword is never written, and a
+            # failure message carrying one would be a worse defect than the one
+            # it reported. A name set is enough: HDTResume and AutoLogonCount
+            # are both names this run would have had to add.
+            $after = @(Get-HDTRealMachineState -Path $script:realRegistryPath)
 
-            if ($null -ne $runOnce) {
-                $runOnce.PSObject.Properties['HDTResume'] | Should -BeNullOrEmpty
-            }
-
-            $winlogon = Get-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon' -ErrorAction SilentlyContinue
-            if ($null -ne $winlogon) {
-                $winlogon.PSObject.Properties['AutoLogonCount'] | Should -BeNullOrEmpty
+            for ($index = 0; $index -lt $script:realRegistryPath.Count; $index++) {
+                $after[$index].State | Should -BeExactly $script:realRegistryBefore[$index].State -Because (
+                    "{0} carried the same values before this run, which armed autologon through a fake" -f
+                    $script:realRegistryPath[$index])
             }
         }
 

@@ -32,6 +32,21 @@ BeforeAll {
     Import-Module -Name (Join-Path -Path $script:repoRoot -ChildPath 'tests/helpers/HDTFakes/HDTFakes.psd1') -Force -ErrorAction Stop
     Import-Module -Name (Join-Path -Path $script:repoRoot -ChildPath 'tests/helpers/HDTTestTools/HDTTestTools.psd1') -Force -ErrorAction Stop
 
+    # -- what this machine had BEFORE the run ------------------------------
+    #
+    # The 'it touched nothing real' context compares these readings with the
+    # same readings taken afterwards. It used to assert the paths were ABSENT,
+    # which is a claim about the MACHINE rather than about the run: W: and R:
+    # are the volume letters a deployment gives the OS and recovery partitions,
+    # X:\HDT\Logs is where the WinPE leg writes its live log, and every one of
+    # them EXISTS on a machine that is being, or has been, deployed - the gate's
+    # own runner among them. A reading that has not moved proves what the
+    # assertion always meant, on any machine.
+    $script:realDiskPath = @('W:\Windows\Panther\unattend.xml', 'R:\Recovery\WindowsRE',
+        'X:\HDT\Logs\HDT.jsonl', 'Z:\Deploy\TaskSequences')
+
+    $script:realDiskBefore = @(Get-HDTRealMachineState -Path $script:realDiskPath)
+
     # -- the sample files, read off disk -----------------------------------
 
     $script:sampleRoot = Join-Path -Path $script:repoRoot -ChildPath 'samples/workspace'
@@ -497,10 +512,12 @@ Describe 'the DEMO-M3 imaging sequence, end to end against fakes' {
     Context 'it touched nothing real' {
 
         It 'wrote no file on the real filesystem' {
-            foreach ($path in @('W:\Windows\Panther\unattend.xml', 'R:\Recovery\WindowsRE',
-                    'X:\HDT\Logs\HDT.jsonl', 'Z:\Deploy\TaskSequences')) {
+            $after = @(Get-HDTRealMachineState -Path $script:realDiskPath)
 
-                Test-Path -LiteralPath $path | Should -BeFalse -Because "$path exists only inside the fake"
+            for ($index = 0; $index -lt $script:realDiskPath.Count; $index++) {
+                $after[$index].State | Should -BeExactly $script:realDiskBefore[$index].State -Because (
+                    "{0} was '{1}' before this run and every write in it went to a fake" -f
+                    $script:realDiskPath[$index], $script:realDiskBefore[$index].State)
             }
         }
 

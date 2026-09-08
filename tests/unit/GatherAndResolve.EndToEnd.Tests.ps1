@@ -22,6 +22,18 @@ BeforeAll {
     $script:repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
     Import-Module -Name (Join-Path -Path $script:repoRoot -ChildPath 'tests/helpers/HDTFakes/HDTFakes.psd1') -Force -ErrorAction Stop
     Import-Module -Name (Join-Path -Path $script:repoRoot -ChildPath 'src/Hephaestus/Hephaestus.psd1') -Force -ErrorAction Stop
+    Import-Module -Name (Join-Path -Path $script:repoRoot -ChildPath 'tests/helpers/HDTTestTools/HDTTestTools.psd1') -Force -ErrorAction Stop
+
+    # -- what this machine had BEFORE the run ------------------------------
+    #
+    # 'the run touched nothing real' compares these readings with the same
+    # readings taken afterwards, rather than asserting the paths are absent. An
+    # absence assertion is a claim about the MACHINE, and the machine that runs
+    # the gate is one HDT deployed - which is how the same shape in
+    # TaskSequence.EndToEnd went red on GHRUNNER01 for owning C:\HDT\Logs.
+    $script:realDiskPath = @('C:\ws', 'C:\ws\Logs\Gather\provenance.json')
+
+    $script:realDiskBefore = @(Get-HDTRealMachineState -Path $script:realDiskPath)
 
     $script:sampleRoot = Join-Path -Path $script:repoRoot -ChildPath 'samples/workspace'
     $script:uuid = '4C4C4544-0031-3610-8052-B7C04F515A31'
@@ -240,7 +252,11 @@ Describe 'Gather and resolve, end to end' {
 
         It 'read the workspace only through the fake filesystem' {
             $script:fileSystem.GetOperationName() | Should -Contain 'ReadAllText'
-            Test-Path -LiteralPath 'C:\ws' | Should -BeFalse
+
+            $after = @(Get-HDTRealMachineState -Path 'C:\ws')
+
+            $after[0].State | Should -BeExactly $script:realDiskBefore[0].State -Because (
+                "C:\ws was '{0}' before this run, which read the workspace through a fake" -f $script:realDiskBefore[0].State)
         }
 
         It 'ran no script' {
@@ -256,8 +272,16 @@ Describe 'Gather and resolve, end to end' {
             Export-HDTVariableProvenance -Resolution $script:result -Path $exportPath -FileSystem $script:fileSystem
 
             $script:fileSystem.TestPath($exportPath) | Should -BeTrue
-            Test-Path -LiteralPath $exportPath | Should -BeFalse
-            Test-Path -LiteralPath 'C:\ws' | Should -BeFalse
+
+            # The export landed in the fake and nowhere else: both readings are
+            # what they were before the run began.
+            $after = @(Get-HDTRealMachineState -Path $script:realDiskPath)
+
+            for ($index = 0; $index -lt $script:realDiskPath.Count; $index++) {
+                $after[$index].State | Should -BeExactly $script:realDiskBefore[$index].State -Because (
+                    "{0} was '{1}' before this run and the export went to a fake" -f
+                    $script:realDiskPath[$index], $script:realDiskBefore[$index].State)
+            }
         }
     }
 }

@@ -32,6 +32,7 @@
         'Get-HDTJsonSchemaVocabulary',
         'Get-HDTLogRecord',
         'Get-HDTMdtDependency',
+        'Get-HDTRealMachineState',
         'Get-HDTSlowSuiteSkipViolation',
         'Get-HDTSourceFile',
         'Get-HDTScriptCompatibilityViolation',
