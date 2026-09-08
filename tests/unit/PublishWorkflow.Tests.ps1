@@ -455,16 +455,21 @@ Describe 'the order a release runs in' {
         }
     }
 
-    It 'grants the CI job the write its own workflow declares, and nothing new' -Skip:$script:yamlMissing {
-        # ci.yml DECLARES contents: write AT WORKFLOW LEVEL for the badges
-        # branch, and a called workflow may not ask for more than the calling
-        # job grants. Handing it read would be the tidier posture and is not
-        # available: the call is refused rather than quietly narrowed.
+    It 'runs the gate on a read-only token, and hands it no secrets' -Skip:$script:yamlMissing {
+        # THIS USED TO HAVE TO BE write, AND THE REASON IT NO LONGER DOES IS
+        # WORTH KEEPING. ci.yml declared contents: write at workflow level
+        # because it pushed the badges branch itself, and a called workflow may
+        # not ask for more than the calling job grants - so read here would have
+        # refused the call rather than quietly narrowing it. What stopped a
+        # release touching the badges was a ref comparison inside the badge
+        # step, one condition deep.
         #
-        # THE BADGES ARE STOPPED BY THE REF, NOT BY THE TOKEN - see the case in
-        # CiWorkflow.Tests.ps1. A release runs on refs/tags/v*, the badge step
-        # requires refs/heads/main, so it is skipped.
-        $script:graph['ci']['permissions']['contents'] | Should -BeExactly 'write'
+        # THE BADGE STEP LEFT ci.yml. It is badges.yml's write now, on
+        # workflow_run after ci-lab.yml, so ci.yml declares read and this job
+        # grants read: the gate on the release path holds no token that can
+        # write anything, and there is no ref comparison left to be
+        # load-bearing.
+        $script:graph['ci']['permissions']['contents'] | Should -BeExactly 'read'
         $script:graph['ci'].ContainsKey('secrets') | Should -BeFalse
     }
 }

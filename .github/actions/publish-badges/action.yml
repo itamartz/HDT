@@ -1,0 +1,103 @@
+name: Publish HDT badges
+description: >
+  Push shields.io endpoint documents to the orphan `badges` branch, which is the
+  only thing that branch holds and the only thing the README renders from.
+
+# ONE PLACE OF TRUTH FOR THE PUSH, WHICH IS RULE 8 APPLIED TO A SHELL SCRIPT.
+# This was forty lines of PowerShell copied verbatim into ci.yml and
+# coverage.yml, and the two copies had already begun to differ in their comments.
+# A badge push is a write to a shared branch by two workflows on two clocks;
+# whatever is true about how it clones, when it declines to commit, and what it
+# does with a stderr line from git has to be true for both of them or the one
+# nobody looked at is the one that corrupts the branch.
+#
+# BASH, NOT POWERSHELL, AND ON PURPOSE. The copies were PowerShell because both
+# callers happened to be windows-latest, and both carried the same paragraph
+# explaining that `$ErrorActionPreference = 'Stop'` turns git's progress output
+# on stderr into a NativeCommandError and fails a step whose clone succeeded.
+# `shell: bash` exists on GitHub's Windows runners as well as its Linux ones,
+# git reports with exit codes there, and the paragraph is not needed at all.
+#
+# THE CALLER SUPPLIES THE CONCURRENCY, NOT THIS FILE. An action cannot declare
+# one - `concurrency` is a workflow and job key - so the rule that the badges
+# branch has a single writer at a time lives in the callers and is asserted
+# over the SET of them in tests/unit/CiLabWorkflow.Tests.ps1. Two writers
+# racing is not theoretical: the push below has no rebase and no retry, so the
+# loser fails, and a failed badge push turns a green build red.
+
+inputs:
+  path:
+    description: 'Directory holding the *.json endpoint documents the build wrote.'
+    required: false
+    default: 'out/badges'
+  token:
+    description: 'A token with contents: write on this repository. The job GITHUB_TOKEN is enough.'
+    required: true
+  message:
+    description: 'Commit subject. The SHA of the run that produced the numbers is appended.'
+    required: false
+    default: 'badges'
+
+runs:
+  using: composite
+  steps:
+    - name: Push the endpoint documents to the badges branch
+      shell: bash
+      env:
+        HDT_BADGE_PATH: ${{ inputs.path }}
+        HDT_BADGE_TOKEN: ${{ inputs.token }}
+        HDT_BADGE_MESSAGE: ${{ inputs.message }}
+      run: |
+        # NOT `set -e`. git's exit codes are read below and a non-zero one is
+        # frequently the answer rather than the failure - `diff --cached
+        # --quiet` returns 1 when something IS staged, and the clone returning
+        # non-zero is how a branch that does not exist yet announces itself.
+        set -uo pipefail
+
+        # A run that produced no badges is not a failure. build.ps1 writes them
+        # before it judges the suite, so a red run has them too; what has none
+        # is a run that fell over earlier than that, and it already reported
+        # why.
+        if ! ls "${HDT_BADGE_PATH}"/*.json > /dev/null 2>&1; then
+          echo "::warning::no badge documents under ${HDT_BADGE_PATH}; nothing to publish"
+          exit 0
+        fi
+
+        # RUNNER_TEMP, AND NEVER THE CHECKOUT THIS RAN FROM. An orphan checkout
+        # of the working tree is one `git rm -rf .` away from deleting the tree
+        # the build just used, and mktemp under a directory the runner throws
+        # away needs no cleanup of its own.
+        work="$(mktemp -d "${RUNNER_TEMP:?RUNNER_TEMP is not set}/hdt-badges.XXXXXX")"
+        remote="https://x-access-token:${HDT_BADGE_TOKEN}@github.com/${GITHUB_REPOSITORY}"
+
+        git config --global user.name  'github-actions[bot]'
+        git config --global user.email '41898282+github-actions[bot]@users.noreply.github.com'
+
+        if ! git clone --depth 1 --branch badges --quiet "$remote" "$work" 2>/dev/null; then
+          echo "badges: the branch does not exist yet, starting it"
+          git -C "$work" init --quiet --initial-branch=badges
+          git -C "$work" remote add origin "$remote"
+        fi
+
+        cp "${HDT_BADGE_PATH}"/*.json "$work"/
+        git -C "$work" add -A
+
+        # --quiet exits 1 when something IS staged. Zero means the numbers did
+        # not move, and a commit per push saying so is noise on a branch whose
+        # entire history is meant to be readable.
+        if git -C "$work" diff --cached --quiet; then
+          echo "badges: unchanged, nothing to push"
+          exit 0
+        fi
+
+        git -C "$work" commit --quiet -m "${HDT_BADGE_MESSAGE}: ${GITHUB_SHA}" || {
+          echo "::error::git commit failed"; exit 1;
+        }
+
+        git -C "$work" push --quiet origin badges || {
+          echo "::error::git push to the badges branch failed. Another workflow may have pushed between the clone and the push - the badge publishers are meant to share a concurrency group, and one of them does not."
+          exit 1
+        }
+
+        cat "${HDT_BADGE_PATH}"/*.json
+        echo "badges: pushed to the badges branch"

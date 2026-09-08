@@ -39,12 +39,33 @@ name: CI
 # one on a developer machine - Pester traces every command 8000 tests execute -
 # which on this runner is a multi-hour job in front of every push. It lives in
 # coverage.yml, nightly, where nobody is waiting for it.
+#
+# AND NEITHER IS main. There is no `push:` trigger here any more: a push to main
+# runs ci-lab.yml, which runs THE SAME ./build.ps1 -Task ci on GHRUNNER01 - a
+# machine that has been used, with an ADK on it and a PSModulePath somebody
+# else's product wrote into, which is the shape of machine HDT is actually
+# installed onto. A clean container answers a different question, and this file
+# is still the one that answers it: on every pull request, and once a week.
+#
+# THE WEEKLY schedule IS NOT DECORATION, IT IS THE ONLY THING LEFT THAT PROVES
+# THE CLEAN-MACHINE INSTALL. What this workflow uniquely tests is the
+# `Install build dependencies` step above it - NuGet bootstrapped, three modules
+# pulled from the Gallery at their pinned versions, onto an image with none of
+# them. With `push:` gone, that leg would run only when somebody opens a pull
+# request, and in the sixty runs before this file was split, ZERO were
+# pull_request events. A leg that never fires proves nothing, and the way it
+# fails is silent: the Gallery yanks a version, or GitHub's image stops shipping
+# a prerequisite, and nobody finds out until the next contributor's first PR.
 
 on:
-  push:
-    branches: [ main ]
   pull_request:
   workflow_dispatch:
+
+  # 05:00 UTC on Mondays. After coverage.yml's 03:00 nightly rather than beside
+  # it, so the two are not competing for a runner and reporting each other's
+  # slowness.
+  schedule:
+    - cron: '0 5 * * 1'
 
   # AND FROM publish.yml, SO A RELEASE RUNS THE GATE RATHER THAN ASSUMING IT.
   # A tag used to reach the PowerShell Gallery on the strength of "the commit
@@ -58,17 +79,28 @@ on:
   # IDENTICAL gate the branch does, on the same edition and the same dependency
   # pins, and a change to either reaches both callers or neither.
   #
-  # THE BADGES DO NOT MOVE WHEN IT IS CALLED. A called workflow sees the
-  # CALLER's github context, so on a release `github.event_name` is genuinely
-  # 'push' - but `github.ref` is refs/tags/v0.25.0, and the badge step below
-  # requires refs/heads/main. It is skipped, nothing reaches the badges
-  # branch, and a release cannot race the branch's own run for the same commit
-  # parent. CiWorkflow.Tests.ps1 asserts that guard on purpose rather than
-  # leaving it as a happy side effect of a condition written for forks.
+  # THE BADGES CANNOT MOVE WHEN IT IS CALLED, AND THAT USED TO NEED AN
+  # ARGUMENT. A called workflow sees the CALLER's github context, so on a
+  # release `github.event_name` was genuinely 'push' and the badge step's guard
+  # rested entirely on `github.ref` being refs/tags/v* rather than
+  # refs/heads/main. It held, and it was one condition deep.
+  #
+  # THERE IS NO BADGE STEP IN THIS FILE ANY MORE, so a release cannot race the
+  # branch's own run for the badges branch whatever the context says. The write
+  # is badges.yml's, on `workflow_run` after ci-lab.yml.
   workflow_call:
 
+# READ, AND IT USED TO BE WRITE. This workflow pushed the badges branch itself,
+# which meant a workflow that runs on `pull_request` declared contents: write at
+# workflow level - harmless in practice, because GitHub hands a fork's pull
+# request a read-only token whatever the file asks for, and one line of YAML
+# away from not being harmless the day somebody adds pull_request_target.
+#
+# THE BADGES ARE badges.yml's NOW, on `workflow_run` after ci-lab.yml, where the
+# write is on the default branch's copy of a file no pull request can edit.
+# Nothing in this file writes anything.
 permissions:
-  contents: write        # the badges branch, below. Nothing else is written.
+  contents: read
 
 jobs:
   windows:
@@ -153,70 +185,20 @@ jobs:
 
           [System.IO.File]::AppendAllText($env:GITHUB_STEP_SUMMARY, ($summary -join "`n") + "`n")
 
-      # THE BADGES BRANCH. shields.io renders a badge from an endpoint document
-      # at any public URL, so the two files build.ps1 wrote are pushed to an
-      # orphan branch that holds nothing else and the README points at their raw
-      # URL. No coverage service is signed up to and no token is stored - the
-      # job's own GITHUB_TOKEN does it, with contents: write and nothing more.
+      # NO BADGE PUSH HERE ANY MORE, AND ITS ABSENCE IS THE POINT.
       #
-      # ONLY FROM main. A pull request from a fork has a read-only token, and a
-      # badge that moved with every PR would report whatever was merged last
-      # rather than what is on main.
-      - name: Publish badges
-        if: always() && github.event_name == 'push' && github.ref == 'refs/heads/main'
-        run: |
-          # NOT ErrorActionPreference = Stop, DELIBERATELY. git writes progress
-          # to stderr, and under Windows PowerShell 5.1 a native command writing
-          # to stderr with Stop in force raises NativeCommandError - the clone
-          # succeeds and the step fails anyway. Exit codes are checked instead,
-          # which is what git actually reports with.
-          $ErrorActionPreference = 'Continue'
-
-          if (-not (Test-Path -LiteralPath 'out/badges')) {
-              Write-Warning 'No badges were produced by this run; nothing to publish.'
-              exit 0
-          }
-
-          $work = Join-Path $env:RUNNER_TEMP 'hdt-badges'
-          $remote = "https://x-access-token:$env:GITHUB_TOKEN@github.com/$env:GITHUB_REPOSITORY"
-
-          git config --global user.name  'github-actions[bot]'
-          git config --global user.email '41898282+github-actions[bot]@users.noreply.github.com'
-
-          # A shallow clone of the branch if it exists, a brand new empty
-          # repository if it does not. Never an orphan checkout of THIS working
-          # tree: that is one `git rm -rf .` away from deleting the checkout the
-          # build just ran from.
-          git clone --depth 1 --branch badges --quiet $remote $work
-
-          if (-not (Test-Path -LiteralPath (Join-Path $work '.git'))) {
-              "badges: the branch does not exist yet, starting it"
-              New-Item -ItemType Directory -Force -Path $work | Out-Null
-              git -C $work init --quiet --initial-branch=badges
-              git -C $work remote add origin $remote
-          }
-
-          Copy-Item -Path 'out/badges/*.json' -Destination $work -Force
-
-          git -C $work add -A
-          git -C $work diff --cached --quiet
-
-          # --quiet exits 1 when something IS staged. Zero means the numbers did
-          # not move, and a commit per push saying so is noise.
-          if ($LASTEXITCODE -eq 0) {
-              "badges: unchanged, nothing to push"
-              exit 0
-          }
-
-          git -C $work commit --quiet -m "badges: $env:GITHUB_SHA"
-          if ($LASTEXITCODE -ne 0) { throw "git commit failed with $LASTEXITCODE" }
-
-          git -C $work push --quiet origin badges
-          if ($LASTEXITCODE -ne 0) { throw "git push failed with $LASTEXITCODE" }
-
-          Get-Content -Path 'out/badges/*.json'
-          "badges: pushed to the badges branch"
-
-          exit 0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # This workflow used to end with forty lines of git that cloned the orphan
+      # `badges` branch, copied out/badges/*.json into it and pushed - guarded by
+      # `github.event_name == 'push' && github.ref == 'refs/heads/main'`, which
+      # is a condition that can no longer be true here: there is no push trigger
+      # in this file.
+      #
+      # THE NUMBERS COME FROM THE LAB MACHINE NOW. ci-lab.yml runs the same task
+      # on every push to main and uploads out/badges/*.json as an artifact;
+      # badges.yml downloads it and does the write, on a hosted runner, from the
+      # default branch's copy of a file no pull request can edit.
+      #
+      # AND coverage.yml HAD AN IDENTICAL COPY OF THOSE FORTY LINES, which is
+      # how the two came to race each other on a branch neither of them locked.
+      # The push is one composite action now - .github/actions/publish-badges -
+      # and every job that calls it shares a `badges` concurrency group.

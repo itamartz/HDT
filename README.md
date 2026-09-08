@@ -1,8 +1,8 @@
 # Hephaestus Deployment Toolkit (HDT)
 
-[![CI](https://github.com/itamartz/HDT/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/itamartz/HDT/actions/workflows/ci.yml)
-[![tests](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fitamartz%2FHDT%2Fbadges%2Ftests.json&cacheSeconds=1800)](https://github.com/itamartz/HDT/actions/workflows/ci.yml)
-[![coverage](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fitamartz%2FHDT%2Fbadges%2Fcoverage.json&cacheSeconds=1800)](https://github.com/itamartz/HDT/actions/workflows/ci.yml)
+[![CI-Lab](https://github.com/itamartz/HDT/actions/workflows/ci-lab.yml/badge.svg?branch=main)](https://github.com/itamartz/HDT/actions/workflows/ci-lab.yml)
+[![tests](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fitamartz%2FHDT%2Fbadges%2Ftests.json&cacheSeconds=1800)](https://github.com/itamartz/HDT/actions/workflows/ci-lab.yml)
+[![coverage](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fitamartz%2FHDT%2Fbadges%2Fcoverage.json&cacheSeconds=1800)](https://github.com/itamartz/HDT/actions/workflows/coverage.yml)
 
 A replacement for the Microsoft Deployment Toolkit, which has been in maintenance
 mode since 2019. HDT keeps MDT's operational model — deployment share, task
@@ -267,6 +267,25 @@ than a line somebody slips in.
 
 `.github/workflows/publish.yml` **calls** this workflow rather than copying it,
 so a release runs the identical gate on the tagged commit.
+
+**The same task runs again on a machine that has been used.**
+`.github/workflows/ci-lab.yml` runs `./build.ps1 -Task ci` on GHRUNNER01 — the
+self-hosted lab runner — on every push to `main`. A hosted runner proves the
+suite passes on a container GitHub built ten minutes ago; HDT is installed onto
+machines with an ADK on them, a Hyper-V role, and a `PSModulePath` somebody
+else's product wrote into. A difference between the two runs is a fact about the
+machine, and that is the point of running both. It has **no `pull_request`
+trigger and must never have one** — on `pull_request` GitHub runs the workflow
+file from the PR head, so a guard written inside a fork-editable file is
+guarding a file the fork controls. `ci.yml` keeps `pull_request` and gains a
+weekly `schedule:`, which is what still proves the clean-machine install.
+
+**The badges are pushed by a third workflow.** A self-hosted job may not hold
+`contents: write`, so `ci-lab.yml` uploads `out/badges/*.json` as an artifact and
+`.github/workflows/badges.yml` — hosted, on `workflow_run`, where GitHub always
+runs the default branch's copy — does the write. The push itself lives once, in
+`.github/actions/publish-badges`, and every job that calls it shares a `badges`
+concurrency group so two writers queue instead of one failing.
 
 **Coverage is not on the gate.** Pester measures it by tracing every command the
 suite executes, which turns a 10 minute run into a 98 minute one on a developer

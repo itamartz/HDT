@@ -1,0 +1,291 @@
+name: CI-Lab
+
+# THE GATE, RUN AGAIN ON A MACHINE THAT IS NOT A FRESH CONTAINER.
+#
+# ci.yml proves the suite passes on a Windows image GitHub built ten minutes
+# ago, with nothing installed on it but what the workflow installed. That is
+# worth having and it is not the question an administrator asks. HDT is
+# installed onto machines that have been used - that have an ADK, a Hyper-V
+# role, a PSModulePath somebody else's product wrote into, an execution policy
+# somebody set - and the only machine here shaped like that is GHRUNNER01, a
+# nested-virtualisation guest on the MS-A2 lab host, itself deployed by HDT from
+# the lab's own deployment share.
+#
+# So this runs ./build.ps1 -Task ci there, on every push to main. Same task,
+# same entry point, different hardware. It is not a second gate with its own
+# rules; a difference between the two runs is a fact about the machine, and
+# that fact is the whole reason this file exists.
+#
+# ---------------------------------------------------------------------------
+# THIS REPOSITORY IS PUBLIC, AND THAT DECIDES THE TRIGGERS.
+#
+# There is NO pull_request trigger here and there must never be one, for the
+# reason e2e.yml's header gives at length: GHRUNNER01 sits on a private LAN
+# beside machines belonging to somebody else's lab, and it holds Hyper-V
+# administrator rights over a nested hypervisor.
+#
+# AND FOR ONE MORE REASON, WHICH IS THE REASON THIS IS A SEPARATE FILE RATHER
+# THAN A JOB IN ci.yml. On `pull_request`, GitHub runs the workflow file FROM
+# THE PULL REQUEST'S HEAD. So an `if: github.event_name != 'pull_request'`
+# written on a self-hosted job inside ci.yml would be a guard the fork gets to
+# EDIT, in the same commit that adds the runner labels. A guard in a
+# fork-editable file guards nothing. The absence of the trigger is the only
+# control that cannot be rewritten by the thing it is controlling, and it can
+# only be absent if the file has no other reason to have it.
+#
+# THE OWNER GUARD IS THE SECOND CONTROL, and it is the first job below - hosted,
+# comparing `github.actor` and `github.triggering_actor` with
+# `github.repository_owner`, with the lab job `needs:`ing it. A separate job
+# that FAILS rather than an `if:` that SKIPS, because GitHub calls a workflow
+# whose jobs all skipped a success. E2eWorkflow.Tests.ps1 asserts that shape
+# over the SET of workflow files, so this file was judged by it before it ran
+# once.
+#
+# NO contents: write. The badges used to be pushed by the job that produced
+# them; they are not any more, and this is why. A writable GITHUB_TOKEN on a
+# machine somebody owns is what turns a compromised job into a compromised
+# repository. This job uploads the numbers as an artifact and badges.yml, on
+# GitHub's own hardware, does the write.
+# ---------------------------------------------------------------------------
+#
+# ---------------------------------------------------------------------------
+# SETTING GHRUNNER01 UP FOR THIS, WHICH IS TWO THINGS AND THE SECOND ONE IS THE
+# ONE THAT GETS FORGOTTEN.
+#
+# 1. A SECOND RUNNER INSTANCE, ALONGSIDE THE ONE e2e.yml USES:
+#
+#        cd C:\
+#        mkdir C:\actions-runner-2
+#        cd C:\actions-runner-2
+#        # unpack the same actions-runner-win-x64 archive the first one used
+#        .\config.cmd --url https://github.com/<owner>/<repo> `
+#                     --token <a fresh registration token from the repo's
+#                              Settings > Actions > Runners > New runner page> `
+#                     --name GHRUNNER01-ci `
+#                     --labels hdt-ci `
+#                     --runasservice
+#
+#    TWO INSTANCES, AND NOT THREE. One CI job already uses 6 of this machine's
+#    8 cores; a third concurrent job would make all of them slower and would
+#    start reporting timing flakes that are the runner's fault and look like
+#    the suite's.
+#
+#    SEPARATE LABELS ARE THE POINT OF THE SECOND INSTANCE. `hdt-ci` here,
+#    `hyperv-nested` on the first: a twenty-minute gate must not queue behind a
+#    six-hour deployment run, and a deployment run must not queue behind the
+#    gate. One instance with both labels would give exactly that.
+#
+# 2. RETAKE THE `clean` HYPER-V CHECKPOINT AFTERWARDS. THIS IS NOT OPTIONAL AND
+#    IT IS NOT COSMETIC.
+#
+#    MS-A2 reverts GHRUNNER01 to its `clean` checkpoint every hour, and the
+#    runner's REGISTRATION - its credentials, its .runner and .credentials
+#    files - lives inside that checkpoint. That is deliberate (see e2e.yml: it
+#    is what makes the machine ephemeral without a long-lived PAT stored on
+#    it). It also means a runner registered AFTER the checkpoint was taken is
+#    destroyed by the next revert.
+#
+#    WHAT THAT FAILURE LOOKS LIKE, so nobody spends an afternoon on it: the
+#    runner goes permanently Offline in the repository's settings, and every
+#    job targeting `hdt-ci` sits queued for ever. There is no error. There is
+#    no failed run. There is a workflow that never starts, on a label nothing
+#    answers to, and GitHub cancels it 24 hours later.
+#
+#    So: configure the second instance, confirm both runners show Idle, THEN
+#    take the checkpoint again.
+# ---------------------------------------------------------------------------
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+# TWO QUICK PUSHES MUST COLLAPSE, NOT QUEUE. There is exactly one of this
+# machine. A hosted runner pool absorbs a burst of commits by starting a
+# container each; here they run one after another, so three commits in five
+# minutes is an hour of the lab machine spent answering a question only the
+# last of them asked.
+#
+# PER REF, so a hand-started run on a branch and the push to main do not cancel
+# each other.
+concurrency:
+  group: ci-lab-${{ github.ref }}
+  cancel-in-progress: true
+
+# READ ONLY, AND NOTHING ELSE - the same rule as e2e.yml, asserted over the set
+# of workflow files in E2eWorkflow.Tests.ps1. The badges leave here as an
+# artifact and are written by badges.yml.
+permissions:
+  contents: read
+
+jobs:
+
+  # ==========================================================================
+  # WHO STARTED THIS, ANSWERED ON GITHUB'S HARDWARE BEFORE ANY OF IT REACHES
+  # THE LAB. The same guard e2e.yml carries, and it is here for the same
+  # reasons - a separate job so that a refusal FAILS rather than SKIPS, on a
+  # hosted runner because a guard that runs on the machine it guards has
+  # already lost the checkout.
+  #
+  # ON A PUSH TO main BOTH ACTORS ARE THE PUSHER, so this is close to a
+  # formality today: only somebody with write access can push here at all. It
+  # is not a formality on `workflow_dispatch`, which any collaborator can press,
+  # and it will not be one the day this repository has a second writer.
+  # ==========================================================================
+  guard:
+    name: actor
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    permissions:
+      contents: read
+
+    steps:
+      # THE NAMES GO THROUGH `env:`, NOT INTO THE SHELL LINE. Interpolating
+      # `${{ github.actor }}` straight into a script is the script-injection
+      # shape - the value is attacker-chosen text on some events - and an
+      # environment variable is read as data rather than parsed as code.
+      - name: Only the repository owner may start a run on the lab machine
+        env:
+          HDT_ACTOR: ${{ github.actor }}
+          HDT_TRIGGERING_ACTOR: ${{ github.triggering_actor }}
+          HDT_OWNER: ${{ github.repository_owner }}
+          HDT_EVENT: ${{ github.event_name }}
+        run: |
+          set -euo pipefail
+
+          # triggering_actor is set on every event GitHub documents, but an
+          # empty one must not read as "not the owner". Absent falls back to
+          # actor, which is checked anyway.
+          pressed="${HDT_TRIGGERING_ACTOR:-$HDT_ACTOR}"
+
+          echo "event: ${HDT_EVENT}"
+          echo "actor: ${HDT_ACTOR}"
+          echo "triggering actor: ${pressed}"
+          echo "repository owner: ${HDT_OWNER}"
+
+          if [ "${HDT_ACTOR}" != "${HDT_OWNER}" ] || [ "${pressed}" != "${HDT_OWNER}" ]; then
+            echo "::error::this gate runs on GHRUNNER01 - a real machine on a private LAN, holding Hyper-V administrator rights over a nested hypervisor - and only '${HDT_OWNER}' may start it. This run was started by '${HDT_ACTOR}' and triggered by '${pressed}'. Nothing was checked out onto that machine."
+            exit 1
+          fi
+
+          echo "started by the repository owner; the lab machine may go ahead."
+
+  # ==========================================================================
+  # ONE JOB ON THE LAB MACHINE, AND THAT IS A CONSTRAINT RATHER THAN A TIDY
+  # SHAPE. MS-A2's hourly task reverts GHRUNNER01 to its `clean` checkpoint,
+  # and it skips only while Runner.Worker.exe exists in the guest (PROJECT.md,
+  # "GHRUNNER01"). Two consecutive self-hosted jobs leave a window between the
+  # workers with no such process, the revert can land in it, and what that
+  # looks like from here is a second job whose workspace vanished mid-run. So
+  # everything that has to happen on that machine happens inside this one job.
+  # CiLabWorkflow.Tests.ps1 asserts there is exactly one.
+  # ==========================================================================
+  lab:
+    name: powershell
+    needs: guard
+    runs-on: [self-hosted, windows, hdt-ci]
+
+    # ~10 minutes on a developer machine, ~20 on a hosted runner. GitHub's
+    # default is 360, and six hours of a machine there is exactly one of is six
+    # hours nothing else can be tested on. 60 catches a hang without tripping
+    # on a slow morning.
+    timeout-minutes: 60
+
+    defaults:
+      run:
+        shell: powershell
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # NOT INSTALLED HERE, VERIFIED HERE. ci.yml installs its dependencies on a
+      # fresh hosted runner every time; this machine is built once and reverted
+      # to a checkpoint between jobs, so an Install-Module on every run would be
+      # a network round trip to prove something that cannot have changed. What
+      # can go wrong is the checkpoint being older than the pins, and that is
+      # what this reports - by name and version, before anything long starts.
+      #
+      # THE SAME STEP AS e2e.yml's, CHARACTER FOR CHARACTER, and asserted that
+      # way in CiLabWorkflow.Tests.ps1. Two hand-maintained copies of a version
+      # pin is how two runner instances on one machine come to disagree about
+      # what is installed on it.
+      - name: Check the build dependencies
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          $wanted = @{
+              'Pester'           = '5.7.1'
+              'PSScriptAnalyzer' = '1.25.0'
+              'powershell-yaml'  = '0.4.12'
+          }
+
+          $missing = @()
+          foreach ($name in $wanted.Keys | Sort-Object) {
+              $found = Get-Module -Name $name -ListAvailable |
+                  Where-Object { [string] $_.Version -eq $wanted[$name] }
+
+              if ($found) { "{0} {1}: present" -f $name, $wanted[$name] }
+              else {
+                  $have = (Get-Module -Name $name -ListAvailable | ForEach-Object { [string] $_.Version }) -join ', '
+                  $missing += ("{0} {1} is not installed on this runner (found: {2}). Install-Module {0} -RequiredVersion {1} -Scope AllUsers -Force, then retake the 'clean' checkpoint - otherwise the next revert loses it." -f
+                      $name, $wanted[$name], $(if ($have) { $have } else { 'nothing' }))
+              }
+          }
+
+          if ($missing) { throw ($missing -join "`n") }
+
+          "$($PSVersionTable.PSEdition) $($PSVersionTable.PSVersion) on $env:COMPUTERNAME"
+
+      # ./build.ps1 -Task ci RUNS version, WHICH REWRITES ModuleVersion in the
+      # manifest - the v0.4.0 defect. It is harmless here for the reason it is
+      # harmless in publish.yml's gate job: this job has its own checkout, the
+      # bump lands in a tree the next checkpoint revert throws away, and
+      # nothing downstream reads the manifest from it.
+      - name: Build, lint, test, self-check
+        run: ./build.ps1 -Task ci
+
+      # continue-on-error for the reason ci.yml's upload step spells out at
+      # length: run 34250900149 passed every check it makes and reported
+      # failure on an HTTP 403 from artifact storage while finalising. The
+      # verdict is build.ps1's; a blob store refusing a convenience copy does
+      # not get a vote. Asserted over the set in CiWorkflow.Tests.ps1.
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        continue-on-error: true
+        with:
+          name: pester-ci-lab
+          path: out/testResults/*.xml
+
+      # THE NUMBERS, ON THEIR WAY TO A JOB THAT IS ALLOWED TO WRITE THEM.
+      # badges.yml downloads this artifact from this run and pushes it to the
+      # badges branch. It is `always()` because build.ps1 writes the badges
+      # BEFORE it judges the suite: a red run has a red badge to publish, and a
+      # badge that only updates when the build is green is a badge that always
+      # says green.
+      - name: Upload the badges
+        if: always()
+        uses: actions/upload-artifact@v4
+        continue-on-error: true
+        with:
+          name: badges
+          path: out/badges/*.json
+          if-no-files-found: warn
+
+      - name: Summarise the run
+        if: always()
+        run: |
+          $summary = @('## HDT build (lab machine)', '')
+
+          foreach ($name in 'tests') {
+              $path = "out/badges/$name.json"
+              if (Test-Path -LiteralPath $path) {
+                  $badge = ConvertFrom-Json ([System.IO.File]::ReadAllText((Resolve-Path $path)))
+                  $summary += ('- **{0}**: {1}' -f $badge.label, $badge.message)
+              }
+          }
+
+          $summary += ('- ran on **{0}**' -f $env:COMPUTERNAME)
+
+          [System.IO.File]::AppendAllText($env:GITHUB_STEP_SUMMARY, ($summary -join "`n") + "`n")

@@ -199,13 +199,17 @@ jobs:
   #
   # NO `if:` ON THIS JOB, EVER - see the note on the lab job.
   #
-  # contents: write, AND IT IS NOT A WIDENING. ci.yml declares that at workflow
-  # level for the badges branch, and a called workflow may not ask for more
-  # than the calling job grants - hand it read and the call is refused, not
-  # quietly narrowed. What stops a release touching the badges is the REF: the
-  # badge step requires refs/heads/main and a release runs on refs/tags/v*, so
-  # it is skipped and cannot race the branch's own run. That guard is asserted
-  # in CiWorkflow.Tests.ps1.
+  # contents: read, AND IT USED TO BE write. ci.yml declared write at workflow
+  # level because it pushed the badges branch itself, and a called workflow may
+  # not ask for more than the calling job grants - so this job had to hand it
+  # write, and what stopped a release touching the badges was a REF comparison
+  # inside the badge step.
+  #
+  # THE BADGE STEP IS GONE FROM ci.yml. It is badges.yml's write now, on
+  # `workflow_run` after ci-lab.yml, and ci.yml declares contents: read. So the
+  # gate on the release path runs with a read-only token and the ref comparison
+  # is not load-bearing any more - there is nothing left in that workflow for it
+  # to guard.
   #
   # ./build.ps1 -Task ci RUNS version, WHICH REWRITES ModuleVersion - the
   # v0.4.0 defect, where a bump between the tag check and the upload put 0.5.0
@@ -218,7 +222,7 @@ jobs:
     needs: preflight
     uses: ./.github/workflows/ci.yml
     permissions:
-      contents: write
+      contents: read
 
   # THE LAB, AND IT IS e2e.yml ITSELF. Rule 8 applied to CI: one definition,
   # two callers. A workflow_dispatch of e2e.yml and this both run the same job,

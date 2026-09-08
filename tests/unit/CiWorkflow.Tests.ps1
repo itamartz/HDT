@@ -166,59 +166,56 @@ Describe 'CI workflow (DESIGN 12.2.5)' {
 
     Context 'the badges branch' {
 
-        BeforeAll {
-            $script:badgeStep = @($script:job['steps'] | Where-Object {
+        # THE BADGE PUSH IS NOT IN THIS FILE ANY MORE, AND THESE CASES ARE THE
+        # RECORD OF WHY IT LEFT RATHER THAN A GAP WHERE IT WAS.
+        #
+        # It used to be a step here, guarded by
+        # `github.event_name == 'push' && github.ref == 'refs/heads/main'`, and
+        # that guard carried the whole defence against a release racing the
+        # branch's own run - because publish.yml calls this workflow and a
+        # called workflow sees the CALLER's github context, so on a release
+        # `github.event_name` really is 'push' and only the ref comparison
+        # stopped it.
+        #
+        # THREE THINGS TOOK IT AWAY AT ONCE. There is no `push:` trigger in this
+        # file now, so the guard's first half can never be true; the gate on
+        # main runs on GHRUNNER01 via ci-lab.yml, and a self-hosted job may not
+        # hold contents: write; and this file runs on `pull_request`, where
+        # declaring contents: write at workflow level was one careless
+        # `pull_request_target` away from being a real hole.
+        #
+        # WHERE IT WENT IS ASSERTED IN CiLabWorkflow.Tests.ps1, over the set of
+        # workflow files: one composite action, and every job that calls it
+        # sharing a `badges` concurrency group.
+
+        It 'no longer pushes them from a workflow a pull request can reach' -Skip:$script:HDTYamlMissing {
+            $badgeStep = @($script:job['steps'] | Where-Object {
                     $_.ContainsKey('name') -and $_['name'] -eq 'Publish badges'
                 })
+
+            $badgeStep.Count | Should -Be 0 -Because (
+                'this workflow triggers on pull_request; the badges branch is written by badges.yml, ' +
+                'on workflow_run, from the default branch copy of a file no pull request can edit')
         }
 
-        It 'has a step that publishes them' {
-            $script:badgeStep.Count | Should -Be 1
+        It 'carries no git push of its own at all' {
+            # NOT ONLY THE STEP WITH THAT NAME. A rename would put the same
+            # forty lines back under another heading, and the rule is about
+            # what the file does rather than what a step is called.
+            $script:workflowText | Should -Not -Match 'push\s+(--quiet\s+)?origin\s+badges'
+            $script:workflowText | Should -Not -Match 'x-access-token'
         }
 
-        It 'publishes only from a push to main' {
-            # A pull request from a fork has a read-only token, and a badge that
-            # moved with every PR would report whatever was proposed last rather
-            # than what is on main.
-            $script:badgeStep[0]['if'] | Should -BeLike '*refs/heads/main*'
-            $script:badgeStep[0]['if'] | Should -BeLike "*push*"
-        }
-
-        It 'cannot fire when the release path calls this workflow' {
-            # THE ONE THING A RELEASE-PATH INVOCATION MUST NOT DO. publish.yml
-            # calls this workflow, and a called workflow sees the CALLER's
-            # github context - so on a release `github.event_name` really is
-            # 'push' and the first half of this guard is satisfied.
-            #
-            # `github.ref` IS WHAT STOPS IT. A release runs on refs/tags/v0.25.0
-            # and this requires refs/heads/main, which no tag ref can ever
-            # equal - so the badge step is skipped, nothing is pushed to the
-            # badges branch, and a release cannot race the branch's own run for
-            # the same commit parent. The manual publish path is skipped twice
-            # over: workflow_dispatch is not 'push' either.
-            #
-            # THIS IS THE GUARD, NOT THE TOKEN. The calling job has to grant
-            # contents: write, because a called workflow may not ask for more
-            # than its caller holds and this file declares write at workflow
-            # level. So the ref comparison is the whole defence, and it is
-            # asserted here rather than left as a happy accident of the
-            # condition written for a different reason.
-            $script:badgeStep[0]['if'] | Should -BeLike '*refs/heads/main*'
-            $script:badgeStep[0]['if'] | Should -BeLike "*github.ref ==*"
-        }
-
-        It 'pushes to a branch and never to the checkout the build ran from' {
-            # An orphan checkout of THIS working tree is one `git rm -rf .` away
-            # from deleting the tree the build just ran in.
-            $script:badgeStep[0]['run'] | Should -BeLike '*RUNNER_TEMP*'
-            $script:badgeStep[0]['run'] | Should -Not -BeLike '*checkout --orphan*'
-        }
-
-        It 'asks for write on contents and nothing else' {
+        It 'asks for read on contents and nothing else' {
+            # WRITE WAS THE BADGES BRANCH AND NOTHING ELSE, SO IT WENT WITH IT.
+            # A workflow that runs on a fork's pull request should not be
+            # declaring a writable token even where GitHub would refuse to hand
+            # one over - the declaration is what the next person reads when they
+            # decide what may safely be added here.
             $permission = $script:workflow['permissions']
 
             $permission | Should -Not -BeNullOrEmpty
-            $permission['contents'] | Should -BeExactly 'write'
+            $permission['contents'] | Should -BeExactly 'read'
             @($permission.Keys) | Should -Be @('contents')
         }
     }
@@ -265,11 +262,29 @@ Describe 'CI workflow (DESIGN 12.2.5)' {
         $uploadStep[0]['with']['name'] | Should -BeExactly 'pester-powershell'
     }
 
-    It 'triggers on push and pull_request' {
+    It 'triggers on a pull request, a weekly schedule, and never on a push' {
         # Raw text, deliberately: ConvertFrom-Yaml maps the 'on' key to $true.
+        #
+        # NO push:. A push to main runs ci-lab.yml, which runs THIS SAME task on
+        # GHRUNNER01 - a machine that has been used, which is the shape of
+        # machine HDT is installed onto. Running both would be the same suite
+        # twice for one commit, and the hosted one would be the copy people
+        # stopped reading.
+        #
+        # WHICH LEAVES THE CLEAN-MACHINE INSTALL WITH ONE FIRING LEFT, AND THAT
+        # IS WHAT THE SCHEDULE IS FOR. The `Install build dependencies` step is
+        # the thing only this workflow exercises: NuGet bootstrapped and three
+        # pinned modules pulled from the Gallery onto an image with none of
+        # them. On pull_request alone it would almost never run - ZERO of the
+        # sixty runs before this split were pull_request events - and it fails
+        # silently when it fails: a yanked Gallery version, or a prerequisite
+        # dropped from GitHub's image, found by the next contributor rather
+        # than by us.
         $script:workflowText | Should -Match '(?m)^on:'
-        $script:workflowText | Should -Match '(?m)^\s+push:'
         $script:workflowText | Should -Match '(?m)^\s+pull_request:'
+        $script:workflowText | Should -Match '(?m)^\s+schedule:'
+        $script:workflowText | Should -Match '(?m)^\s*-\s*cron:'
+        $script:workflowText | Should -Not -Match '(?m)^\s{2}push:'
     }
 }
 
