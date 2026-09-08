@@ -3,6 +3,7 @@
 [![CI-Lab](https://github.com/itamartz/HDT/actions/workflows/ci-lab.yml/badge.svg?branch=main)](https://github.com/itamartz/HDT/actions/workflows/ci-lab.yml)
 [![tests](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fitamartz%2FHDT%2Fbadges%2Ftests.json&cacheSeconds=1800)](https://github.com/itamartz/HDT/actions/workflows/ci-lab.yml)
 [![coverage](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fitamartz%2FHDT%2Fbadges%2Fcoverage.json&cacheSeconds=1800)](https://github.com/itamartz/HDT/actions/workflows/coverage.yml)
+[![powershell gallery](https://img.shields.io/powershellgallery/v/Hephaestus)](https://www.powershellgallery.com/packages/Hephaestus)
 
 A replacement for the Microsoft Deployment Toolkit, which has been in maintenance
 mode since 2019. HDT keeps MDT's operational model — deployment share, task
