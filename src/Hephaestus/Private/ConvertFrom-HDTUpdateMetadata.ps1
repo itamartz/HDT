@@ -87,6 +87,8 @@ function ConvertFrom-HDTUpdateMetadata {
             Whether this package is a servicing stack update, which is what
             decides the order the ApplyUpdates step applies it in.
     #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseSingularNouns', '',
+        Justification = 'Metadata is a mass noun - the singular name of what one package says about itself - and there is no such thing as an update metadatum. AND IT IS AN EDITION SPLIT, NOT A RULE DISAGREEMENT: PSScriptAnalyzer 1.25.0 ships two copies of the rule assembly, and they pluralise with different engines. The Windows PowerShell copy uses .NET Frameworks PluralizationService and says nothing; the PSv7 copy bundles Pluralize.NET, whose Singularize(Metadata) returns Metadatum, so the rule fires on Core only. The 5.1 gate cannot see it and CIs pwsh leg does - verified 2026-09-08, both editions on 1.25.0.')]
     [CmdletBinding()]
     [OutputType([pscustomobject])]
     param(
