@@ -72,6 +72,5 @@
     "countSet": 0,
     "secretName": null,
     "runOnceName": null
-  },
-  "deploymentPassword": null
+  }
 }

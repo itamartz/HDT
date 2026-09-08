@@ -72,6 +72,5 @@
     "countSet": 2,
     "secretName": "DefaultPassword",
     "runOnceName": "HDTResume"
-  },
-  "deploymentPassword": "FIXTURE-ONLY-NOT-A-REAL-SECRET"
+  }
 }
