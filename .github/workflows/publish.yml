@@ -54,13 +54,17 @@ jobs:
   #            until it is not: a tag on an older commit, a tag pushed while
   #            the branch's own run is still going, a commit that reached main
   #            by a route that did not run CI. In each of those the shape
-  #            without this job spent the lab and the approval FIRST and found
-  #            the lint failure afterwards.
+  #            without this job spent the lab FIRST and found the lint
+  #            failure afterwards.
   #
-  # lab        e2e.yml, also called. Runs on GHRUNNER01, behind the `lab`
-  #            environment's required reviewer, so a release stops and waits
-  #            for a human. That is deliberate: shipping to a public gallery
-  #            is the one thing here that cannot be undone.
+  # lab        e2e.yml, also called. Runs on GHRUNNER01, an hour and a half of
+  #            somebody's Hyper-V host, behind e2e.yml's own guard: it starts
+  #            only when the repository owner started the run, and fails on a
+  #            hosted runner for anybody else. It used to sit behind the `lab`
+  #            environment's required reviewer as well, which meant a release
+  #            stopped and waited for a click from the person who had just
+  #            pushed the tag. The guard answers the same question without
+  #            anybody having to be awake for it.
   #
   # publish    stages the artefact, then the Gallery, then the Release. It
   #            `needs` both gates and carries no `if:` of its own - which is
@@ -160,20 +164,26 @@ jobs:
 
           "the Gallery does not have $version yet"
 
-      # A RUN THAT STOPS WITH NO EXPLANATION LOOKS BROKEN. The next job waits
-      # on the `lab` environment's required reviewer, and GitHub renders that
-      # as a job sitting there doing nothing at all. Somebody who tagged a
-      # release and came back to a still-running run needs to be told it is
-      # waiting for THEM, not for the runner.
+      # A RUN THAT SITS THERE WITH NO EXPLANATION LOOKS BROKEN. The next job is
+      # an hour and a half of VM time on a machine in somebody's house, and
+      # before that it may be queued waiting for that machine to exist at all.
+      # Somebody who tagged a release and came back to a still-running run
+      # needs to be told which of those it is doing.
+      #
+      # IT NO LONGER WAITS FOR A CLICK. This used to say the run was blocked on
+      # the `lab` environment's required reviewer; that environment is gone
+      # from e2e.yml, replaced by an owner guard that answers the same question
+      # without asking the person who pushed the tag to approve their own
+      # release. Saying otherwise would send them hunting for a button.
       - name: Say what happens next
         run: |
           $lines = @(
               '## What this run does next'
               ''
-              '1. **Lab (end-to-end)** - `e2e.yml` on the self-hosted runner GHRUNNER01: it builds a boot image, creates Hyper-V VMs and deploys Windows to them.'
+              '1. **Lab (end-to-end)** - `e2e.yml` on the self-hosted runner GHRUNNER01: it builds a boot image, creates Hyper-V VMs and deploys Windows to them. Expect roughly ninety minutes.'
               '2. **Publish** - the full build and suite, then the Gallery, then the Release. Only if the lab job succeeds.'
               ''
-              '**This run is now waiting for an approval.** The lab job uses the `lab` environment, which carries a required reviewer, so it will not start until somebody approves it on this run page. It is not hung.'
+              '**Nothing here waits for a human.** `e2e.yml` checks that the run was started by the repository owner and then goes; there is no button to press on this page.'
               ''
               'If GHRUNNER01 is switched off the lab job stays queued and GitHub cancels it after 24 hours; the release then fails rather than publishing something no lab ever ran.'
           )
@@ -211,8 +221,8 @@ jobs:
       contents: write
 
   # THE LAB, AND IT IS e2e.yml ITSELF. Rule 8 applied to CI: one definition,
-  # two callers. The Sunday cron and this both run the same job, so a fix to
-  # the runner's dependency checks reaches both or neither.
+  # two callers. A workflow_dispatch of e2e.yml and this both run the same job,
+  # so a fix to the runner's dependency checks reaches both or neither.
   #
   # NO `if:` ON THIS JOB, EVER. An `if:` here is the bypass - a condition that
   # evaluates false skips the job, and GitHub then skips everything that needs
@@ -224,7 +234,7 @@ jobs:
   # no use for the token that creates Releases or for PSGALLERY_API_KEY, so it
   # is handed neither. `secrets:` is absent rather than `inherit`.
   #
-  # 180 MINUTES, NOT THE CRON'S 360. Four of the nine e2e suites skip on
+  # 180 MINUTES, NOT THE 360 A HAND-STARTED RUN GETS. Four of the nine e2e suites skip on
   # GHRUNNER01 for want of the 50 GB share, so what actually runs there is
   # roughly ninety minutes of VM time. Three hours is double that and still
   # half of what the Sunday run is allowed, because a release nobody can ship

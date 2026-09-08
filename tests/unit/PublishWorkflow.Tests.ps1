@@ -86,7 +86,7 @@ Describe 'the publish workflow' {
         # of the lab. It used to be a `run: ./build.ps1 -Task
         # clean,bundle,build,lint,test,selfcheck` line in the job that
         # publishes - which meant a lint failure was discovered AFTER ninety
-        # minutes of somebody's Hyper-V host and a human's approval click.
+        # minutes of somebody's Hyper-V host.
         #
         # SO THE ASSERTION IS ABOUT THE GRAPH, NOT ABOUT A STRING. What has to
         # be true is that something proved the suite and that publishing
@@ -214,8 +214,12 @@ Describe 'the lab gate in front of a release' {
     #
     # THE ORDER IS NOW: preflight -> lab -> publish, and the middle one is
     # e2e.yml ITSELF, called with `uses:`. Not a copy of its steps - rule 8
-    # applied to CI. The Sunday cron and the release path run the same
-    # definition, so a fix to the lab job reaches both or neither.
+    # applied to CI. A hand-started run of e2e.yml and the release path run
+    # the same definition, so a fix to the lab job reaches both or neither.
+    #
+    # THE CRON IS GONE, AND WITH IT THE ONLY WAY THE LAB EVER STARTED ITSELF.
+    # e2e.yml now triggers on workflow_dispatch and on this call, and its first
+    # job refuses any run the repository owner did not start.
     #
     # WHAT THESE CASES ARE REALLY DEFENDING is the shape of the dependency,
     # because there are two ways to get it wrong that look fine in review:
@@ -241,8 +245,8 @@ Describe 'the lab gate in front of a release' {
     It 'calls the e2e workflow rather than copying its steps' -Skip:$script:yamlMissing {
         # ONE DEFINITION, TWO CALLERS. A second copy of "check the runner, run
         # ./build.ps1 -Task e2e, upload the diagnostics" would be a second
-        # source of truth, and the cron copy would be the one still passing
-        # after somebody fixed the release copy.
+        # source of truth, and one of the two would be the one still passing
+        # after somebody fixed the other.
         $script:labJob | Should -Not -BeNullOrEmpty
         [string] $script:labJob['uses'] | Should -BeExactly './.github/workflows/e2e.yml'
     }
@@ -312,9 +316,9 @@ Describe 'the lab gate in front of a release' {
     It 'gives the lab a deadline of its own on the release path' -Skip:$script:yamlMissing {
         # `timeout-minutes` IS NOT ALLOWED ON A JOB THAT CALLS A REUSABLE
         # WORKFLOW - GitHub rejects the file - so the deadline is an input the
-        # called workflow applies to its own job. The cron may have six hours;
-        # a release waiting six hours to find out the lab hung is a release
-        # nobody will wait for.
+        # called workflow applies to its own job. A run somebody started by
+        # hand may have six hours; a release waiting six hours to find out the
+        # lab hung is a release nobody will wait for.
         $script:labJob['with'] | Should -Not -BeNullOrEmpty
         [int] $script:labJob['with']['timeoutMinutes'] | Should -BeGreaterThan 0
         [int] $script:labJob['with']['timeoutMinutes'] | Should -BeLessThan 360
@@ -329,13 +333,21 @@ Describe 'the lab gate in front of a release' {
         $script:labJob.ContainsKey('secrets') | Should -BeFalse
     }
 
-    It 'says on the run page that it is waiting rather than looking hung' -Skip:$script:yamlMissing {
-        # `environment: lab` carries a required reviewer, so a tag push stops
-        # dead until somebody presses a button. A run that stops with no
-        # explanation looks broken; this one writes what it is waiting for.
+    It 'says on the run page what happens next rather than looking hung' -Skip:$script:yamlMissing {
+        # A release now runs the lab, which is an hour and a half on a machine
+        # in somebody's house. Somebody who tagged a release and came back to a
+        # still-running run needs to be told what it is doing.
         $summaries = @($script:preflightJob['steps'] | ForEach-Object { [string] $_['run'] }) -join "`n"
         $summaries | Should -Match 'GITHUB_STEP_SUMMARY'
-        $summaries | Should -Match 'approv'
+        $summaries | Should -Match 'GHRUNNER01'
+
+        # AND IT MUST NOT SAY IT IS WAITING FOR AN APPROVAL, BECAUSE IT IS NOT.
+        # `environment: lab` and its required reviewer are gone from e2e.yml -
+        # the owner guard replaced them, and a release no longer stops for a
+        # click from the person who just pushed the tag. A run page still
+        # telling somebody to go and approve something would send them looking
+        # for a button that is not there.
+        $summaries | Should -Not -Match 'approv'
     }
 }
 
@@ -354,7 +366,7 @@ Describe 'the order a release runs in' {
     #   ci          the same gate the branch runs, on hosted runners.
     #               ~20 minutes of somebody else's compute.
     #   lab         ~90 minutes on GHRUNNER01, a machine in somebody's house,
-    #               behind an approval click a human has to be awake for.
+    #               behind e2e.yml's owner guard.
     #   publish     the artefact, then the Gallery, then the Release.
     #
     # "BUT THE TAGGED COMMIT ALREADY PASSED ci.yml ON main" IS TRUE RIGHT UP
@@ -362,8 +374,7 @@ Describe 'the order a release runs in' {
     # something: a tag pointed at an older commit, a tag pushed at the same
     # time as the branch so the branch's own run is still going, or a commit
     # that reached main by a route that did not run CI. In each of those the
-    # old shape spent the lab and the approval first and found the lint
-    # failure afterwards.
+    # old shape spent the lab first and found the lint failure afterwards.
 
     BeforeAll {
         $script:graph = $null

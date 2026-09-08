@@ -32,10 +32,44 @@ name: E2E
 # it. The two live apart so the mistake cannot be made by editing the wrong
 # block.
 #
-# THE ENVIRONMENT GATE IS THE BACKSTOP. `environment: lab` carries a required
-# reviewer, so even a workflow_dispatch waits for a human to press a button. It
-# costs one click and it is what still holds if somebody adds a trigger to this
-# file in a year without reading any of the above.
+# THE OWNER GUARD IS THE CONTROL, AND IT IS THE FIRST JOB IN THIS FILE.
+# `guard` runs on a HOSTED runner and compares `github.actor` and
+# `github.triggering_actor` with `github.repository_owner`; the lab job
+# `needs:` it. Anybody else - a bot, a collaborator, an action re-running
+# somebody's run - fails there, on GitHub's own hardware, having never checked
+# anything out onto GHRUNNER01.
+#
+# THIS REPLACED `environment: lab`, WHICH WAS TWO PROBLEMS IN ONE KEY. What the
+# environment actually supplied was a REQUIRED REVIEWER: a click, on every
+# release, from the one person who had just pushed the tag - and reviewer lists
+# live in GitHub's settings, so nothing in this repository could assert one was
+# still configured, or notice that somebody had emptied it. The control was
+# both a nuisance and invisible. An actor guard is neither: it is in this file,
+# it is enforced by this file, and E2eWorkflow.Tests.ps1 reads it.
+#
+# NOTHING WAS SCOPED TO THAT ENVIRONMENT. publish.yml hands this workflow no
+# secrets at all - `secrets:` is absent rather than `inherit` - so there was no
+# environment secret for the key to protect, and removing it takes nothing away
+# but the button.
+#
+# WHY AN ACTOR COMPARISON IS ENOUGH. Both routes in already require write
+# access to this repository: workflow_dispatch is refused to anybody without
+# it, and so is pushing a `v*` tag. The guard narrows that from "a writer" to
+# "the owner", which on this repository is one person.
+#
+# BOTH ACTORS, AND THAT IS NOT BELT AND BRACES. On a RE-RUN `github.actor`
+# stays whoever started the original run while `github.triggering_actor` is
+# whoever pressed the button. Check only the first and a collaborator re-runs
+# the owner's run onto the lab host; check only the second and a run somebody
+# else started passes as soon as the owner re-runs it. Either alone is a hole.
+#
+# A `LAB_ENABLED` SECRET WAS CONSIDERED AND IS NOT HERE. A secret says whether
+# the lab is armed, never who is asking, so it does not answer the question
+# this guard exists for - and publish.yml deliberately passes this workflow no
+# secrets, so a check for one would be empty on the release path and fail every
+# release. The kill switch that does work needs no YAML: take GHRUNNER01
+# offline, or remove the runner from the repository, and the job has nowhere to
+# go.
 #
 # THE MACHINE IS REVERTED BETWEEN JOBS, WHICH IS WHERE EPHEMERALITY COMES FROM.
 # GHRUNNER01 is rolled back to a Hyper-V checkpoint after every job, so nothing
@@ -52,14 +86,28 @@ name: E2E
 # needs to exist anywhere. Same guarantee, one fewer credential.
 # ---------------------------------------------------------------------------
 
+# NO schedule:, AND THAT IS A DECISION RATHER THAN AN OMISSION. There was a
+# `cron: '0 2 * * 0'` here - 02:00 UTC on Sundays - and it is gone.
+#
+# THE LAB STARTS WHEN ITS OWNER STARTS IT, AND AT NO OTHER TIME. A cron creates
+# virtual machines and deploys operating systems for hours on a machine in
+# somebody's house, with nobody present: whether the host is being used for
+# something else that morning, whether the domain controller and the ConfigMgr
+# server sharing that LAN are mid-experiment, and whether anybody is going to
+# read the result.
+#
+# IT IS ALSO THE ONE TRIGGER THE GUARD BELOW CANNOT JUDGE. A scheduled run's
+# `github.actor` is whoever last touched this file, so a cron would arrive
+# wearing the owner's name and walk straight through an actor comparison. The
+# guard cannot refuse it; only its absence can.
+#
+# WHAT THE CRON WAS FOR IS COVERED. Its job was to notice that HDT had stopped
+# being able to deploy a machine - and since v0.24.0 every `v*` tag runs this
+# same workflow through publish.yml before anything reaches the Gallery, which
+# is the moment the answer actually matters. `workflow_dispatch` is there for
+# the rest of the time.
 on:
   workflow_dispatch:
-  schedule:
-    # 02:00 UTC on Sundays. The suite deploys real operating systems to real
-    # VMs and takes hours, not minutes; nightly would leave the lab host busy
-    # more often than it is idle, and nobody is waiting on this result the way
-    # they wait on ci.yml.
-    - cron: '0 2 * * 0'
 
   # AND FROM publish.yml, WHICH IS WHY A RELEASE NOW HAS EVIDENCE BEHIND IT.
   # Until v0.24.0 a `v*` tag went straight to the PowerShell Gallery on a
@@ -67,11 +115,17 @@ on:
   # that proves HDT can actually deploy a machine ran on a Sunday cron that
   # nobody was watching, and no release ever waited for it.
   #
-  # CALLED, NOT COPIED. publish.yml names this file with `uses:`, so the cron
-  # and the release path run the SAME job definition - the dependency checks,
-  # the elevation check, the diagnostics upload, all of it. A copy of these
-  # steps in publish.yml would be the copy still green after somebody fixed
-  # this one. That is rule 8 applied to CI.
+  # CALLED, NOT COPIED. publish.yml names this file with `uses:`, so a release
+  # and a workflow_dispatch run the SAME job definition - the owner guard, the
+  # dependency checks, the elevation check, the diagnostics upload, all of it.
+  # A copy of these steps in publish.yml would be the copy still green after
+  # somebody fixed this one. That is rule 8 applied to CI.
+  #
+  # AND THE GUARD SURVIVES THE CALL, WHICH IS WHY IT CAN BE THE ONLY CONTROL.
+  # A reusable workflow sees the CALLER's github context, so `github.actor` on
+  # the release path is whoever pushed the `v*` tag and `github.repository_owner`
+  # is this repository's owner. The owner's tag passes; anybody else's fails in
+  # `guard`, and publish.yml's `lab` job fails with it.
   #
   # workflow_call IS NOT A TRIGGER A STRANGER CAN PULL. It fires only when a
   # workflow in THIS repository names this file, and the caller's own triggers
@@ -83,7 +137,7 @@ on:
   workflow_call:
     inputs:
       timeoutMinutes:
-        description: 'Minutes before the job is cancelled. The release path wants a shorter one than the cron.'
+        description: 'Minutes before the job is cancelled. The release path wants a shorter one than a run somebody started by hand.'
         type: number
         required: false
         default: 360
@@ -95,21 +149,78 @@ permissions:
   contents: read
 
 jobs:
+
+  # ==========================================================================
+  # WHO STARTED THIS, ANSWERED ON GITHUB'S HARDWARE BEFORE ANY OF IT REACHES
+  # THE LAB. Five seconds of a hosted runner, and it is the only thing standing
+  # between GHRUNNER01 and everybody who is not the owner of this repository.
+  #
+  # A SEPARATE JOB, NOT AN `if:` ON THE LAB JOB, AND THE DIFFERENCE IS THE
+  # WHOLE POINT. A false `if:` SKIPS a job, GitHub calls a workflow whose jobs
+  # all skipped a SUCCESS, and publish.yml's `lab` job would then go green
+  # having run nothing at all - so a guard written that way would not protect
+  # the lab, it would silently publish without one. A job that FAILS fails the
+  # called workflow, and `needs: lab` in publish.yml stops the release.
+  #
+  # ON A HOSTED RUNNER, BECAUSE A GUARD THAT RUNS ON THE MACHINE IT GUARDS HAS
+  # ALREADY LOST. By the time a self-hosted step could check anything, the
+  # checkout and every action in it have executed there.
+  # ==========================================================================
+  guard:
+    name: actor
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    permissions:
+      contents: read
+
+    steps:
+      # THE NAMES GO THROUGH `env:`, NOT INTO THE SHELL LINE. Interpolating
+      # `${{ github.actor }}` straight into a script is the script-injection
+      # shape - the value is attacker-chosen text on some events - and an
+      # environment variable is read as data rather than parsed as code.
+      - name: Only the repository owner may start the lab
+        env:
+          HDT_ACTOR: ${{ github.actor }}
+          HDT_TRIGGERING_ACTOR: ${{ github.triggering_actor }}
+          HDT_OWNER: ${{ github.repository_owner }}
+          HDT_EVENT: ${{ github.event_name }}
+        run: |
+          set -euo pipefail
+
+          # triggering_actor is set on every event GitHub documents, but an
+          # empty one must not read as "not the owner" and fail the owner's own
+          # release. Absent falls back to actor, which is checked anyway.
+          pressed="${HDT_TRIGGERING_ACTOR:-$HDT_ACTOR}"
+
+          echo "event: ${HDT_EVENT}"
+          echo "actor: ${HDT_ACTOR}"
+          echo "triggering actor: ${pressed}"
+          echo "repository owner: ${HDT_OWNER}"
+
+          if [ "${HDT_ACTOR}" != "${HDT_OWNER}" ] || [ "${pressed}" != "${HDT_OWNER}" ]; then
+            echo "::error::the end-to-end suite runs on GHRUNNER01 - a real machine holding Hyper-V administrator rights, on a private LAN beside machines belonging to another project - and only '${HDT_OWNER}' may start it. This run was started by '${HDT_ACTOR}' and triggered by '${pressed}'. Nothing was checked out onto that machine."
+            exit 1
+          fi
+
+          echo "started by the repository owner; the lab may go ahead."
+
   e2e:
     name: hyper-v
+    needs: guard
     runs-on: [self-hosted, windows, hyperv-nested]
-    environment: lab
 
     # It deploys Windows to VMs from a WinPE image it builds first. Six hours is
     # not a target, it is the point past which something has hung - and it is
-    # what the Sunday cron gets, where nobody is waiting.
+    # what a run somebody started by hand gets, where nobody is waiting on a
+    # release.
     #
     # A RELEASE PASSES A SHORTER ONE. `timeout-minutes` is not a key GitHub
     # allows on a job that calls a reusable workflow, so the caller cannot set
     # this from outside; it hands in a number and this job applies it.
     #
     # THE `|| 360` IS NOT DECORATION. An input declared under workflow_call
-    # gets its default only when the workflow is CALLED. On the cron and on a
+    # gets its default only when the workflow is CALLED. On a
     # workflow_dispatch, `inputs.timeoutMinutes` is null, and a bare
     # `timeout-minutes: ${{ inputs.timeoutMinutes }}` is then an empty value
     # and an invalid workflow file - a run with zero jobs, not an error.

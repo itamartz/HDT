@@ -7,10 +7,18 @@
 # somebody nobody here has met, and GitHub's first-time-contributor approval
 # stops exactly one pull request per person.
 #
-# So the rule this file exists to hold is: A JOB THAT RUNS ON A SELF-HOSTED
-# RUNNER MUST NOT BE REACHABLE FROM A FORK. It is asserted against the SET of
-# workflow files rather than against e2e.yml alone, because the workflow that
-# breaks it will be the next one somebody adds, not this one.
+# So the rules this file exists to hold are: A JOB THAT RUNS ON A SELF-HOSTED
+# RUNNER MUST NOT BE REACHABLE FROM A FORK, AND IT MUST START ONLY WHEN THE
+# REPOSITORY OWNER STARTS IT - never on a timer, never for anybody else. Both
+# are asserted against the SET of workflow files rather than against e2e.yml
+# alone, because the workflow that breaks them will be the next one somebody
+# adds, not this one.
+#
+# THE SECOND RULE USED TO BE A REQUIRED REVIEWER ON THE `lab` ENVIRONMENT, and
+# that was two problems in one key: it is configured in GitHub settings, so
+# nothing here could assert it was still there, and it made every release wait
+# for a click from the one person who had just tagged it. It is an actor guard
+# now - in the file, enforced by the file, and read by these cases.
 #
 # YAML 1.1 gotcha, same as CiWorkflow.Tests.ps1: ConvertFrom-Yaml turns the
 # GitHub Actions 'on:' key into the BOOLEAN $true. Trigger assertions are made
@@ -133,7 +141,7 @@ Describe 'E2E workflow' {
         $script:workflowText | Should -Match 'e2e-diagnostics'
     }
 
-    It 'triggers on demand, on a schedule, on a caller, and on nothing else' {
+    It 'triggers on demand, on a caller, and on nothing else' {
         # Raw text: the 'on' key is the boolean $true after a YAML 1.1 parse.
         #
         # workflow_call IS NOT A TRIGGER SOMEBODY CAN PULL. It fires only when
@@ -141,9 +149,104 @@ Describe 'E2E workflow' {
         # workflow's own triggers decide who can reach it - which is why the
         # set-wide case below exists.
         $script:workflowText | Should -Match '(?m)^\s{2}workflow_dispatch:'
-        $script:workflowText | Should -Match '(?m)^\s{2}schedule:'
         $script:workflowText | Should -Match '(?m)^\s{2}workflow_call:'
         $script:workflowText | Should -Not -Match '(?m)^\s{2}push:'
+    }
+
+    It 'never starts itself, on a schedule or otherwise' {
+        # THE RULE, WITH ITS REASON, SO NOBODY PUTS THE CRON BACK WITHOUT
+        # DECIDING TO. This job runs on GHRUNNER01: a real machine, holding
+        # Hyper-V administrator rights over a nested hypervisor, on a private
+        # LAN beside a domain controller and a ConfigMgr server that belong to
+        # somebody else's lab. It creates virtual machines and deploys
+        # operating systems to them, for hours.
+        #
+        # A cron starts all of that with nobody present. It fires whether the
+        # lab host is in use for something else, whether the machines beside it
+        # are mid-experiment, and whether anybody is going to read the result -
+        # and `schedule` runs as the last person to touch the workflow file,
+        # which is an actor guard's blind spot as well.
+        #
+        # THE LAB STARTS WHEN THE OWNER STARTS IT, AND AT NO OTHER TIME. That
+        # is the whole policy, and a `schedule:` key is the one way to break it
+        # without breaking any other case in this file.
+        $script:workflowText | Should -Not -Match '(?m)^\s{2}schedule:'
+        $script:workflowText | Should -Not -Match '(?m)^\s*-\s*cron:'
+    }
+
+    It 'reaches the runner only behind a job that checks who started the run' -Skip:$script:HDTYamlMissing {
+        # NOT AN `if:` ON THE LAB JOB, AND THE DIFFERENCE IS THE WHOLE POINT.
+        # A false `if:` SKIPS a job, and GitHub calls a workflow whose jobs all
+        # skipped a SUCCESS - so publish.yml's `lab` job would go green having
+        # run nothing, and the release would ship unproven. A separate job that
+        # FAILS makes the called workflow fail, which is what `needs:` in
+        # publish.yml is reading.
+        $script:job.ContainsKey('needs') | Should -BeTrue -Because 'the self-hosted job must sit behind a gate rather than carry one'
+
+        $gates = @($script:job['needs'])
+        $gates | Should -Not -BeNullOrEmpty
+
+        foreach ($gate in $gates) {
+            $script:workflow['jobs'].ContainsKey([string] $gate) | Should -BeTrue
+            # AND THE GATE ITSELF RUNS ON A HOSTED RUNNER. A guard that runs on
+            # the machine it is guarding has already lost: the checkout, and
+            # every action in it, executed there first.
+            [string] @($script:workflow['jobs'][[string] $gate]['runs-on']) |
+                Should -Not -Match 'self-hosted'
+        }
+    }
+
+    It 'lets nobody but the repository owner start the lab' -Skip:$script:HDTYamlMissing {
+        # `github.actor` IS THE USER THAT STARTED THE RUN, AND IT SURVIVES THE
+        # CALL. In a reusable workflow the github context is the CALLER's, so a
+        # `v*` tag pushed by the owner reaches this job with the owner's name
+        # in it and passes; the same tag pushed by anybody else fails here
+        # rather than on GHRUNNER01.
+        #
+        # AND `github.triggering_actor` AS WELL, WHICH IS NOT THE SAME THING.
+        # On a re-run `github.actor` stays whoever started the ORIGINAL run,
+        # while triggering_actor is whoever pressed the button. Check only the
+        # first and a collaborator re-runs the owner's run onto the lab host;
+        # check only the second and nothing catches a run started by somebody
+        # else and re-run by the owner. Both, or neither is a control.
+        # THE EXPRESSIONS LIVE IN `env:`, NOT IN THE SCRIPT, and deliberately -
+        # interpolating `${{ github.actor }}` straight into a shell line is the
+        # script-injection shape, because a display name is attacker-chosen
+        # text. So both halves of the step are read here.
+        $gate = $script:workflow['jobs'][[string] @($script:job['needs'])[0]]
+
+        $body = @(foreach ($step in @($gate['steps'])) {
+                [string] $step['run']
+                if ($step.ContainsKey('env')) {
+                    foreach ($value in $step['env'].Values) { [string] $value }
+                }
+            }) -join "`n"
+
+        $body | Should -Match 'github\.repository_owner'
+        $body | Should -Match 'github\.actor'
+        $body | Should -Match 'github\.triggering_actor'
+
+        # IT FAILS, IT DOES NOT WARN. A guard that prints a sentence and exits
+        # zero is a comment.
+        $body | Should -Match 'exit 1'
+    }
+
+    It 'needs no human to press a button' {
+        # THE OWNER SHOULD NOT HAVE TO APPROVE THEIR OWN RELEASE. `environment:`
+        # was here as a backstop when the triggers were the only control, and
+        # the protection it actually supplied was a required reviewer - a click,
+        # on every tag push, by the one person the guard above has already
+        # identified.
+        #
+        # IT WAS ALSO THE ONE CONTROL THIS REPOSITORY COULD NOT SEE. Reviewer
+        # lists live in GitHub settings; nothing here could assert one was
+        # configured, or that somebody had not emptied it. The actor guard is
+        # in the file, and this suite reads it.
+        #
+        # publish.yml HANDS THIS JOB NO SECRETS AT ALL (`secrets:` absent, not
+        # `inherit`, asserted in PublishWorkflow.Tests.ps1), so there is no
+        # environment-scoped secret left for an `environment:` key to scope.
+        $script:workflowText | Should -Not -Match '(?m)^\s+environment:'
     }
 }
 
@@ -297,16 +400,33 @@ Describe 'Self-hosted runners on a public repository' {
         $e2e -match '(?m)^\s*runs-on:.*\bself-hosted\b' | Should -BeTrue
     }
 
-    It '<Name> gates a self-hosted job behind an environment' -ForEach $script:workflowFiles {
+    It '<Name> starts a self-hosted job for the repository owner and nobody else' -ForEach $script:workflowFiles {
 
         $text = Get-Content -LiteralPath $Path -Raw
         $selfHosted = $text -match '(?m)^\s*runs-on:.*\bself-hosted\b'
 
         if ($selfHosted) {
-            # The backstop. An environment with a required reviewer means even a
-            # workflow_dispatch waits for a human, which is what still holds if
-            # somebody adds a trigger to the file without reading its header.
-            $text | Should -Match '(?m)^\s+environment:\s*\S+'
+            # THE CONTROL THAT IS IN THE REPOSITORY, WHICH IS THE POINT.
+            # `environment:` used to be the backstop here and it was a required
+            # reviewer - a click, configured in GitHub settings, that no test in
+            # this tree could see and that nobody could tell had been emptied.
+            # It also made every release stop and wait for the one person who
+            # had already started it.
+            #
+            # An actor guard is written down here instead: it is enforced by the
+            # workflow, it is read by this case, and it distinguishes WHO
+            # started the run rather than merely that somebody did.
+            $text | Should -Match 'github\.repository_owner'
+            $text | Should -Match 'github\.actor'
+            $text | Should -Match 'github\.triggering_actor'
+
+            # AND IT MUST NOT BE A SCHEDULE'S TO PULL. `schedule` runs as
+            # whoever last touched the workflow file, which is a name an actor
+            # comparison can be made to accept - so the cron is refused here as
+            # well as in the file's own suite, over the whole set, because the
+            # workflow that puts a self-hosted job on a timer will be the next
+            # one somebody adds.
+            $text | Should -Not -Match '(?m)^\s{2}schedule:'
         } else {
             $selfHosted | Should -BeFalse
         }
