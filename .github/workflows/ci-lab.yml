@@ -93,6 +93,30 @@ name: CI-Lab
 #
 #    So: configure the second instance, confirm both runners show Idle, THEN
 #    take the checkpoint again.
+#
+# 3. AND THEN DELETE ci.yml's TRANSITIONAL `push: branches: [main]` TRIGGER.
+#
+#    IT IS WRITTEN HERE BECAUSE THIS IS WHERE IT WILL BE READ. The person doing
+#    steps 1 and 2 is the only person who can do step 3, and they will not be
+#    looking at ci.yml.
+#
+#    Until this machine answers to `hdt-ci`, the job below QUEUES on every push
+#    to main - the silent failure described in step 2, no error and no failed
+#    run - so ci.yml carries a temporary `push: branches: [main]` and validates
+#    main on GitHub's hardware in the meantime. Both files fire on the same
+#    push: ci.yml runs, this one queues. That queued run is expected and
+#    harmless; it is cancelled after 24 hours and nothing depends on it.
+#
+#    Once 1 and 2 are done and one CI-Lab run on main has gone green HERE,
+#    delete that trigger from ci.yml along with the "TRANSITIONAL TRIGGER"
+#    paragraph in its header. CiWorkflow.Tests.ps1 asserts the two travel
+#    together, so removing one without the other fails the gate rather than
+#    leaving a stale note behind.
+#
+#    THE TESTS BADGE IS STALE UNTIL THEN. badges.yml writes it on
+#    `workflow_run` after THIS workflow, and this workflow is the one queueing.
+#    ci.yml must not be given the badge push back to cover the gap - it runs on
+#    `pull_request` and is deliberately contents: read.
 # ---------------------------------------------------------------------------
 
 on:

@@ -177,12 +177,18 @@ Describe 'CI workflow (DESIGN 12.2.5)' {
         # `github.event_name` really is 'push' and only the ref comparison
         # stopped it.
         #
-        # THREE THINGS TOOK IT AWAY AT ONCE. There is no `push:` trigger in this
-        # file now, so the guard's first half can never be true; the gate on
-        # main runs on GHRUNNER01 via ci-lab.yml, and a self-hosted job may not
-        # hold contents: write; and this file runs on `pull_request`, where
-        # declaring contents: write at workflow level was one careless
-        # `pull_request_target` away from being a real hole.
+        # THREE THINGS TOOK IT AWAY AT ONCE. The gate on main runs on GHRUNNER01
+        # via ci-lab.yml, and a self-hosted job may not hold contents: write;
+        # this file runs on `pull_request`, where declaring contents: write at
+        # workflow level was one careless `pull_request_target` away from being
+        # a real hole; and its own `push:` trigger went with the split.
+        #
+        # THE THIRD OF THOSE IS BACK, TEMPORARILY, AND CHANGES NOTHING HERE.
+        # ci.yml carries a transitional `push: branches: [main]` while nothing
+        # answers to the `hdt-ci` label, so the old guard would be satisfiable
+        # again - and the badge push still does not return, because the second
+        # reason stands on its own. The badge is stale for the length of the
+        # overlap instead.
         #
         # WHERE IT WENT IS ASSERTED IN CiLabWorkflow.Tests.ps1, over the set of
         # workflow files: one composite action, and every job that calls it
@@ -262,14 +268,15 @@ Describe 'CI workflow (DESIGN 12.2.5)' {
         $uploadStep[0]['with']['name'] | Should -BeExactly 'pester-powershell'
     }
 
-    It 'triggers on a pull request, a weekly schedule, and never on a push' {
+    It 'triggers on a pull request and a weekly schedule' {
         # Raw text, deliberately: ConvertFrom-Yaml maps the 'on' key to $true.
         #
-        # NO push:. A push to main runs ci-lab.yml, which runs THIS SAME task on
-        # GHRUNNER01 - a machine that has been used, which is the shape of
-        # machine HDT is installed onto. Running both would be the same suite
-        # twice for one commit, and the hosted one would be the copy people
-        # stopped reading.
+        # main IS ci-lab.yml's, which runs THIS SAME task on GHRUNNER01 - a
+        # machine that has been used, which is the shape of machine HDT is
+        # installed onto. Running both permanently would be the same suite twice
+        # for one commit, and the hosted one would be the copy people stopped
+        # reading. (There is a temporary `push:` here all the same; the case
+        # below is the one that owns it.)
         #
         # WHICH LEAVES THE CLEAN-MACHINE INSTALL WITH ONE FIRING LEFT, AND THAT
         # IS WHAT THE SCHEDULE IS FOR. The `Install build dependencies` step is
@@ -284,7 +291,48 @@ Describe 'CI workflow (DESIGN 12.2.5)' {
         $script:workflowText | Should -Match '(?m)^\s+pull_request:'
         $script:workflowText | Should -Match '(?m)^\s+schedule:'
         $script:workflowText | Should -Match '(?m)^\s*-\s*cron:'
-        $script:workflowText | Should -Not -Match '(?m)^\s{2}push:'
+    }
+
+    It 'keeps the transitional push trigger and the note that retires it together, or has neither' {
+        # THE GAP THIS TRIGGER IS PLUGGING. ci-lab.yml owns main and targets the
+        # self-hosted label `hdt-ci`, and nothing answers to that label until the
+        # second runner instance on GHRUNNER01 is registered. A job queued
+        # against a label no runner carries DOES NOT FAIL: no error, no red run,
+        # no annotation - it sits Queued until GitHub cancels it 24 hours later.
+        # So with no `push:` here and no `hdt-ci` runner alive, a push to main is
+        # validated by nothing at all while the branch looks green.
+        #
+        # THE PAIR IS ASSERTED, NOT THE TRIGGER, because the two halves rot in
+        # opposite directions and each rots quietly:
+        #
+        #   - a `push:` on this file with no note is somebody reverting the
+        #     split to ci-lab.yml by accident, and nothing anywhere saying when
+        #     it is supposed to go again;
+        #   - the note with no trigger is an instruction to remove something
+        #     already removed, which is how a header comes to describe a file
+        #     that stopped matching it.
+        #
+        # Deleting both together is the only edit that passes, and that is
+        # exactly the edit ci-lab.yml's setup step 3 asks for.
+        $hasTrigger = [bool] ($script:workflowText -match '(?m)^\s{2}push:')
+        $hasNote = [bool] ($script:workflowText -match 'TRANSITIONAL TRIGGER')
+
+        $hasTrigger | Should -Be $hasNote -Because (
+            "the transitional push to main and the paragraph that says when to delete it go together. " +
+            "Trigger present: $hasTrigger. Note present: $hasNote")
+
+        if ($hasTrigger) {
+            # ONLY main, and never a second branch: this is a stand-in for
+            # ci-lab.yml, which triggers on main alone.
+            $script:workflowText | Should -Match '(?m)^\s{4}branches:\s*\[\s*main\s*\]'
+
+            # THE NOTE HAS TO CARRY THE CONDITION, not just an apology. Both
+            # halves of ci-lab.yml's setup are named: the runner label nothing
+            # answers to yet, and the checkpoint that has to be retaken
+            # afterwards or the registration is reverted away within the hour.
+            $script:workflowText | Should -Match 'hdt-ci'
+            $script:workflowText | Should -Match 'checkpoint'
+        }
     }
 }
 
