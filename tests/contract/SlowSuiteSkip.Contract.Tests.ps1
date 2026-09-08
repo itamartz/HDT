@@ -21,9 +21,10 @@
 # tests/integration and tests/e2e because those are the files nobody runs on an
 # ordinary day - but nothing in the rule is about slowness. The trap is
 # Pester's, and it is sprung by any file that computes a skip condition:
-# tests/contract is full of them (every *Schema.Contract.Tests.ps1 skips itself
-# when Test-Json is absent, which is on the 5.1 leg, which is the gate), and
-# tests/unit has its own. Scanning two directories left 524 of the repository's
+# tests/contract is full of them (every *Schema.Contract.Tests.ps1 used to skip
+# itself whole when Test-Json was absent - which was on the 5.1 gate, which is
+# how thirteen suites reported green having executed nothing), and tests/unit
+# has its own. Scanning two directories left 524 of the repository's
 # 580 test files unjudged, and the two it did scan were the two least likely to
 # be edited.
 #

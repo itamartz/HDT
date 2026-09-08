@@ -4,7 +4,7 @@
 #
 # TWO VALIDATORS, ONE VERDICT. The schema is the gate the console, an editor and
 # CI use; Assert-HDTWorkspaceDocument is what actually runs in WinPE, where
-# Test-Json does not exist. They must agree on every fixture, or an administrator
+# Test-HDTJsonSchema does not exist. They must agree on every fixture, or an administrator
 # gets a green editor and a red boot image build.
 #
 # AND ONE COMPARISON THAT IS THE POINT OF THE FILE: the schema's own "required"
@@ -13,14 +13,17 @@
 # and forgotten in the other would sail through every fixture that does not
 # happen to omit it.
 #
-# Test-Json exists under pwsh 7 and NOT under Windows PowerShell 5.1, so the
-# schema half skips there rather than silently passing.
+# THE SCHEMA SIDE IS VALIDATED BY Test-HDTJsonSchema, NOT BY Test-Json, and that
+# is what lets this file run on the gate at all. Test-Json is PowerShell 6+; the
+# gate is Windows PowerShell 5.1, because that is the edition WinPE ships. This
+# file used to open with `-Skip:(-not (Get-Command Test-Json))`, so on the only
+# run that gates a merge the whole Describe vanished and reported green having
+# executed nothing. Test-HDTJsonSchema is the draft-07 subset schemas/ uses,
+# hand-written for 5.1, and it THROWS on a keyword it does not implement rather
+# than ignoring one - see tests/helpers/HDTTestTools/tools/.
 
-$script:HDTSchemaSkip = -not [bool](Get-Command -Name Test-Json -ErrorAction SilentlyContinue)
-
-if ($script:HDTSchemaSkip) {
-    Write-Warning ("WorkspaceSchema contract SKIPPED: Test-Json does not exist on PowerShell {0} ({1}). The schema is validated on the pwsh 7 leg; Assert-HDTWorkspaceDocument is what runs here." -f $PSVersionTable.PSVersion, $PSVersionTable.PSEdition)
-}
+$script:HDTSchemaToolRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
+Import-Module -Name (Join-Path -Path $script:HDTSchemaToolRoot -ChildPath 'tests/helpers/HDTTestTools/HDTTestTools.psd1') -Force -ErrorAction Stop
 
 # Discovery-time enumeration, so every fixture becomes its own test case rather
 # than one loop whose first failure hides the rest.
@@ -42,7 +45,7 @@ $script:HDTInvalidFixture = @(Get-ChildItem -LiteralPath $script:HDTWorkspaceFix
 
 $script:HDTAgreementFixture = @($script:HDTValidFixture + $script:HDTInvalidFixture)
 
-Describe 'workspace.yaml schema contract' -Skip:$script:HDTSchemaSkip {
+Describe 'workspace.yaml schema contract' {
 
     BeforeAll {
         $script:repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
@@ -73,14 +76,14 @@ Describe 'workspace.yaml schema contract' -Skip:$script:HDTSchemaSkip {
             $schema = Get-Content -LiteralPath $script:workspaceSchemaPath -Raw
             $json = (ConvertFrom-Yaml -Yaml (Get-Content -LiteralPath $FixturePath -Raw) -Ordered) | ConvertTo-Json -Depth 10
 
-            Test-Json -Json $json -Schema $schema | Should -BeTrue
+            Test-HDTJsonSchema -Json $json -Schema $schema | Should -BeTrue
         }
 
         It 'rejects <Name> against schemas/workspace.schema.json' -ForEach $script:HDTInvalidFixture {
             $schema = Get-Content -LiteralPath $script:workspaceSchemaPath -Raw
             $json = (ConvertFrom-Yaml -Yaml (Get-Content -LiteralPath $FixturePath -Raw) -Ordered) | ConvertTo-Json -Depth 10
 
-            Test-Json -Json $json -Schema $schema -ErrorAction SilentlyContinue | Should -BeFalse
+            Test-HDTJsonSchema -Json $json -Schema $schema | Should -BeFalse
         }
 
         It 'agrees with Assert-HDTWorkspaceDocument about <Name>' -ForEach $script:HDTAgreementFixture {
@@ -88,7 +91,7 @@ Describe 'workspace.yaml schema contract' -Skip:$script:HDTSchemaSkip {
             $yaml = Get-Content -LiteralPath $FixturePath -Raw
             $json = (ConvertFrom-Yaml -Yaml $yaml -Ordered) | ConvertTo-Json -Depth 10
 
-            $schemaVerdict = [bool] (Test-Json -Json $json -Schema $schema -ErrorAction SilentlyContinue)
+            $schemaVerdict = [bool] (Test-HDTJsonSchema -Json $json -Schema $schema)
 
             $engineVerdict = $true
             try {
@@ -116,7 +119,7 @@ Describe 'workspace.yaml schema contract' -Skip:$script:HDTSchemaSkip {
             $schema = Get-Content -LiteralPath $script:workspaceSchemaPath -Raw
             $json = (ConvertFrom-Yaml -Yaml (Get-Content -LiteralPath $script:samplePath -Raw) -Ordered) | ConvertTo-Json -Depth 10
 
-            Test-Json -Json $json -Schema $schema | Should -BeTrue
+            Test-HDTJsonSchema -Json $json -Schema $schema | Should -BeTrue
         }
 
         It 'is accepted by Assert-HDTWorkspaceDocument' {

@@ -488,12 +488,16 @@ Describe 'New-HDTWorkspace' {
 
 # The schema is the gate the console, an editor and CI use; the engine's own
 # Assert-* validators are what run in WinPE. What this command writes has to pass
-# both, or an administrator gets a share their editor rejects. Test-Json does not
-# exist under Windows PowerShell 5.1, so this skips there rather than silently
-# passing - the same arrangement the schema contracts use.
-$script:HDTNewWorkspaceSchemaSkip = -not [bool](Get-Command -Name Test-Json -ErrorAction SilentlyContinue)
+# both, or an administrator gets a share their editor rejects.
+#
+# IT VALIDATES WITH Test-HDTJsonSchema, so it runs on the gate. Test-Json is
+# PowerShell 6+ and Windows PowerShell 5.1 - the edition WinPE ships - is what
+# gates a merge, so this used to skip there and prove nothing about the share the
+# command actually writes. Same arrangement as the schema contracts.
+$script:HDTNewWorkspaceToolRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
+Import-Module -Name (Join-Path -Path $script:HDTNewWorkspaceToolRoot -ChildPath 'tests/helpers/HDTTestTools/HDTTestTools.psd1') -Force -ErrorAction Stop
 
-Describe 'New-HDTWorkspace writes documents that validate against the schemas' -Skip:$script:HDTNewWorkspaceSchemaSkip {
+Describe 'New-HDTWorkspace writes documents that validate against the schemas' {
 
     BeforeAll {
         $script:repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
@@ -514,7 +518,7 @@ Describe 'New-HDTWorkspace writes documents that validate against the schemas' -
         $yaml = $script:schemaFileSystem.ReadAllText((Join-Path -Path $script:root -ChildPath 'workspace.yaml'))
         $json = (ConvertFrom-Yaml -Yaml $yaml -Ordered) | ConvertTo-Json -Depth 10
 
-        Test-Json -Json $json -Schema $schema | Should -BeTrue
+        Test-HDTJsonSchema -Json $json -Schema $schema | Should -BeTrue
     }
 
     It 'validates rules.yaml against schemas/rules.schema.json' {
@@ -522,6 +526,6 @@ Describe 'New-HDTWorkspace writes documents that validate against the schemas' -
         $yaml = $script:schemaFileSystem.ReadAllText((Join-Path -Path $script:root -ChildPath 'rules.yaml'))
         $json = (ConvertFrom-Yaml -Yaml $yaml -Ordered) | ConvertTo-Json -Depth 10
 
-        Test-Json -Json $json -Schema $schema | Should -BeTrue
+        Test-HDTJsonSchema -Json $json -Schema $schema | Should -BeTrue
     }
 }

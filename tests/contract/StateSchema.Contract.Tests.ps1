@@ -3,19 +3,21 @@
 # DESIGN 4.3: the state document).
 #
 # TWO VALIDATORS, ONE VERDICT. The schema is the gate the console and CI use;
-# Assert-HDTRunStateDocument is what actually runs in WinPE, where Test-Json does
+# Assert-HDTRunStateDocument is what actually runs in WinPE, where Test-HDTJsonSchema does
 # not exist. They must agree on every fixture, or a state document a console calls
 # valid is rejected mid-deployment - on the machine that has already been wiped.
 #
-# Test-Json exists under pwsh 7 and NOT under Windows PowerShell 5.1, so the whole
-# file skips there rather than silently passing. That is also why the engine
-# carries its own validator instead of leaning on the schema.
+# THE SCHEMA SIDE IS VALIDATED BY Test-HDTJsonSchema, NOT BY Test-Json, and that
+# is what lets this file run on the gate at all. Test-Json is PowerShell 6+; the
+# gate is Windows PowerShell 5.1, because that is the edition WinPE ships. This
+# file used to open with `-Skip:(-not (Get-Command Test-Json))`, so on the only
+# run that gates a merge the whole Describe vanished and reported green having
+# executed nothing. Test-HDTJsonSchema is the draft-07 subset schemas/ uses,
+# hand-written for 5.1, and it THROWS on a keyword it does not implement rather
+# than ignoring one - see tests/helpers/HDTTestTools/tools/.
 
-$script:HDTSchemaSkip = -not [bool](Get-Command -Name Test-Json -ErrorAction SilentlyContinue)
-
-if ($script:HDTSchemaSkip) {
-    Write-Warning ("StateSchema contract SKIPPED: Test-Json does not exist on PowerShell {0} ({1}). The schema is validated on the pwsh 7 leg; Assert-HDTRunStateDocument is what runs here." -f $PSVersionTable.PSVersion, $PSVersionTable.PSEdition)
-}
+$script:HDTSchemaToolRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
+Import-Module -Name (Join-Path -Path $script:HDTSchemaToolRoot -ChildPath 'tests/helpers/HDTTestTools/HDTTestTools.psd1') -Force -ErrorAction Stop
 
 # Discovery-time enumeration, so every fixture becomes its own test case rather
 # than one loop whose first failure hides the rest.
@@ -29,7 +31,7 @@ $script:HDTInvalidFixture = @(Get-ChildItem -LiteralPath $script:HDTStateFixture
 
 $script:HDTAgreementFixture = @($script:HDTValidFixture + $script:HDTInvalidFixture)
 
-Describe 'state.json schema contract' -Skip:$script:HDTSchemaSkip {
+Describe 'state.json schema contract' {
 
     BeforeAll {
         $script:repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
@@ -58,21 +60,21 @@ Describe 'state.json schema contract' -Skip:$script:HDTSchemaSkip {
             $schema = Get-Content -LiteralPath $script:stateSchemaPath -Raw
             $json = Get-Content -LiteralPath $FixturePath -Raw
 
-            Test-Json -Json $json -Schema $schema | Should -BeTrue
+            Test-HDTJsonSchema -Json $json -Schema $schema | Should -BeTrue
         }
 
         It 'rejects <Name>' -ForEach $script:HDTInvalidFixture {
             $schema = Get-Content -LiteralPath $script:stateSchemaPath -Raw
             $json = Get-Content -LiteralPath $FixturePath -Raw
 
-            Test-Json -Json $json -Schema $schema -ErrorAction SilentlyContinue | Should -BeFalse
+            Test-HDTJsonSchema -Json $json -Schema $schema | Should -BeFalse
         }
 
         It 'agrees with Assert-HDTRunStateDocument about <Name>' -ForEach $script:HDTAgreementFixture {
             $schema = Get-Content -LiteralPath $script:stateSchemaPath -Raw
             $json = Get-Content -LiteralPath $FixturePath -Raw
 
-            $schemaVerdict = [bool] (Test-Json -Json $json -Schema $schema -ErrorAction SilentlyContinue)
+            $schemaVerdict = [bool] (Test-HDTJsonSchema -Json $json -Schema $schema)
 
             $engineVerdict = $true
             try {
@@ -108,7 +110,7 @@ Describe 'state.json schema contract' -Skip:$script:HDTSchemaSkip {
             Save-HDTRunState -State $state -Path 'X:\HDT\state.json' -FileSystem $fs -Clock $clock
 
             $schema = Get-Content -LiteralPath $script:stateSchemaPath -Raw
-            Test-Json -Json ($fs.ReadAllText('X:\HDT\state.json')) -Schema $schema | Should -BeTrue
+            Test-HDTJsonSchema -Json ($fs.ReadAllText('X:\HDT\state.json')) -Schema $schema | Should -BeTrue
         }
 
         It 'round-trips an updated state document written by Save-HDTRunState' {
@@ -126,7 +128,7 @@ Describe 'state.json schema contract' -Skip:$script:HDTSchemaSkip {
             Save-HDTRunState -State $state -Path 'X:\HDT\state.json' -FileSystem $fs -Clock $clock
 
             $schema = Get-Content -LiteralPath $script:stateSchemaPath -Raw
-            Test-Json -Json ($fs.ReadAllText('X:\HDT\state.json')) -Schema $schema | Should -BeTrue
+            Test-HDTJsonSchema -Json ($fs.ReadAllText('X:\HDT\state.json')) -Schema $schema | Should -BeTrue
         }
     }
 }

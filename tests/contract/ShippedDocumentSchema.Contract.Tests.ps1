@@ -16,24 +16,28 @@
 # a document named X. Add a schema and its shipped document is checked; add a
 # document and the schema that names it starts checking it.
 #
-# TWO LEGS, AND THE 5.1 ONE IS THE GATE. Test-Json is the real validator and it
-# does not exist on Windows PowerShell 5.1 - which is what the whole suite runs
-# on - so every schema contract in this directory skips there, and that is
-# exactly how the confirm drift survived. So this file carries a second,
-# deliberately CONSERVATIVE walk that runs everywhere: it reports only what
-# cannot be argued with - a key an additionalProperties: false object does not
-# declare, a value outside an enum, a required key that is absent - and skips
-# any subtree whose schema it cannot resolve flatly (oneOf, anyOf, allOf, not,
-# patternProperties, a $ref it cannot follow). It is not a JSON Schema
-# implementation and must not become one; it is the drift detector for the class
-# of drift that has actually happened here twice.
+# TWO WALKS OVER THE SAME DOCUMENTS, AND BOTH NOW RUN ON THE GATE.
+#
+# Test-HDTJsonSchema is the full draft-07 subset. It replaced Test-Json, which is
+# PowerShell 6+ and therefore absent from Windows PowerShell 5.1 - the edition
+# WinPE ships and the one the whole suite runs on. While that was the validator,
+# every schema contract in this directory skipped whole on the gate, and that is
+# exactly how the confirm drift survived.
+#
+# Get-HDTSchemaViolation, below, is the deliberately CONSERVATIVE walk this file
+# grew while the real one was unavailable. It reports only what cannot be argued
+# with - a key an additionalProperties: false object does not declare, a value
+# outside an enum, a required key that is absent - and skips any subtree whose
+# schema it cannot resolve flatly (oneOf, anyOf, allOf, not, patternProperties,
+# a $ref it cannot follow).
+#
+# IT IS KEPT ON PURPOSE, as a second and independent opinion about the shipped
+# documents rather than as a stand-in. It is not a JSON Schema implementation
+# and must not become one: when the two disagree, the full validator is right
+# and this one has a gap.
 
 $script:HDTRepoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
-$script:HDTSchemaSkip = -not [bool](Get-Command -Name Test-Json -ErrorAction SilentlyContinue)
-
-if ($script:HDTSchemaSkip) {
-    Write-Warning ("ShippedDocumentSchema: the Test-Json leg is SKIPPED on PowerShell {0} - it does not exist there. The conservative walk below runs on both." -f $PSVersionTable.PSVersion)
-}
+Import-Module -Name (Join-Path -Path $script:HDTRepoRoot -ChildPath 'tests/helpers/HDTTestTools/HDTTestTools.psd1') -Force -ErrorAction Stop
 
 # THE TREES A NEW SHARE IS BUILT FROM, plus the samples an administrator copies.
 # A sample that does not validate is worse than no sample.
@@ -240,9 +244,9 @@ Describe 'shipped documents against the schemas that describe them' {
 
         function Get-HDTDocumentJson {
             <#
-                A YAML document as the JSON Test-Json is handed. An empty
+                A YAML document as the JSON Test-HDTJsonSchema is handed. An empty
                 document parses to $null, which ConvertTo-Json emits nothing at
-                all for and Test-Json refuses to bind; the honest JSON for it is
+                all for and Test-HDTJsonSchema refuses to bind; the honest JSON for it is
                 the literal null.
             #>
             [CmdletBinding()]
@@ -303,14 +307,14 @@ Describe 'shipped documents against the schemas that describe them' {
         }
     }
 
-    Context 'the real validator, on the leg that has one' -Skip:$script:HDTSchemaSkip {
+    Context 'the full draft-07 validator, which the gate could not run before' {
 
         It 'validates <Name>' -ForEach $script:HDTSchemaPair {
 
             $schema = [System.IO.File]::ReadAllText($SchemaPath)
             $json = Get-HDTDocumentJson -Path $DocumentPath
 
-            Test-Json -Json $json -Schema $schema | Should -BeTrue
+            Test-HDTJsonSchema -Json $json -Schema $schema | Should -BeTrue
         }
     }
 }
