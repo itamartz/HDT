@@ -81,6 +81,21 @@ name: CI
 # deliberately `contents: read` (see the permissions block below), and a badge
 # that is a few commits behind is worth strictly less than that. The run page
 # for this workflow has the real numbers in the meantime.
+#
+# AND THE README's CI BADGE IS PART OF THIS TRANSITION, NOT SEPARATE FROM IT.
+# It points at THIS workflow while the trigger above is here, because a status
+# badge has to name a workflow that can COMPLETE. Pointed at ci-lab.yml it
+# named runs that queue on a label no runner carries and are then cancelled -
+# by that file's concurrency group on the next push, or by GitHub at 24 hours -
+# and GitHub renders a cancelled run as "failing". The gate was green and the
+# front page said the build was broken.
+#
+# So the badge moves to ci-lab.yml in the SAME edit that deletes the trigger
+# below and this paragraph with it - ci-lab.yml's setup step 4 is the same
+# instruction, written where the person doing the runner will read it.
+# CiWorkflow.Tests.ps1 asserts the badge and the trigger travel together in
+# both directions: trigger here and the badge on ci-lab.yml fails, trigger gone
+# and the badge still here fails.
 # ---------------------------------------------------------------------------
 #
 # THE WEEKLY schedule IS NOT DECORATION, IT IS THE ONLY THING LEFT THAT PROVES

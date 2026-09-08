@@ -334,6 +334,66 @@ Describe 'CI workflow (DESIGN 12.2.5)' {
             $script:workflowText | Should -Match 'checkpoint'
         }
     }
+
+    It 'points the README status badge at the workflow that can currently complete' {
+        # A BADGE IS THE THIRD HALF OF THE SAME TRANSITION, AND IT IS THE ONE
+        # THAT WAS MISSED. The trigger moved to ci-lab.yml, a transitional
+        # `push:` was put back here so main went on being validated - and the
+        # README badge was repointed at ci-lab.yml and NOT made transitional
+        # with it. So the page advertised a workflow whose every run queues on a
+        # label no runner carries and is cancelled, and GitHub renders a
+        # cancelled run as "failing". The gate was green and the front page said
+        # otherwise.
+        #
+        # THE RULE IS NOT "point at ci.yml". It is that the badge must name a
+        # workflow that can currently COMPLETE, and which one that is follows
+        # from the same fact as the trigger: while `hdt-ci` has no runner it is
+        # this file, and the day the runner is registered it is ci-lab.yml. Tie
+        # it to the trigger and the two cannot drift - the same edit retires
+        # both, which is what ci-lab.yml's setup step 3 now asks for.
+        #
+        # ASSERTED OVER THE SET, so this is not a test that passes for one badge
+        # and fails nobody after it. Every GitHub Actions status image in the
+        # README is discovered - a badge for a third workflow added tomorrow
+        # joins the set the moment it is written - and the whole set is judged:
+        # the workflow that cannot complete must appear in none of them, and the
+        # one that can must appear in at least one.
+        #
+        # SHIELDS.IO ENDPOINT BADGES ARE NOT STATUS BADGES and are deliberately
+        # out of scope here. The `tests` badge is a number written to the badges
+        # branch by badges.yml on `workflow_run` after CI-Lab, so it LINKS to
+        # ci-lab.yml because that is where the number comes from. It reports
+        # nothing about a run's conclusion and does not go red when one is
+        # cancelled.
+        $readmePath = [IO.Path]::Combine($script:repoRoot, 'README.md')
+        $readmeText = [IO.File]::ReadAllText($readmePath)
+
+        # https://github.com/<owner>/<repo>/actions/workflows/<file>/badge.svg
+        $statusBadge = @(
+            [regex]::Matches($readmeText, '/actions/workflows/(?<Workflow>[A-Za-z0-9._-]+\.ya?ml)/badge\.svg') |
+                ForEach-Object { $_.Groups['Workflow'].Value }
+        )
+
+        $statusBadge.Count | Should -BeGreaterOrEqual 1 -Because 'README.md should carry at least one GitHub Actions status badge; with none, every assertion below passes by finding nothing'
+
+        $hasTrigger = [bool] ($script:workflowText -match '(?m)^\s{2}push:')
+
+        # Whichever workflow validates main today is the one whose runs finish.
+        # The other one's runs do not, and a badge for it is worse than no badge.
+        if ($hasTrigger) {
+            $canComplete = 'ci.yml'
+            $cannotComplete = 'ci-lab.yml'
+            $why = 'the transitional push trigger is still here, so nothing answers to `hdt-ci` yet and every CI-Lab run queues until GitHub cancels it - which the badge renders as "failing"'
+        }
+        else {
+            $canComplete = 'ci-lab.yml'
+            $cannotComplete = 'ci.yml'
+            $why = 'the transitional push trigger is gone, so the `hdt-ci` runner is registered and CI-Lab is what validates a push to main; ci.yml no longer runs on one and its badge would report a stale pull_request'
+        }
+
+        $statusBadge | Should -Not -Contain $cannotComplete -Because ("$cannotComplete does not validate a push to main right now, so its badge reports a run nobody is waiting on: $why")
+        $statusBadge | Should -Contain $canComplete -Because ("the README has to show the gate that main actually goes through, and that is $canComplete : $why")
+    }
 }
 
 Describe 'Coverage workflow' {

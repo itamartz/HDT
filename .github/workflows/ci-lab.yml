@@ -117,6 +117,28 @@ name: CI-Lab
 #    `workflow_run` after THIS workflow, and this workflow is the one queueing.
 #    ci.yml must not be given the badge push back to cover the gap - it runs on
 #    `pull_request` and is deliberately contents: read.
+#
+# 4. AND SWAP THE README's CI BADGE OVER TO THIS WORKFLOW.
+#
+#    README.md's first badge points at ci.yml today, DELIBERATELY, and for the
+#    same reason step 3 exists: a badge has to name a workflow that can
+#    actually COMPLETE. While nothing answers to `hdt-ci`, every run of this
+#    file queues and is then cancelled - by the concurrency group above when
+#    the next push lands, or by GitHub at 24 hours if no push does - and
+#    GitHub's status badge renders a cancelled run as "failing". That is what
+#    it did: a green gate, and a front page saying the build was broken.
+#
+#    So when steps 1 and 2 are done and one CI-Lab run on main has gone green
+#    here, change that badge's image and link from ci.yml to ci-lab.yml in the
+#    same edit that deletes ci.yml's trigger. CiWorkflow.Tests.ps1 asserts the
+#    badge and the trigger travel together in BOTH directions, so doing one
+#    without the other fails the gate.
+#
+#    NOT the `tests` badge on the line below it. That one is a number from the
+#    badges branch, written by badges.yml on `workflow_run` after THIS
+#    workflow, so it already links here - correctly, because that is where the
+#    number comes from. It reports no run's conclusion and nothing about it
+#    changes.
 # ---------------------------------------------------------------------------
 
 on:
