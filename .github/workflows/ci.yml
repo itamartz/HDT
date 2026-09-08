@@ -3,41 +3,32 @@ name: CI
 # DESIGN 12.2.5: unit + contract + PSScriptAnalyzer on every push, Windows
 # runner, a red suite blocks merge.
 #
-# TWO EDITIONS, AND THEY ARE HERE FOR DIFFERENT REASONS.
+# ONE EDITION, AND IT IS WINDOWS POWERSHELL 5.1. The engine runs inside WinPE,
+# which has no pwsh, so 5.1 is the edition that decides whether HDT works - a
+# green pwsh leg proves nothing WinPE cares about, and a red one blocks a merge
+# over a shell the product never runs under. `shell: powershell` on
+# windows-latest IS 5.1.
 #
-# 5.1 IS THE GATE. The engine runs inside WinPE, which has no pwsh, so Windows
-# PowerShell 5.1 is the edition that decides whether HDT works. `shell:
-# powershell` on windows-latest IS 5.1.
+# THE ARGUMENT FOR A SECOND LEG IS ANSWERED IN THE TESTS, NOT IN THE MATRIX.
+# A pwsh leg was added back once because two contracts were asleep without it,
+# and both are now awake on 5.1 itself:
 #
-# 7 IS THE EVIDENCE 5.1 CANNOT PRODUCE, and without it two contracts were
-# asleep:
+#   - Thirteen suites validated schemas/*.schema.json with Test-Json, which is
+#     PowerShell 6+, so each opened with `-Skip:(-not (Get-Command Test-Json))`
+#     and vanished whole here. They validate with Test-HDTJsonSchema now - the
+#     draft-07 subset schemas/ uses, hand-written for 5.1, which THROWS on a
+#     keyword it does not implement rather than ignoring one. 383 contract
+#     assertions that used to skip on this runner now execute on it.
+#   - PowerShell51Compatibility.Contract needed 7 only if you believed a
+#     forbidden operator has to parse to be detected. It does not: `??` and the
+#     ternary are PARSE ERRORS under 5.1, and Get-HDTScriptCompatibilityViolation
+#     reports a parse error as a violation. 5.1 is the STRONGER engine for that
+#     contract, not the weaker one - it is the edition on which a 7-ism cannot
+#     even be read.
 #
-#   - Seven schema contract suites - AppSchema, OsSchema, RulesSchema,
-#     SequenceSchema, ShippedDocumentSchema, StateSchema, WorkspaceSchema -
-#     open with `-Skip:(-not (Get-Command Test-Json))`, and Test-Json does not
-#     exist in 5.1. On a 5.1-only gate all seven Describe blocks skipped whole,
-#     so NOTHING anywhere validated schemas/*.schema.json, and nothing proved
-#     the hand-written Assert-HDT*Document validators still agreed with them. A
-#     schema edit that rejected every shipped sequence.yaml merged green.
-#   - PowerShell51Compatibility.Contract: a forbidden operator is a parse error
-#     under 5.1 and an ordinary AST node under 7. Only the pair of runs proves
-#     the constraint; one engine is half the evidence.
-#
-# THE MATRIX WAS CUT ONCE, on the argument that a red pwsh leg blocks a merge
-# over a shell the product never runs under. That is answered rather than
-# ignored: `fail-fast: false` means neither leg can cancel the other, and the
-# badge and the release come from the 5.1 leg alone. 7 is evidence; it never
-# speaks for the run.
-#
-# THE TWO LEGS CANNOT COLLIDE. GitHub gives each matrix leg its own runner VM,
-# its own checkout and its own out/, and `-Task ci` runs only tests/unit and
-# tests/contract - integration and e2e are not in it and never will be - so
-# neither leg touches a real DISM artefact, a mounted VHDX or any path the
-# other can see. The NUnit results are named for the edition that wrote them
-# (pester-<Edition>-<Version>.xml) and uploaded under per-leg artefact names,
-# because upload-artifact@v4 refuses a name that already exists. The one
-# genuinely shared thing is the remote `badges` branch, so exactly one leg
-# pushes to it.
+# So a second leg would now test a configuration this product does not support,
+# and it has already cost a red build over PSUseSingularNouns - an analyzer rule
+# difference between the editions with no bearing on the engine.
 #
 # THE REPORTS ARE BUILT BY build.ps1, NOT BY THIS FILE. The test task writes the
 # NUnit result and the shields.io tests badge; the runner only uploads and
@@ -64,9 +55,8 @@ on:
   # approval click before finding a lint failure.
   #
   # CALLED, NOT COPIED, for the same reason as e2e.yml: the release runs the
-  # IDENTICAL matrix the branch does - 5.1 for the gate, 7 for the seven
-  # schema contracts that skip whole under 5.1 - and a change to the pins or
-  # the editions reaches both callers or neither.
+  # IDENTICAL gate the branch does, on the same edition and the same dependency
+  # pins, and a change to either reaches both callers or neither.
   #
   # THE BADGES DO NOT MOVE WHEN IT IS CALLED. A called workflow sees the
   # CALLER's github context, so on a release `github.event_name` is genuinely
@@ -82,7 +72,7 @@ permissions:
 
 jobs:
   windows:
-    name: ${{ matrix.shell }}
+    name: powershell
     runs-on: windows-latest
 
     # The suite is ~10 minutes on a developer machine and ~20 here. GitHub's
@@ -91,22 +81,14 @@ jobs:
     # 45 catches a hang without tripping on a slow runner.
     timeout-minutes: 45
 
-    strategy:
-      # Both editions always report. Failing fast would hide a 5.1-only break
-      # behind a pwsh-only break, or the other way round - and the pwsh leg
-      # exists precisely to produce evidence the 5.1 leg cannot, which it does
-      # not do if 5.1 can cancel it mid-run.
-      fail-fast: false
-      matrix:
-        shell: [ pwsh, powershell ]
-
-    # The matrix context is NOT available on a step's `shell:` key -- GitHub
-    # rejects the whole workflow with "Unrecognized named-value: 'matrix'" and
-    # produces a run with zero jobs. It IS available on jobs.<id>.defaults.run,
-    # so the shell is selected once here and inherited by every `run:` step.
+    # Set once and inherited by every `run:` step. It lives on defaults.run
+    # rather than on each step because a step-level `shell:` key cannot read a
+    # matrix context - GitHub rejects the whole workflow with "Unrecognized
+    # named-value: 'matrix'" and produces a run with zero jobs - and that is
+    # worth leaving written down now that there is no matrix to read.
     defaults:
       run:
-        shell: ${{ matrix.shell }}
+        shell: powershell
 
     steps:
       - uses: actions/checkout@v4
@@ -116,12 +98,8 @@ jobs:
           [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
           # Install-PackageProvider -Name NuGet is a Windows PowerShell 5.1
-          # bootstrap. On pwsh 7 it fails outright with "No match was found ...
-          # for the provider 'NuGet'" - PowerShell 7 ships PowerShellGet and
-          # does not need it. Guard by edition, not by shell name.
-          if ($PSVersionTable.PSEdition -eq 'Desktop') {
-              Install-PackageProvider -Name NuGet -MinimumVersion 2.8.5.201 -Force | Out-Null
-          }
+          # bootstrap, and 5.1 is the only edition this workflow runs.
+          Install-PackageProvider -Name NuGet -MinimumVersion 2.8.5.201 -Force | Out-Null
 
           Set-PSRepository -Name PSGallery -InstallationPolicy Trusted
           Install-Module Pester            -RequiredVersion 5.7.1  -Scope CurrentUser -Force -SkipPublisherCheck
@@ -137,9 +115,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          # Per leg: upload-artifact@v4 refuses a name that already exists, so
-          # two legs sharing one name fails the second to finish.
-          name: pester-${{ matrix.shell }}
+          name: pester-powershell
           path: out/testResults/*.xml
 
       # The two numbers on the run's own summary page, so a failure does not
@@ -168,15 +144,8 @@ jobs:
       # ONLY FROM main. A pull request from a fork has a read-only token, and a
       # badge that moved with every PR would report whatever was merged last
       # rather than what is on main.
-      #
-      # AND ONLY FROM THE 5.1 LEG. This is the one thing in the matrix that is
-      # not per-runner: both legs write out/badges/tests.json and both would
-      # push it to the same remote ref, so the badge would report whichever
-      # runner happened to finish last and the two pushes would race for the
-      # same commit parent. 5.1 is the gate, so 5.1 is the leg that speaks for
-      # the run.
       - name: Publish badges
-        if: always() && matrix.shell == 'powershell' && github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: always() && github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: |
           # NOT ErrorActionPreference = Stop, DELIBERATELY. git writes progress
           # to stderr, and under Windows PowerShell 5.1 a native command writing

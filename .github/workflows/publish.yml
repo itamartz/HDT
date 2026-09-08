@@ -47,8 +47,9 @@ jobs:
   #            manifest must not burn an hour and a half of somebody's Hyper-V
   #            host before saying so.
   #
-  # ci         ci.yml, CALLED rather than copied - the same two-edition matrix
-  #            the branch runs, on hosted runners, on this exact commit.
+  # ci         ci.yml, CALLED rather than copied - the same gate the branch
+  #            runs, on the same edition, on hosted runners, on this exact
+  #            commit.
   #            "The tagged commit already passed CI on main" is true right up
   #            until it is not: a tag on an older commit, a tag pushed while
   #            the branch's own run is still going, a commit that reached main
@@ -182,7 +183,7 @@ jobs:
           $lines -join "`n"
 
   # THE GATE, AND IT IS ci.yml ITSELF. Same argument as the lab below: one
-  # definition, two callers. A copy of the matrix, the dependency pins and the
+  # definition, two callers. A copy of the edition, the dependency pins and the
   # build invocation would be a second source of truth, and the branch's copy
   # would be the one still green after somebody fixed the release's.
   #
@@ -283,7 +284,7 @@ jobs:
       # BUMP IT BEFORE YOU TAG: ./build.ps1 -Task version, commit the manifest,
       # tag that commit.
       # STAGES THE ARTEFACT. IT IS NO LONGER THE GATE - the ci job is, on this
-      # same commit, on both editions, minutes earlier.
+      # same commit, on the edition HDT supports, minutes earlier.
       #
       # WHAT SURVIVED. bundle and build are not verification, they are how
       # out/Hephaestus/<version> comes to exist at all - and build carries the

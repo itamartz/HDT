@@ -619,8 +619,9 @@ Describe 'build.ps1' {
 
         It 'runs a generator under Windows PowerShell 5.1, whatever this build runs under' {
             # The page quotes Get-Command -Syntax and 5.1 is the shell the engine
-            # runs in, so a pwsh leg must not be the one that writes it. Proven by
-            # having the fake generator report the edition that started it.
+            # runs in, so a build started from pwsh must not be the thing that
+            # writes it. Proven by having the fake generator report the edition
+            # that started it.
             $root = & $script:newFakeRepository 'edition' @(
                 '$out = Join-Path -Path (Split-Path -Parent $PSScriptRoot) -ChildPath ''docs\fake.txt'''
                 'Set-Content -LiteralPath $out -Value ([string] $PSVersionTable.PSVersion.Major) -Encoding UTF8'

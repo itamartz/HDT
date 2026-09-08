@@ -165,16 +165,29 @@ there is no `pwsh` there. Everything under `src/Hephaestus/` must therefore pars
 and run under 5.1. No `??`, no `?.`, no ternary, no `ForEach-Object -Parallel`,
 no `$PSStyle`, no `clean` blocks, no `ConvertFrom-Json -AsHashtable`.
 
-5.1 is also the edition the gate runs under, and CI runs both. The matrix was cut
-once, on the argument that a red `pwsh` leg blocks a merge over a shell the
-product never runs under — and cutting it put two contracts to sleep. The seven
-schema suites open with `-Skip:(-not (Get-Command Test-Json))` and `Test-Json`
-does not exist in 5.1, so on a 5.1-only gate nothing anywhere validated
-`schemas/*.schema.json`; and a forbidden operator is a parse error under 5.1 and
-an ordinary AST node under 7, so only the pair of runs proves the compatibility
-contract. The original argument is answered rather than ignored: `fail-fast:
-false` means neither leg can cancel the other, and the badge and the release come
-from the 5.1 leg alone. **7 is evidence; it never speaks for the run.**
+**5.1 is the only supported edition, and it is the only one CI runs.** Not a
+preference — a consequence: the engine's job is to run in WinPE, and WinPE has no
+`pwsh`. A green `pwsh` leg would prove nothing WinPE cares about, and a red one
+would block a merge over a shell the product does not support. One already did,
+over a `PSUseSingularNouns` difference between the two analyzers with no bearing
+on the engine.
+
+CI ran a two-edition matrix for a while because two contracts were asleep without
+it. Both are awake on 5.1 now, and neither needed a second engine — they needed
+the tests fixing:
+
+- **The schema contracts.** Thirteen suites validated `schemas/*.schema.json`
+  with `Test-Json`, which is PowerShell 6+, so each opened with
+  `-Skip:(-not (Get-Command Test-Json))` and vanished whole on the gate — 383
+  assertions reporting green having executed nothing. They validate with
+  `Test-HDTJsonSchema` now: the draft-07 subset these schemas actually use,
+  hand-written for 5.1, in `tests/helpers/HDTTestTools/`. It **throws** on a
+  keyword it does not implement, so a schema that grows one fails the commit that
+  added it rather than being validated vacuously.
+- **The 5.1 syntax contract.** It wanted 7 to prove a forbidden operator is
+  detectable. It is not: `??`, `?.` and the ternary are *parse errors* under 5.1,
+  and the scanner reports a parse error as a violation. 5.1 is the **stronger**
+  engine for that contract — the one on which a 7-ism cannot even be read.
 
 ## Repo layout
 
@@ -243,12 +256,17 @@ turn the real suite red. See `tests/helpers/README.md` section 9.
 
 ## Continuous integration
 
-`.github/workflows/ci.yml` runs on `windows-latest` over a two-leg matrix,
-`shell: powershell` and `shell: pwsh`. The first *is* Windows PowerShell 5.1 —
-the edition the engine has to work under, and the one the badge and the release
-come from; the second is there for the evidence 5.1 cannot produce, above.
-Module versions are pinned, and both legs run `./build.ps1 -Task ci`, the same
-entry point developers use; CI never grows its own build logic (DESIGN §12.2.5).
+`.github/workflows/ci.yml` runs one job on `windows-latest` under
+`shell: powershell`, which *is* Windows PowerShell 5.1 — the only edition HDT
+supports, for the reason above. Module versions are pinned, and it runs
+`./build.ps1 -Task ci`, the same entry point developers use; CI never grows its
+own build logic (DESIGN §12.2.5). `tests/unit/CiWorkflow.Tests.ps1` asserts both
+that the shell is 5.1 and that no second edition has been added back, with the
+reason in the test, so returning to a matrix is a decision somebody makes rather
+than a line somebody slips in.
+
+`.github/workflows/publish.yml` **calls** this workflow rather than copying it,
+so a release runs the identical gate on the tagged commit.
 
 **Coverage is not on the gate.** Pester measures it by tracing every command the
 suite executes, which turns a 10 minute run into a 98 minute one on a developer
@@ -267,14 +285,13 @@ writes three things into `out/`:
 
 | Path | What it is |
 |---|---|
-| `out/testResults/pester-<edition>-<version>.xml` | NUnit results — one file per engine, so two runs cannot overwrite each other |
+| `out/testResults/pester-<edition>-<version>.xml` | NUnit results, named for the engine that wrote them, so a local `pwsh` run cannot overwrite the 5.1 one |
 | `out/coverage/coverage.xml` | JaCoCo coverage of `src/Hephaestus` |
 | `out/badges/{tests,coverage}.json` | shields.io endpoint documents — the numbers on the badges above |
 
 Each workflow uploads what it produced, pass or fail: the gate uploads the NUnit
-results under a per-leg artefact name — `upload-artifact@v4` refuses a name that
-already exists — and writes the test number to the run's own summary page, and
-the nightly coverage run uploads the JaCoCo report. Both push their badge
+results and writes the test number to the run's own summary page, and the nightly
+coverage run uploads the JaCoCo report. Both push their badge
 document to the `badges` branch, so the two badges refresh on different clocks:
 tests on every push, coverage once a night.
 

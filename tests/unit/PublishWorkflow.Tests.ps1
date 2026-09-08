@@ -351,7 +351,7 @@ Describe 'the order a release runs in' {
     #   preflight   two manifest reads and one Find-Module. About a minute,
     #               on a hosted runner, and it answers "is this tag even
     #               shippable" before anything else is spent.
-    #   ci          the same matrix the branch runs, on hosted runners.
+    #   ci          the same gate the branch runs, on hosted runners.
     #               ~20 minutes of somebody else's compute.
     #   lab         ~90 minutes on GHRUNNER01, a machine in somebody's house,
     #               behind an approval click a human has to be awake for.
@@ -382,10 +382,10 @@ Describe 'the order a release runs in' {
 
     It 'calls the CI workflow rather than copying its steps' -Skip:$script:yamlMissing {
         # THE SAME ARGUMENT THAT MADE THE LAB A CALL. A second copy of the
-        # matrix, the dependency installs and the build invocation would be a
+        # edition, the dependency installs and the build invocation would be a
         # second source of truth, and the branch's copy would be the one still
         # green after somebody fixed the release's. It also means the release
-        # runs the IDENTICAL two editions the branch does - 5.1 for the gate,
+        # runs the IDENTICAL gate the branch does - Windows PowerShell 5.1,
         # 7 for the seven schema contracts that skip whole under 5.1.
         [string] $script:graph['ci']['uses'] | Should -BeExactly './.github/workflows/ci.yml'
     }
@@ -407,7 +407,7 @@ Describe 'the order a release runs in' {
         # so the stage cannot inherit anything from a previous run.
         #
         # WHAT WENT, AND WHY. lint, test and selfcheck all run in the ci job,
-        # on this exact commit, on both editions, minutes earlier - and none of
+        # on this exact commit, on the gate's own edition, minutes earlier - and none of
         # them looks at the staged folder. selfcheck watches a deliberately
         # failing test fail; it proves the harness, not the package. Running
         # the three again here is twenty minutes per release buying a second

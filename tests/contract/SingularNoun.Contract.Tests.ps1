@@ -15,8 +15,11 @@
 # of Medium and says nothing about Metadata; Pluralize.NET singularises Metadata
 # to Metadatum and treats Media as already singular. So a name can be clean on
 # 5.1 and dirty on 7, which is exactly what happened to
-# ConvertFrom-HDTUpdateMetadata: 0 diagnostics on the 5.1 gate, and CI's pwsh leg
-# red on the same commit.
+# ConvertFrom-HDTUpdateMetadata: 0 diagnostics on the 5.1 gate, and the pwsh leg
+# CI carried at the time red on the same commit. That leg has since been cut -
+# HDT supports 5.1 only - which is why this contract matters MORE and not less:
+# it is now the only thing in the repository that reproduces the other edition's
+# verdict at all.
 #
 # THE GATE HERE IS 5.1 AND OSDTEST01 HAS NO pwsh AT ALL, so "run the analyzer
 # under the other edition" is not a test this repository can run where it needs
@@ -34,10 +37,12 @@
 # report.
 #
 # WHAT IT DOES NOT COVER. It is one rule, not the whole rule set. Any other rule
-# whose verdict turns on the edition would still reach CI unseen. The durable
-# guard for that is CI's two-leg matrix; this contract exists so the single rule
-# that has already cost a red build fails here first, on the edition a developer
-# actually runs.
+# whose verdict turns on the edition is unguarded, and there is no second CI leg
+# to catch it - HDT supports Windows PowerShell 5.1 only, so the gate runs that
+# and nothing else. What this file buys is the single rule that has already cost
+# a red build, checked on the edition a developer actually runs. If another
+# edition-dependent rule ever costs one, the answer is another predicate here,
+# not a leg testing a shell the product does not support.
 
 $script:HDTRepositoryRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 Import-Module -Name (Join-Path -Path $script:HDTRepositoryRoot -ChildPath 'tests/helpers/HDTTestTools/HDTTestTools.psd1') -Force -ErrorAction Stop
@@ -219,8 +224,8 @@ Describe 'Singular noun contract across PowerShell editions' {
         # The message has to say what to do, because the developer reading it is
         # on 5.1 and their own `./build.ps1 lint` was green.
         $violation -join [Environment]::NewLine | Should -BeNullOrEmpty -Because (
-            "PSScriptAnalyzer's PowerShell 7 rule assembly reads these nouns as plural and CI's pwsh leg will fail on them, " +
-            "while the 5.1 lint task reports nothing. Either rename the command or add " +
+            "PSScriptAnalyzer's PowerShell 7 rule assembly reads these nouns as plural, while the 5.1 lint task " +
+            "this repository gates on reports nothing at all. Either rename the command or add " +
             "[Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseSingularNouns', '', Justification = '...')] to its param block, " +
             "saying why the name is right rather than that the rule is noisy"
         )
