@@ -3736,3 +3736,68 @@ the request and the boot.
 **The lab evidence is gone by design** - `Remove-HDTLabVirtualMachine` took
 `HDT-M8-Wsus` when the run was abandoned - but the two run logs survive under
 `Share\Logs\HDT-M8-WSUS01\`.
+
+### S26 — a Hyper-V checkpoint taken mid-update is a reboot that fires every hour ✅ FIXED
+
+Date: 2026-09-08, CI-Lab run `34281209809` on `GHRUNNER01`, attempt 1.
+
+MS-A2 reverts `GHRUNNER01` to its `clean` checkpoint every hour, and the runner
+registration lives inside that checkpoint (PROJECT.md, "GHRUNNER01"; ci-lab.yml's
+header, step 2). **A standard checkpoint saves the running memory as well as the
+disk**, so a revert restores not a freshly booted machine but the exact instant
+the checkpoint was taken — including, that day, "KB5124008 is installed and I am
+waiting to restart".
+
+The `clean` checkpoint had been retaken at 19:44:57Z while that update was
+mid-install awaiting its reboot. The 21:00Z revert put the guest back into that
+state, and it then did what a machine in that state does: restarted itself, on
+its own schedule, tens of minutes later, with no relation to whether a job was
+running. **Every subsequent revert restored the same pending reboot**, so this
+was not one bad hour — it was every hour until the checkpoint was retaken.
+
+What that did to the job, read back from the run's attempt 1 rather than
+remembered:
+
+| Time | |
+|---|---|
+| 21:32:54Z | run created; the hosted `actor` guard passes in three seconds |
+| 21:33:01Z | the `powershell` job starts on GHRUNNER01 |
+| 21:33:08Z | checkout and the dependency check have passed; step 4, "Build, lint, test, self-check", starts |
+| 21:39Z | `MoUsoCoreWorker.exe` restarts the machine |
+| 21:41Z | `TrustedInstaller.exe` restarts it again to finish the update |
+| 21:50:02Z | GitHub gives up and marks the job failed |
+
+**There is no error message anywhere, and that absence is the diagnosis.** Every
+step from 4 onward carries `conclusion: null` and `completed_at: null`, and
+`gh run view --log` answers "log not found" — the worker went down with the
+machine, so there was never a log to upload. A test failure looks nothing like
+this; it has a log and a red step.
+
+It also held the job open for eleven minutes after the second restart, waiting
+for a runner that was rebooting, which is why a gate that takes nine minutes
+reported seventeen. **The run time was the first symptom noticed and the least
+informative one.**
+
+**It was not the revert guard, which was checked and cleared.** The hourly task
+matches `Get-Process -Name 'Runner.Worker'` and sees both runner instances
+correctly; it skipped the revert exactly as designed. The revert that did the
+damage was the one at 21:00Z, before any job existed to protect — the guard can
+only decline to destroy a running job, and it cannot decline to restore a state
+that was captured wrong.
+
+**The fix is in what the guest is, not in what the workflow does.** The guest
+was settled — updates installed, rebooted until nothing was pending — automatic
+updates were then disabled there (`NoAutoUpdate=1`), and the checkpoint retaken.
+Disabling them is not a general recommendation and is right here for one
+specific reason: **a machine reverted every hour can never finish installing an
+update anyway.** Anything Windows Update starts is discarded at the top of the
+hour; all it can do is land mid-job. Servicing that machine means settling it by
+hand and retaking the checkpoint, which is a deliberate act with the runner idle.
+
+CI-Lab has been green since: 8m58s, both jobs success.
+
+**The general form, for any checkpoint this lab reverts to:** the guest must be
+idle in the sense of having nothing left it wants to do, not merely idle of the
+work you are watching. A pending reboot, a staged update, a scheduled task due
+in ten minutes — whatever the guest intends to do next is captured with it and
+replayed on every revert, for as long as that checkpoint stands.

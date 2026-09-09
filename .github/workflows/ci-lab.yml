@@ -94,6 +94,29 @@ name: CI-Lab
 #    So: configure the second instance, confirm both runners show Idle, THEN
 #    take the checkpoint again.
 #
+#    AND SETTLE WINDOWS UPDATE BEFORE YOU TAKE IT. A CHECKPOINT IS A REBOOT
+#    THAT HAPPENS EVERY HOUR FOR EVER.
+#
+#    A standard checkpoint saves the running memory as well as the disk, so
+#    the revert restores not a booted machine but the exact instant it was
+#    taken - including "an update is staged and I am waiting to restart". The
+#    guest then restarts itself tens of minutes into every hour, on its own
+#    schedule, with no relation to whether a job is running.
+#
+#    WHAT THAT FAILURE LOOKS LIKE, since there is no error to search for: the
+#    job checks out, starts build.ps1 and stops, every step from "Build, lint,
+#    test, self-check" onward reporting conclusion `null`, and `gh run view
+#    --log` answering "log not found" because the worker went down with the
+#    machine and never uploaded one. It has happened once, and
+#    `.planning/SPIKES.md` S26 has that run, its timestamps and the evidence.
+#
+#    So: install everything outstanding, reboot until nothing is pending, THEN
+#    take the checkpoint. The guest must be idle in the sense of having
+#    nothing left it wants to do, not merely idle of runner work. Automatic
+#    updates are switched off there now for the same reason - a machine
+#    reverted hourly can only ever install one mid-job and throw it away - so
+#    this is a check rather than a chore, until somebody turns them back on.
+#
 # 3. AND THEN DELETE ci.yml's TRANSITIONAL `push: branches: [main]` TRIGGER.
 #
 #    IT IS WRITTEN HERE BECAUSE THIS IS WHERE IT WILL BE READ. The person doing
