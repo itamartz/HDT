@@ -1298,10 +1298,13 @@ not what survived it. The design is DESIGN §3.2.
 - **`ApplyImage` becomes permitted on a resumed leg of a `REFRESH` run, and only
   there.** Capture's sits behind the resume point and is never visited
   (`Invoke-HDTTaskSequence.ps1:543-545`); a Refresh's sits ahead of it. The
-  exception keys on the engine-derived deployment type and never on anything
-  `state.json` asserts about itself — which is the whole reason for the
-  `Writable = $false` above, and the reason the guard is placed ahead of the
-  already-completed check in the first place.
+  exception keys on the deployment type the run checkpointed, read back out of
+  `state.json`, because after the reboot nothing on the machine can still say
+  what the run was for — the evidence was on the leg before this one, and the
+  state document is the only thing that crosses a reboot (DESIGN 3.2). What makes
+  that key payable is the bound rather than the key: `DiskPartition` stays
+  refused under every deployment type, so the worst a forged document buys is an
+  image apply and never a formatted disk.
 - **`Suspend` on `IBitLockerService`, and the step that calls it — both built.**
   The interface carries a fifth operation beside `GetVolume`, `AddProtector`,
   `BackupProtector` and `Enable`, and `SuspendBitLocker` is the step type that
@@ -1373,7 +1376,7 @@ nobody after it:
 | **`HDTDeploymentType` is derived, both ways** | `Get-HDTMachineFact` returns `NEWCOMPUTER` for a WinPE phase and `REFRESH` for a full-OS one, and its provenance names the phase it read rather than the word `constant` |
 | **The map refuses it, by column** | a `rules.yaml` setting `HDTDeploymentType` to either value is refused by `Assert-HDTRuleDocument`, asserted over every non-writable row the map carries rather than over that one name — so the next engine-published variable is covered the day its row lands |
 | **The guard's exception is exactly one step type** | on a resumed leg: `ApplyImage` runs under `REFRESH` and refuses under `NEWCOMPUTER`; `DiskPartition` refuses under both. Four cases in one table, because three of them passing is not the set passing |
-| **The exception cannot be forged** | a `state.json` claiming `REFRESH` on a leg the engine derived as `NEWCOMPUTER` does not unlock `ApplyImage`. The guard exists to disbelieve that document, and an exception it can talk its way through is not a guard |
+| **The exception reads the checkpointed type** | the engine consults `state.deploymentType` and not the type this leg would derive: the same WinPE leg dispatches `ApplyImage` when the document says `REFRESH` and refuses it when it says `NEWCOMPUTER`, and a document carrying no type at all unlocks nothing. What a forged document cannot buy is what gets asserted instead — `DiskPartition` refuses under every type there is, so the blast radius is an image apply and not a formatted disk (DESIGN 3.2) |
 | **BitLocker is suspended before the entry is armed** | the ordered operation list of a Refresh sequence against the fakes has the suspend ahead of the first `BootToWinPE` arm, and a `NEWCOMPUTER` run has no suspend in it anywhere |
 | **The shipped Refresh template plans** | it parses, schema-checks **and** plans — with no `DiskPartition` step and no partition operation in the resulting list. This is the `client.yaml` failure CLAUDE.md records: parsed and schema-checked is not planned |
 | **The clean preserves a set, not an example** | a clean-the-volume step against the fakes deletes `Windows`, `Program Files`, `Users` and `ProgramData` from the OS volume, and leaves **every** name in the preserved set standing — asserted by enumerating that set rather than by naming `HDT\`, so the next name added to it is covered the day it lands. Deleting `<volume>\HDT\` kills the run, so its survival is the case that must not be the one example somebody wrote |

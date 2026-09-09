@@ -438,15 +438,42 @@ meaning.
 
 **Naming the danger that re-opens is what makes the `Writable = $false` above
 structural rather than tidy.** The guard exists to *disbelieve* `state.json` —
-that is why it runs ahead of the already-completed check. An exception keyed to
-something a corrupt state document could assert about itself would hand that
-document the key to the lock it is the reason for. So the exception keys on the
-deployment type the engine **derived** at the start of the leg, from the phase it
-is running in, which nothing on the disk can forge. `Templates/reference.yaml`
-already records that the guard "holds however the machine arrived" — one-shot
-boot entry, PXE, an ISO left in the drive, a technician pressing F12 — and that
-sentence stays true. The exception is about *what the run is*, not about how it
-got here.
+that is why it runs ahead of the already-completed check. The exception keys on
+`state.deploymentType`, which lives in that same document beside that same
+`stepIndex`, and that is the decision rather than an oversight: after the reboot
+the machine cannot tell you what the run was for. A Refresh's second leg boots
+into WinPE exactly as a bare-metal first leg does, off a disk carrying a Windows
+installation in both cases. The evidence that separates them was on the leg
+*before* this one, and the only thing that crosses a reboot is the state
+document — so "the type the engine derived at the start of the run" and "the type
+the run checkpointed" are the same value here, because there is nothing else it
+could be. `Templates/reference.yaml` already records that the guard "holds
+however the machine arrived" — one-shot boot entry, PXE, an ISO left in the
+drive, a technician pressing F12 — and that sentence stays true. The exception is
+about *what the run is*, not about how it got here.
+
+**What that key costs is bounded, and the bound is what makes it payable.** The
+threat this guard actually meets is accident and not an adversary: a `state.json`
+exists only while a run is in progress, so there is no dormant file lying in wait
+to be picked up, and someone has to plant one. Deriving the type from the boot
+source instead — WinPE staged locally versus booted from PXE or media — is more
+honest and barely more robust, because anyone able to write `state.json` on that
+volume can write the BCD on it too; it was rejected as engine surgery on the
+resume path against a threat model of stale files rather than attack. And the
+blast radius is fixed by the other half of the table: `DiskPartition` is refused
+on a resumed leg under **every** deployment type, so the worst a forged document
+buys is an image apply and never a formatted disk. The partition table, the other
+volumes and the staged WinPE the leg is running from all survive it, and the
+loss is recoverable from the deployment share. As of `3ad1c52` the shipped
+templates additionally wrap their partition steps in MDT's `New Computer only`
+group, conditioned `$HDTDeploymentType -ne "REFRESH"` — defence in depth and
+documentation in place rather than a second guarantee, because that condition is
+evaluated against the same variable bag rehydrated from the same document. What
+would change the decision is a change to either premise: if `state.json` ever
+came to persist beyond a run, the accident case becomes a dormant one and the
+derivation earns its cost; so would a resume path that gained a step more
+destructive than `ApplyImage`, because the trade holds only while the worst
+outcome is an image apply.
 
 **BitLocker is suspended before the boot configuration is touched, and only on a
 Refresh.** A bare-metal machine has nothing to suspend; a Refresh runs on a

@@ -350,6 +350,90 @@ Describe 'Invoke-HDTTaskSequence -Resumed' {
         }
     }
 
+    Context 'where the exception reads the run type from' {
+
+        # THE SOURCE, PINNED, BECAUSE THE ANSWER IS THE CHECKPOINTED VALUE AND
+        # THE ARGUMENT FOR IT IS WORTH HOLDING STILL (DESIGN 3.2).
+        #
+        # Get-HDTResumePermittedStepType's header makes the case: after the
+        # reboot the machine cannot tell you what the run was for. A Refresh's
+        # second leg boots into WinPE exactly as a bare-metal first leg does,
+        # off a disk carrying a Windows installation in both cases. The evidence
+        # that separates them was on the leg BEFORE this one, and the only thing
+        # that crosses a reboot is the state document.
+        #
+        # SO THE ENGINE READS state.deploymentType, AND THIS IS THE TEST THAT
+        # SAYS SO OUT LOUD RATHER THAN LEAVING IT TO BE INFERRED. Both
+        # directions are pinned, because this is exactly the sentence that has
+        # already drifted between the documents and the code: deriving the type
+        # from the leg's own phase instead would fail the first case, and
+        # reading an absent field as permission would fail the second.
+
+        BeforeAll {
+            # A resumed leg whose state document carries no deploymentType at
+            # all, which is what an engine older than the field wrote.
+            $script:atStepWithoutType = {
+                param([int] $Index, [string] $Phase)
+
+                $harness = New-HDTSequenceTestHarness -Yaml $script:captureYaml -Phase $Phase
+                $harness.State.PSObject.Properties.Remove('deploymentType')
+
+                $harness.State.stepIndex = $Index
+                for ($i = 1; $i -lt $Index; $i++) {
+                    Update-HDTRunStateStep -State $harness.State -Index $i -Status Completed -Leg 1 | Out-Null
+                }
+
+                $result = Invoke-HDTTaskSequence -Sequence $harness.Sequence -Context $harness.Context `
+                    -State $harness.State -Resumed
+
+                return [pscustomobject] @{ Harness = $harness; Result = $result }
+            }
+        }
+
+        # THE DISCRIMINATOR. Both legs run in WinPE, and a WinPE leg DERIVES
+        # NEWCOMPUTER - so a REFRESH answer cannot have come from the leg. The
+        # only thing that differs between the two runs is the value in the
+        # document, and the outcome differs with it.
+        It 'reads the checkpointed type and not the one this leg would derive' {
+            (InModuleScope Hephaestus { Get-HDTDeploymentType -Phase WinPE }) | Should -BeExactly 'NEWCOMPUTER'
+
+            $carried = & $script:atStep 2 'WinPE' 'REFRESH'
+            $matching = & $script:atStep 2 'WinPE' 'NEWCOMPUTER'
+
+            [string] (& $script:stepNamed $carried 'Install Operating System').Message |
+                Should -Not -Match 'RESUMING' -Because 'the document says REFRESH and the document is what is read'
+            [string] (& $script:stepNamed $matching 'Install Operating System').Message |
+                Should -Match 'RESUMING' -Because 'the same leg, the same step, the other value in the document'
+        }
+
+        # AND A DOCUMENT THAT SAYS NOTHING BUYS NOTHING, through the loop rather
+        # than only in the predicate. Under Set-StrictMode -Version Latest the
+        # read itself is the trap, so the engine tests that the property exists
+        # before reading it - and an absent field unlocks nothing rather than
+        # falling back to whatever this leg looks like.
+        It 'refuses the apply when the document carries no type at all' {
+            $run = & $script:atStepWithoutType 2 'WinPE'
+
+            (& $script:stepNamed $run 'Install Operating System').Status | Should -BeExactly 'Failed'
+            [string] (& $script:stepNamed $run 'Install Operating System').Message | Should -Match 'RESUMING'
+        }
+
+        # THE BOUND ON WHAT A PLANTED DOCUMENT BUYS, at the end of the wire
+        # rather than at the predicate. The exception is keyed to a value that
+        # sits beside stepIndex in the same file, so a forged REFRESH is taken
+        # as possible - and the answer is that the partition table survives it
+        # whatever the document says, which is what makes the trade payable.
+        It 'still refuses DiskPartition however the document is written' {
+            foreach ($run in @((& $script:atStep 1 'WinPE' 'REFRESH'),
+                    (& $script:atStep 1 'WinPE' 'NEWCOMPUTER'),
+                    (& $script:atStepWithoutType 1 'WinPE'))) {
+
+                (& $script:stepNamed $run 'Format and Partition Disk').Status | Should -BeExactly 'Failed'
+                [string] (& $script:stepNamed $run 'Format and Partition Disk').Message | Should -Match 'RESUMING'
+            }
+        }
+    }
+
     Context 'a resumed leg that landed in the wrong phase' {
 
         # THE SILENT ONE, AND THE WORST FAILURE SHAPE OF THE THREE.
