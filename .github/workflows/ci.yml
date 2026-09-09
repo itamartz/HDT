@@ -47,57 +47,6 @@ name: CI
 # question, and this file is still the one that answers it: on every pull
 # request, and once a week.
 #
-# ---------------------------------------------------------------------------
-# TRANSITIONAL TRIGGER: THE `push:` BLOCK BELOW IS TEMPORARY AND MUST BE DELETED
-#
-# ci-lab.yml targets the self-hosted label `hdt-ci`, AND NOTHING ANSWERS TO THAT
-# LABEL YET. The second runner instance on GHRUNNER01 has not been registered -
-# ci-lab.yml's header, "SETTING GHRUNNER01 UP FOR THIS", is the procedure and
-# the reason it is two steps rather than one.
-#
-# A JOB QUEUED AGAINST A LABEL NO RUNNER CARRIES DOES NOT FAIL. There is no
-# error, no red run, no annotation: the job sits Queued until GitHub cancels it
-# 24 hours later. So with the push trigger gone from this file and no `hdt-ci`
-# runner alive, every push to main would be validated by NOTHING while the
-# branch went on looking green - which is the exact silent-gap failure the rest
-# of this header was written to close.
-#
-# SO THE TWO OVERLAP, DELIBERATELY, UNTIL THE RUNNER IS REAL. Both files fire on
-# a push to main: this one runs on GitHub's hardware, ci-lab.yml queues.
-#
-# DELETE IT WHEN BOTH OF ci-lab.yml's SETUP STEPS ARE DONE - the second runner
-# registered and showing Idle, AND the `clean` Hyper-V checkpoint retaken
-# afterwards, because a registration made after the checkpoint is destroyed by
-# the next hourly revert and puts the queueing straight back. One green CI-Lab
-# run on main is the proof. Then delete the trigger and this paragraph with it:
-# CiWorkflow.Tests.ps1 asserts that the two travel together, so half the removal
-# fails the gate rather than leaving a stale note or an unexplained trigger.
-#
-# THE TESTS BADGE GOES STALE MEANWHILE, AND THAT IS ACCEPTED. The badge is
-# written by badges.yml on `workflow_run` after CI-Lab, and CI-Lab is the run
-# that is queueing - so until the runner exists the README reports whatever the
-# last completed CI-Lab or nightly coverage run left there. Do NOT answer that
-# by putting the badge push back here: this file runs on `pull_request` and is
-# deliberately `contents: read` (see the permissions block below), and a badge
-# that is a few commits behind is worth strictly less than that. The run page
-# for this workflow has the real numbers in the meantime.
-#
-# AND THE README's CI BADGE IS PART OF THIS TRANSITION, NOT SEPARATE FROM IT.
-# It points at THIS workflow while the trigger above is here, because a status
-# badge has to name a workflow that can COMPLETE. Pointed at ci-lab.yml it
-# named runs that queue on a label no runner carries and are then cancelled -
-# by that file's concurrency group on the next push, or by GitHub at 24 hours -
-# and GitHub renders a cancelled run as "failing". The gate was green and the
-# front page said the build was broken.
-#
-# So the badge moves to ci-lab.yml in the SAME edit that deletes the trigger
-# below and this paragraph with it - ci-lab.yml's setup step 4 is the same
-# instruction, written where the person doing the runner will read it.
-# CiWorkflow.Tests.ps1 asserts the badge and the trigger travel together in
-# both directions: trigger here and the badge on ci-lab.yml fails, trigger gone
-# and the badge still here fails.
-# ---------------------------------------------------------------------------
-#
 # THE WEEKLY schedule IS NOT DECORATION, IT IS THE ONLY THING LEFT THAT PROVES
 # THE CLEAN-MACHINE INSTALL. What this workflow uniquely tests is the
 # `Install build dependencies` step above it - NuGet bootstrapped, three modules
@@ -109,13 +58,13 @@ name: CI
 # a prerequisite, and nobody finds out until the next contributor's first PR.
 
 on:
-  # TRANSITIONAL - see "TRANSITIONAL TRIGGER" in the header above. Nothing
-  # answers to ci-lab.yml's `hdt-ci` label yet, so this is the only thing
-  # validating a push to main. It goes the moment that runner is registered and
-  # the `clean` checkpoint retaken.
-  push:
-    branches: [ main ]
-
+  # NO `push:`, AND ITS ABSENCE IS A DECISION. A push to main runs the same
+  # ./build.ps1 -Task ci on GHRUNNER01 via ci-lab.yml; this file firing on it as
+  # well would be the same suite twice for one commit, and the hosted one would
+  # be the copy people stopped reading. There was a transitional `push:` here
+  # while nothing answered to ci-lab.yml's `hdt-ci` label - GHRUNNER01-ci does
+  # now, and CI-Lab has gone green on main - and CiWorkflow.Tests.ps1 asserts
+  # both that it is gone and that no note describing it was left behind.
   pull_request:
   workflow_dispatch:
 
@@ -249,13 +198,13 @@ jobs:
       # `badges` branch, copied out/badges/*.json into it and pushed - guarded by
       # `github.event_name == 'push' && github.ref == 'refs/heads/main'`.
       #
-      # THAT GUARD IS SATISFIABLE AGAIN WHILE THE TRANSITIONAL `push:` TRIGGER
-      # IS IN THE HEADER, AND THE STEP STILL DOES NOT COME BACK. Losing the
-      # trigger was never the only reason it left: this file also runs on
-      # `pull_request`, where declaring contents: write at workflow level is one
-      # careless `pull_request_target` away from being a real hole, and that
-      # reason stands on its own. The badge is stale for the length of the
-      # overlap instead - the trade is written down in the header.
+      # THAT GUARD IS UNSATISFIABLE NOW - there is no `push:` here to satisfy it
+      # - AND THAT IS NOT THE REASON IT MAY NOT COME BACK. It was satisfiable
+      # again for a week, while a stand-in `push:` covered for a runner that
+      # did not exist yet, and the step still did not return: this file also runs
+      # on `pull_request`, where declaring contents: write at workflow level is
+      # one careless `pull_request_target` away from being a real hole, and that
+      # reason stands on its own whatever the triggers say.
       #
       # THE NUMBERS COME FROM THE LAB MACHINE NOW. ci-lab.yml runs the same task
       # on every push to main and uploads out/badges/*.json as an artifact;

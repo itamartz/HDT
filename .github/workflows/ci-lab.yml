@@ -117,51 +117,31 @@ name: CI-Lab
 #    reverted hourly can only ever install one mid-job and throw it away - so
 #    this is a check rather than a chore, until somebody turns them back on.
 #
-# 3. AND THEN DELETE ci.yml's TRANSITIONAL `push: branches: [main]` TRIGGER.
+# THERE WERE TWO MORE STEPS HERE AND THEY ARE DONE, WHICH IS WHY THE LIST IS
+# TWO ITEMS LONG. They were repository edits rather than machine setup, they
+# happen once for the life of the project, and rebuilding GHRUNNER01 does not
+# bring them back - so leaving them written as instructions would tell the next
+# person to remove something that is already gone. What they were, kept in one
+# paragraph because the reasoning is still load-bearing:
 #
-#    IT IS WRITTEN HERE BECAUSE THIS IS WHERE IT WILL BE READ. The person doing
-#    steps 1 and 2 is the only person who can do step 3, and they will not be
-#    looking at ci.yml.
+# UNTIL THIS MACHINE ANSWERED TO `hdt-ci`, ci.yml CARRIED A TRANSITIONAL `push:
+# branches: [main]` and the README's status badge pointed at ci.yml. Both for
+# the same reason: a job queued against a label no runner carries does not fail
+# - the silent failure described in step 2 - so something had to validate main
+# in the meantime, and a status badge has to name a workflow that can actually
+# COMPLETE. Pointed here while every run of this file queued and was then
+# cancelled, GitHub rendered the cancellation as "failing": a green gate and a
+# front page saying the build was broken. Run 34281209809 on 2026-09-08 was the
+# first CI-Lab run to go green on main; the trigger and the badge moved in that
+# same commit, and CiWorkflow.Tests.ps1 now asserts the steady state - no
+# `push:` on ci.yml, no note describing one, and the status badge naming this
+# file.
 #
-#    Until this machine answers to `hdt-ci`, the job below QUEUES on every push
-#    to main - the silent failure described in step 2, no error and no failed
-#    run - so ci.yml carries a temporary `push: branches: [main]` and validates
-#    main on GitHub's hardware in the meantime. Both files fire on the same
-#    push: ci.yml runs, this one queues. That queued run is expected and
-#    harmless; it is cancelled after 24 hours and nothing depends on it.
-#
-#    Once 1 and 2 are done and one CI-Lab run on main has gone green HERE,
-#    delete that trigger from ci.yml along with the "TRANSITIONAL TRIGGER"
-#    paragraph in its header. CiWorkflow.Tests.ps1 asserts the two travel
-#    together, so removing one without the other fails the gate rather than
-#    leaving a stale note behind.
-#
-#    THE TESTS BADGE IS STALE UNTIL THEN. badges.yml writes it on
-#    `workflow_run` after THIS workflow, and this workflow is the one queueing.
-#    ci.yml must not be given the badge push back to cover the gap - it runs on
-#    `pull_request` and is deliberately contents: read.
-#
-# 4. AND SWAP THE README's CI BADGE OVER TO THIS WORKFLOW.
-#
-#    README.md's first badge points at ci.yml today, DELIBERATELY, and for the
-#    same reason step 3 exists: a badge has to name a workflow that can
-#    actually COMPLETE. While nothing answers to `hdt-ci`, every run of this
-#    file queues and is then cancelled - by the concurrency group above when
-#    the next push lands, or by GitHub at 24 hours if no push does - and
-#    GitHub's status badge renders a cancelled run as "failing". That is what
-#    it did: a green gate, and a front page saying the build was broken.
-#
-#    So when steps 1 and 2 are done and one CI-Lab run on main has gone green
-#    here, change that badge's image and link from ci.yml to ci-lab.yml in the
-#    same edit that deletes ci.yml's trigger. CiWorkflow.Tests.ps1 asserts the
-#    badge and the trigger travel together in BOTH directions, so doing one
-#    without the other fails the gate.
-#
-#    NOT the `tests` badge on the line below it. That one is a number from the
-#    badges branch, written by badges.yml on `workflow_run` after THIS
-#    workflow, so it already links here - correctly, because that is where the
-#    number comes from. It reports no run's conclusion and nothing about it
-#    changes.
+# NOT the `tests` badge on the line below it in the README. That one is a
+# number from the badges branch, written by badges.yml on `workflow_run` after
+# THIS workflow, so it has always linked here - correctly, because that is
+# where the number comes from. It reports no run's conclusion and nothing about
+# it changed.
 # ---------------------------------------------------------------------------
 
 on:

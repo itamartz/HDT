@@ -183,12 +183,12 @@ Describe 'CI workflow (DESIGN 12.2.5)' {
         # workflow level was one careless `pull_request_target` away from being
         # a real hole; and its own `push:` trigger went with the split.
         #
-        # THE THIRD OF THOSE IS BACK, TEMPORARILY, AND CHANGES NOTHING HERE.
-        # ci.yml carries a transitional `push: branches: [main]` while nothing
-        # answers to the `hdt-ci` label, so the old guard would be satisfiable
-        # again - and the badge push still does not return, because the second
-        # reason stands on its own. The badge is stale for the length of the
-        # overlap instead.
+        # THE THIRD OF THOSE CAME BACK FOR A WEEK AND CHANGED NOTHING HERE.
+        # ci.yml carried a transitional `push: branches: [main]` while nothing
+        # answered to the `hdt-ci` label, so the old guard was satisfiable again
+        # - and the badge push still did not return, because the second reason
+        # stands on its own. The badge was stale for the length of the overlap
+        # instead. The trigger has since gone; these cases never depended on it.
         #
         # WHERE IT WENT IS ASSERTED IN CiLabWorkflow.Tests.ps1, over the set of
         # workflow files: one composite action, and every job that calls it
@@ -273,10 +273,9 @@ Describe 'CI workflow (DESIGN 12.2.5)' {
         #
         # main IS ci-lab.yml's, which runs THIS SAME task on GHRUNNER01 - a
         # machine that has been used, which is the shape of machine HDT is
-        # installed onto. Running both permanently would be the same suite twice
-        # for one commit, and the hosted one would be the copy people stopped
-        # reading. (There is a temporary `push:` here all the same; the case
-        # below is the one that owns it.)
+        # installed onto. Running both would be the same suite twice for one
+        # commit, and the hosted one would be the copy people stopped reading.
+        # (The case below owns the absence of a `push:` here.)
         #
         # WHICH LEAVES THE CLEAN-MACHINE INSTALL WITH ONE FIRING LEFT, AND THAT
         # IS WHAT THE SCHEDULE IS FOR. The `Install build dependencies` step is
@@ -293,71 +292,67 @@ Describe 'CI workflow (DESIGN 12.2.5)' {
         $script:workflowText | Should -Match '(?m)^\s*-\s*cron:'
     }
 
-    It 'keeps the transitional push trigger and the note that retires it together, or has neither' {
-        # THE GAP THIS TRIGGER IS PLUGGING. ci-lab.yml owns main and targets the
-        # self-hosted label `hdt-ci`, and nothing answers to that label until the
-        # second runner instance on GHRUNNER01 is registered. A job queued
-        # against a label no runner carries DOES NOT FAIL: no error, no red run,
-        # no annotation - it sits Queued until GitHub cancels it 24 hours later.
-        # So with no `push:` here and no `hdt-ci` runner alive, a push to main is
-        # validated by nothing at all while the branch looks green.
+    It 'does not run on a push to main, and keeps no note about a trigger that has gone' {
+        # main IS ci-lab.yml's, AND THAT IS NOW TRUE RATHER THAN INTENDED. There
+        # was a transitional `push: branches: [main]` here for as long as nothing
+        # answered to ci-lab.yml's self-hosted `hdt-ci` label - because a job
+        # queued against a label no runner carries DOES NOT FAIL: no error, no
+        # red run, no annotation, it sits Queued until GitHub cancels it 24 hours
+        # later, so a push to main would have been validated by nothing at all
+        # while the branch looked green. GHRUNNER01-ci answers to it now and
+        # CI-Lab has gone green on main, so the stand-in is gone.
         #
-        # THE PAIR IS ASSERTED, NOT THE TRIGGER, because the two halves rot in
-        # opposite directions and each rots quietly:
+        # BOTH HALVES ARE ASSERTED, because they rot in opposite directions and
+        # each rots quietly:
         #
-        #   - a `push:` on this file with no note is somebody reverting the
-        #     split to ci-lab.yml by accident, and nothing anywhere saying when
-        #     it is supposed to go again;
-        #   - the note with no trigger is an instruction to remove something
-        #     already removed, which is how a header comes to describe a file
-        #     that stopped matching it.
+        #   - a `push:` back on this file is somebody reverting the split to
+        #     ci-lab.yml by accident, and running the same suite twice for one
+        #     commit until somebody notices which of the two they stopped
+        #     reading;
+        #   - a "TRANSITIONAL TRIGGER" paragraph with no trigger under it is an
+        #     instruction to remove something already removed, which is how a
+        #     header comes to describe a file that stopped matching it.
         #
-        # Deleting both together is the only edit that passes, and that is
-        # exactly the edit ci-lab.yml's setup step 3 asks for.
+        # Putting either back on its own fails here. Putting both back is a
+        # decision somebody makes in this test first, with the reason written
+        # down - which is what happened the last time the runner was not real.
         $hasTrigger = [bool] ($script:workflowText -match '(?m)^\s{2}push:')
         $hasNote = [bool] ($script:workflowText -match 'TRANSITIONAL TRIGGER')
 
-        $hasTrigger | Should -Be $hasNote -Because (
-            "the transitional push to main and the paragraph that says when to delete it go together. " +
-            "Trigger present: $hasTrigger. Note present: $hasNote")
+        $hasTrigger | Should -BeFalse -Because (
+            'ci-lab.yml runs the identical ./build.ps1 -Task ci on GHRUNNER01 for every push to main. ' +
+            'A push trigger here as well is the same suite twice for one commit')
 
-        if ($hasTrigger) {
-            # ONLY main, and never a second branch: this is a stand-in for
-            # ci-lab.yml, which triggers on main alone.
-            $script:workflowText | Should -Match '(?m)^\s{4}branches:\s*\[\s*main\s*\]'
-
-            # THE NOTE HAS TO CARRY THE CONDITION, not just an apology. Both
-            # halves of ci-lab.yml's setup are named: the runner label nothing
-            # answers to yet, and the checkpoint that has to be retaken
-            # afterwards or the registration is reverted away within the hour.
-            $script:workflowText | Should -Match 'hdt-ci'
-            $script:workflowText | Should -Match 'checkpoint'
-        }
+        $hasNote | Should -BeFalse -Because (
+            'the trigger it describes is gone, so the paragraph is an instruction to delete something ' +
+            'that is not there')
     }
 
-    It 'points the README status badge at the workflow that can currently complete' {
-        # A BADGE IS THE THIRD HALF OF THE SAME TRANSITION, AND IT IS THE ONE
-        # THAT WAS MISSED. The trigger moved to ci-lab.yml, a transitional
-        # `push:` was put back here so main went on being validated - and the
-        # README badge was repointed at ci-lab.yml and NOT made transitional
-        # with it. So the page advertised a workflow whose every run queues on a
-        # label no runner carries and is cancelled, and GitHub renders a
-        # cancelled run as "failing". The gate was green and the front page said
-        # otherwise.
+    It 'points the README status badge at the workflow that validates main' {
+        # A BADGE MUST NAME THE GATE main ACTUALLY GOES THROUGH, and it has been
+        # wrong in both directions inside one week.
         #
-        # THE RULE IS NOT "point at ci.yml". It is that the badge must name a
-        # workflow that can currently COMPLETE, and which one that is follows
-        # from the same fact as the trigger: while `hdt-ci` has no runner it is
-        # this file, and the day the runner is registered it is ci-lab.yml. Tie
-        # it to the trigger and the two cannot drift - the same edit retires
-        # both, which is what ci-lab.yml's setup step 3 now asks for.
+        # First it named ci-lab.yml before anything answered to `hdt-ci`, so
+        # every run it advertised queued on a label no runner carried and was
+        # cancelled - by that file's concurrency group on the next push, or by
+        # GitHub at 24 hours - and GitHub renders a cancelled run as "failing".
+        # The gate was green and the front page said the build was broken. Then
+        # it named ci.yml while ci.yml carried a transitional push trigger, which
+        # was right for exactly as long as that trigger was.
+        #
+        # SO IT IS TIED TO A FACT ABOUT THE WORKFLOWS, NOT TO A DATE. ci-lab.yml
+        # triggers on a push to main and ci.yml does not, so ci-lab.yml is the
+        # one whose runs finish for a commit on main and it is the one the badge
+        # names. Both halves are asserted: if somebody puts a push trigger back
+        # on ci.yml, the case above fails and this one goes with it rather than
+        # quietly endorsing a badge for a workflow main no longer uses.
         #
         # ASSERTED OVER THE SET, so this is not a test that passes for one badge
         # and fails nobody after it. Every GitHub Actions status image in the
         # README is discovered - a badge for a third workflow added tomorrow
         # joins the set the moment it is written - and the whole set is judged:
-        # the workflow that cannot complete must appear in none of them, and the
-        # one that can must appear in at least one.
+        # the workflow that does not validate main must appear in none of them,
+        # and the one that does must appear in at least one.
         #
         # SHIELDS.IO ENDPOINT BADGES ARE NOT STATUS BADGES and are deliberately
         # out of scope here. The `tests` badge is a number written to the badges
@@ -376,23 +371,20 @@ Describe 'CI workflow (DESIGN 12.2.5)' {
 
         $statusBadge.Count | Should -BeGreaterOrEqual 1 -Because 'README.md should carry at least one GitHub Actions status badge; with none, every assertion below passes by finding nothing'
 
-        $hasTrigger = [bool] ($script:workflowText -match '(?m)^\s{2}push:')
+        # THE FACT THE BADGE FOLLOWS FROM, read rather than assumed: ci-lab.yml
+        # runs on a push to main and this file does not.
+        $labPath = [IO.Path]::Combine($script:repoRoot, '.github', 'workflows', 'ci-lab.yml')
+        $labText = [IO.File]::ReadAllText($labPath)
 
-        # Whichever workflow validates main today is the one whose runs finish.
-        # The other one's runs do not, and a badge for it is worse than no badge.
-        if ($hasTrigger) {
-            $canComplete = 'ci.yml'
-            $cannotComplete = 'ci-lab.yml'
-            $why = 'the transitional push trigger is still here, so nothing answers to `hdt-ci` yet and every CI-Lab run queues until GitHub cancels it - which the badge renders as "failing"'
-        }
-        else {
-            $canComplete = 'ci-lab.yml'
-            $cannotComplete = 'ci.yml'
-            $why = 'the transitional push trigger is gone, so the `hdt-ci` runner is registered and CI-Lab is what validates a push to main; ci.yml no longer runs on one and its badge would report a stale pull_request'
-        }
+        $labText | Should -Match '(?m)^\s{2}push:' -Because 'ci-lab.yml is what validates a push to main; without that trigger nothing does'
+        $script:workflowText | Should -Not -Match '(?m)^\s{2}push:' -Because 'main is ci-lab.yml''s, and running both is the same suite twice for one commit'
 
-        $statusBadge | Should -Not -Contain $cannotComplete -Because ("$cannotComplete does not validate a push to main right now, so its badge reports a run nobody is waiting on: $why")
-        $statusBadge | Should -Contain $canComplete -Because ("the README has to show the gate that main actually goes through, and that is $canComplete : $why")
+        $statusBadge | Should -Not -Contain 'ci.yml' -Because (
+            'ci.yml no longer runs on a push to main, so its badge would report whatever pull request or ' +
+            'weekly schedule last happened to fire rather than the state of the branch')
+
+        $statusBadge | Should -Contain 'ci-lab.yml' -Because (
+            'the README has to show the gate main actually goes through, and that is CI-Lab on GHRUNNER01')
     }
 }
 
