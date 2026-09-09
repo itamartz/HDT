@@ -53,6 +53,25 @@ Describe 'CI-Lab workflow' {
             $script:workflow = ConvertFrom-Yaml $script:workflowText
         }
 
+        # THE HOSTED JOB THAT DECIDES WHETHER THE LAB IS WORTH STARTING, AND
+        # THE LAB JOB THAT READS IT. Held by name because the wiring between
+        # the two - an output on one, an `if:` on the other - is the whole
+        # mechanism, and a rename that broke it would otherwise look like a job
+        # that had simply stopped running.
+        $script:decisionJob = $null
+        $script:labJob = $null
+        if ($script:workflow -and $script:workflow.Contains('jobs')) {
+            if ($script:workflow['jobs'].Contains('changes')) { $script:decisionJob = $script:workflow['jobs']['changes'] }
+            if ($script:workflow['jobs'].Contains('lab')) { $script:labJob = $script:workflow['jobs']['lab'] }
+        }
+
+        $script:decisionScript = ''
+        if ($script:decisionJob -and $script:decisionJob.Contains('steps')) {
+            $script:decisionScript = (@($script:decisionJob['steps'] |
+                    Where-Object { $_ -is [System.Collections.IDictionary] -and $_.Contains('run') } |
+                    ForEach-Object { [string] $_['run'] }) -join "`n")
+        }
+
         $script:selfHostedJob = @()
         if ($script:workflow -and $script:workflow.Contains('jobs')) {
             $script:selfHostedJob = @(
@@ -195,6 +214,161 @@ Describe 'CI-Lab workflow' {
         # exactly one of is six hours nothing else can be tested on.
         $script:selfHostedJob[0].Job['timeout-minutes'] | Should -BeGreaterThan 20
         $script:selfHostedJob[0].Job['timeout-minutes'] | Should -BeLessThan 120
+    }
+
+    It 'asks whether the lab is worth starting before any of it reaches the lab machine' -Skip:$script:HDTYamlMissing {
+        # ~9 MINUTES OF A MACHINE THERE IS EXACTLY ONE OF, AND IT IS REVERTED
+        # TO A CHECKPOINT EVERY HOUR. Spending that on a README edit is not a
+        # cautious gate; it is a queue nothing useful can get into.
+        #
+        # HOSTED, AND THAT IS THE POINT RATHER THAN A DETAIL. A check that ran
+        # on GHRUNNER01 would have checked out onto it, started a worker and
+        # taken the slot it was deciding whether to take. The decision has to
+        # be made somewhere the answer is free.
+        $script:decisionJob | Should -Not -BeNullOrEmpty -Because (
+            'ci-lab.yml needs a hosted job that decides whether the lab machine is worth starting')
+
+        [string] @($script:decisionJob['runs-on']) | Should -Not -Match 'self-hosted' -Because (
+            'a check that runs on the machine it is deciding about has already spent the thing it was saving')
+
+        # STILL EXACTLY ONE SELF-HOSTED JOB. The decision is a second HOSTED
+        # job, so the case above - about the hourly checkpoint revert landing
+        # in the gap between two workers - is not weakened by it.
+        @($script:selfHostedJob).Count | Should -Be 1
+    }
+
+    It 'makes that decision behind the owner guard, not in front of it' -Skip:$script:HDTYamlMissing {
+        # THE GUARD FAILS, THIS ONE SKIPS, AND THE ORDER DECIDES WHICH OF THOSE
+        # GETS REPORTED. A run started by somebody who is not the owner must
+        # say exactly that - not report a version that did not move.
+        @($script:decisionJob['needs']) | Should -Contain 'guard'
+    }
+
+    It 'lets the lab job read the decision rather than make it' -Skip:$script:HDTYamlMissing {
+        # A JOB OUTPUT, AND AN `if:` ON THE LAB JOB ITSELF. Skipping is the
+        # CORRECT behaviour here, which is exactly why it is not how the owner
+        # guard is written: a refusal that skips reports success, and for
+        # "nobody needs the lab machine for this commit" success is the honest
+        # answer rather than a hidden one.
+        @($script:labJob['needs']) | Should -Contain 'guard'
+        @($script:labJob['needs']) | Should -Contain 'changes'
+
+        [string] $script:labJob['if'] | Should -Match 'needs\.changes\.outputs\.run' -Because (
+            'the lab job is the one that has to be skipped; a condition anywhere else still starts a worker on GHRUNNER01')
+
+        [string] $script:decisionJob['outputs']['run'] | Should -Match 'steps\.[A-Za-z0-9_-]+\.outputs\.run' -Because (
+            'an output wired to no step is the empty string, and the empty string is not ''true'' - the lab would never run again')
+    }
+
+    It 'names the version as the condition, and reads it where it is recorded' -Skip:$script:HDTYamlMissing {
+        # THE RULE AS ASKED FOR, AND IT IS THE FIRST CLAUSE. A commit that
+        # moves ModuleVersion is a release-shaped commit and the lab runs for
+        # it whatever else it did or did not touch.
+        $script:decisionScript | Should -Match 'ModuleVersion'
+        $script:decisionScript | Should -Match 'Hephaestus\.psd1' -Because (
+            'the version has to be read out of the manifest at both revisions; nothing else records it')
+    }
+
+    It 'runs the lab for source the version task was never allowed to record' -Skip:$script:HDTYamlMissing {
+        # WHY THE VERSION ALONE IS NOT ENOUGH, IN ONE NUMBER: ModuleVersion has
+        # moved on 34 of this repository's 941 commits, and on 2 of the last
+        # 40. ./build.ps1 -Task ci bumps it on every run and the bump is
+        # reverted before every commit, so on main the number moves on a
+        # deliberate release and almost nowhere else.
+        #
+        # A version-only gate would therefore run the lab on releases and skip
+        # everything between them. That is not "a docs commit does not spend
+        # the lab machine", it is "main is unvalidated except at a release" -
+        # and ci.yml no longer carries a `push:` to cover for it.
+        #
+        # SO THE DEFAULT IS TO RUN AND THE SKIP IS THE SPECIAL CASE. A path
+        # nobody thought about when this was written - a new top-level
+        # directory, a new tool the build calls - starts the lab, because the
+        # failure that costs something is a change going unvalidated, not a
+        # machine running for nine minutes it did not have to.
+        #
+        # SO: THE PATHS ARE COMPARED AT ALL, AND THE COMPARISON CAN SAY RUN.
+        # A version-only gate would have no `git diff` in it, which is exactly
+        # what this case is here to notice if somebody reduces it to one.
+        $script:decisionScript | Should -Match 'GITHUB_OUTPUT' -Because (
+            'the decision has to leave the job as an output; a run= nobody writes is an empty string')
+        $script:decisionScript | Should -Match '(?s)git diff --name-only.{0,1200}decide true' -Because (
+            'the second clause is the one that keeps main validated between releases')
+    }
+
+    It 'lets no document or workflow edit spend the lab machine' -Skip:$script:HDTYamlMissing {
+        # ASSERTED OVER THE SET RATHER THAN OVER THE ONE THAT PROMPTED IT. The
+        # request was "a README change must not trigger a LAB build", and a
+        # test naming only README.md would pass for it and fail nobody after
+        # it - not the next docs/ page, not the next .planning/ report, not the
+        # next edit to this very workflow.
+        #
+        # WHAT THIS COSTS, AND WHY IT IS ACCEPTED: a docs-only commit that
+        # breaks a documentation contract test is not caught within the nine
+        # minutes. It is caught by ci.yml, which still runs on every pull
+        # request and every Monday.
+        foreach ($inert in 'docs/', '\.planning/', '\.github/', 'README\.md') {
+            $script:decisionScript | Should -Match $inert -Because (
+                "'$inert' is one of the trees that must not start the lab machine on its own")
+        }
+
+        # AND THE OTHER HALF OF THE SET: none of the trees the gate actually
+        # reads may appear in the skip list. This is the case that fails the
+        # day somebody widens the skip to quieten a noisy run.
+        $inertLine = @($script:decisionScript -split "`n" | Where-Object { $_ -match '^\s*inert=' }) -join ' '
+        $inertLine | Should -Not -BeNullOrEmpty -Because (
+            'the skip list has to be one greppable line, or this case is reading nothing')
+
+        foreach ($read in 'src/', 'tests/', 'schemas/', 'build\.ps1') {
+            $inertLine | Should -Not -Match $read -Because (
+                "the gate reads '$read'; a change there has to reach GHRUNNER01")
+        }
+    }
+
+    It 'always runs the lab when a human started the run' -Skip:$script:HDTYamlMissing {
+        # A workflow_dispatch IS A DELIBERATE ACT. Somebody pressed the button
+        # BECAUSE they want this commit on that machine - most often after the
+        # checkpoint was retaken, which is precisely the moment when nothing
+        # about the last push has changed and a version comparison would skip.
+        #
+        # ASSERTED AS "THE EVENT IS TESTED BEFORE ANYTHING ELSE IS": the event
+        # check has to come before the version comparison, or a dispatch of a
+        # commit whose version has not moved skips the very run somebody just
+        # asked for.
+        $script:decisionScript | Should -Match 'HDT_EVENT'
+        $script:decisionScript | Should -Match "(?s)HDT_EVENT.{0,600}decide true"
+        ($script:decisionScript -split 'ModuleVersion moved')[0] | Should -Match 'HDT_EVENT.*!=.*push' -Because (
+            'the dispatch case has to be settled before the version is looked at, not after it')
+    }
+
+    It 'compares against the whole push rather than against its last commit' -Skip:$script:HDTYamlMissing {
+        # A PUSH IS NOT ONE COMMIT. Source in the first commit and a README fix
+        # in the second, pushed together, and a HEAD~1 comparison sees only the
+        # README - the exact change this is meant to protect, skipped by the
+        # thing meant to protect it. github.event.before is the tip before the
+        # push, which is the range GitHub actually delivered.
+        #
+        # AND THE HISTORY HAS TO BE THERE TO COMPARE AGAINST: the default
+        # checkout is one commit deep and `git diff` against anything older
+        # than it fails.
+        $checkout = @($script:decisionJob['steps'] | Where-Object {
+                $_ -is [System.Collections.IDictionary] -and $_.Contains('uses') -and
+                ([string] $_['uses']) -like 'actions/checkout*'
+            })
+        $checkout.Count | Should -Be 1
+        [string] $checkout[0]['with']['fetch-depth'] | Should -BeExactly '0'
+
+        $script:decisionScript | Should -Match 'HDT_BEFORE'
+        $script:decisionScript | Should -Not -Match 'HEAD~1|HEAD\^\.'
+    }
+
+    It 'runs the lab whenever it cannot tell, rather than skipping it' -Skip:$script:HDTYamlMissing {
+        # THE FIRST PUSH TO A BRANCH, A FORCE PUSH THAT ORPHANED THE OLD TIP, A
+        # `before` OF FORTY ZEROES. In each of those there is no honest
+        # comparison to make, and the safe answer to "I cannot tell" is nine
+        # minutes of a machine rather than a commit nothing ever checked.
+        $script:decisionScript | Should -Match '0000000000000000000000000000000000000000'
+        $script:decisionScript | Should -Match 'cat-file'
     }
 
     It 'hands the badges to the workflow that publishes them' -Skip:$script:HDTYamlMissing {

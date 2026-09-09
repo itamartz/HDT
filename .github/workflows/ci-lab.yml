@@ -49,6 +49,72 @@ name: CI-Lab
 # ---------------------------------------------------------------------------
 #
 # ---------------------------------------------------------------------------
+# AND IT DOES NOT RUN FOR EVERY COMMIT, WHICH IS THE `changes` JOB BELOW.
+#
+# Nine minutes of GHRUNNER01 is not nine minutes of a container farm. There is
+# one of that machine, it is reverted to a checkpoint every hour, and e2e.yml
+# wants it too - so a run started to prove that a README paragraph still reads
+# well is a run the next real question has to queue behind.
+#
+# THE CONDITION AS ASKED FOR IS "HAS ModuleVersion MOVED", AND ON ITS OWN IT
+# WOULD HAVE BEEN A MUCH BIGGER CHANGE THAN IT SOUNDS. ./build.ps1 -Task ci
+# runs the `version` task, which rewrites ModuleVersion in the manifest on
+# every build - and that bump is reverted before every commit, deliberately, so
+# the tree stays clean. The number therefore moves on a deliberate release and
+# almost nowhere else: 34 of this repository's 941 commits, and 2 of the last
+# 40. A version-only gate would not have meant "docs commits do not spend the
+# lab machine"; it would have meant "main is validated at a release and at no
+# other time", on a branch ci.yml no longer carries a `push:` for.
+#
+# SO THE VERSION IS THE FIRST CLAUSE AND NOT THE ONLY ONE. A moved
+# ModuleVersion starts the lab. So does any changed file that is not a
+# document, a plan or a workflow - and THAT is the direction the list runs in,
+# because the default has to be to run. A path nobody thought about when this
+# was written starts the lab; only a named, inert one does not. The failure
+# that costs something is a change reaching main unvalidated, not a machine
+# running for nine minutes it did not have to.
+#
+# WHAT A SKIP LOOKS LIKE, AND WHO COULD BE MISLED BY IT. The `lab` job reports
+# Skipped and the run reports success - GitHub calls a workflow whose jobs all
+# succeeded or skipped a success - so a docs commit gets a green tick that
+# means "nothing here needed the lab machine" rather than "the suite passed on
+# it". Nothing downstream reads that as a pass: badges.yml fires on `completed`
+# regardless of conclusion, finds no `badges` artifact, and its download step
+# is continue-on-error with a publish action that exits clean on an empty
+# directory - so the badge keeps the numbers from the last run that produced
+# any, which is the last run that measured anything. And the release path never
+# looks here at all: publish.yml calls ci.yml and e2e.yml directly rather than
+# reading this workflow's conclusion, so a tag cannot ship on the strength of a
+# skipped job.
+#
+# THE COST, STATED RATHER THAN HIDDEN: a documentation-only commit that breaks
+# a documentation contract test is not caught within nine minutes. It is caught
+# by ci.yml, which still runs on every pull request and every Monday.
+#
+# THE ONE CASE THIS GATE GETS WRONG, WRITTEN DOWN BECAUSE IT WILL LOOK LIKE A
+# BUG WHEN SOMEBODY MEETS IT. The base of the comparison is
+# github.event.before - the tip before THIS push - and the concurrency group
+# below cancels a run in flight. So: push some source, then push a README fix
+# inside the next nine minutes. The first run is cancelled before the lab
+# finishes, the second compares only the README against the source commit, and
+# the source commit is never validated by this machine. It is validated by the
+# next push that touches source, because that push's range still ends at a tip
+# containing it - so this is a DELAY, not a hole that stays open, and nothing
+# is reported as passing that did not.
+#
+# CLOSING IT PROPERLY MEANS ASKING THE API WHICH COMMIT THE LAB LAST ACTUALLY
+# RAN ON, walking recent runs for one whose `lab` job is not `skipped`. That is
+# a real amount of machinery and an `actions: read` token in a file that is
+# deliberately spare, and it buys a delay rather than a correctness property.
+# It is not here. If the delay ever costs something, that is the fix.
+#
+# A workflow_dispatch ALWAYS RUNS THE LAB. Pressing the button is a deliberate
+# act, and the commonest reason to press it - the `clean` checkpoint has just
+# been retaken and the machine wants proving - is exactly the moment when
+# nothing about the last push has changed.
+# ---------------------------------------------------------------------------
+#
+# ---------------------------------------------------------------------------
 # SETTING GHRUNNER01 UP FOR THIS, WHICH IS TWO THINGS AND THE SECOND ONE IS THE
 # ONE THAT GETS FORGOTTEN.
 #
@@ -221,6 +287,136 @@ jobs:
           echo "started by the repository owner; the lab machine may go ahead."
 
   # ==========================================================================
+  # IS THERE ANYTHING IN THIS PUSH THE LAB MACHINE HAS NOT ALREADY SEEN?
+  # ANSWERED ON GITHUB'S HARDWARE, WHICH IS THE ENTIRE POINT OF THE JOB.
+  #
+  # A check that ran on GHRUNNER01 would have checked out onto it, started a
+  # worker and taken the slot it was deciding whether to take - so it has to be
+  # made somewhere the answer is free. HOSTED, and a SECOND hosted job, which
+  # is why the "one self-hosted job" rule below is untouched by it.
+  #
+  # BEHIND THE GUARD, NOT IN FRONT OF IT. The guard FAILS and this one SKIPS,
+  # and a run started by somebody who is not the owner has to be told that
+  # rather than told a version did not move.
+  #
+  # AN `if:` HERE IS RIGHT WHERE AN `if:` ON THE GUARD WOULD HAVE BEEN WRONG,
+  # and the difference is worth writing down because the two sit ten lines
+  # apart. A skipped job reports success. For "you are not allowed to start
+  # this" that is a refusal that reads as a pass, which is why the guard is a
+  # job that exits 1. For "nobody needs the lab machine for this commit"
+  # success is the honest answer, and skipping is the behaviour being asked
+  # for.
+  # ==========================================================================
+  changes:
+    name: version
+    needs: guard
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    permissions:
+      contents: read
+
+    # THE WHOLE MECHANISM IS THIS OUTPUT AND THE `if:` ON `lab` THAT READS IT.
+    # An output wired to no step is the empty string, the empty string is not
+    # 'true', and the lab would then never run again with nothing anywhere
+    # saying why - so CiLabWorkflow.Tests.ps1 asserts both ends of the wire.
+    outputs:
+      run: ${{ steps.decide.outputs.run }}
+
+    steps:
+      # fetch-depth: 0, AND A SHALLOW CHECKOUT IS THE REASON. The default is
+      # one commit deep and `git diff` against anything older than it fails -
+      # and the base here is github.event.before, the tip BEFORE the push,
+      # which can be many commits back. It has to be, too: a push is not one
+      # commit, and source in the first commit with a README fix in the second
+      # would look like a documentation push to anything comparing HEAD with
+      # its parent.
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Has the version moved, or anything the gate actually reads
+        id: decide
+        env:
+          HDT_EVENT: ${{ github.event_name }}
+          HDT_BEFORE: ${{ github.event.before }}
+          HDT_HEAD: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+
+          manifest='src/Hephaestus/Hephaestus.psd1'
+
+          # THE SKIP LIST, ON ONE LINE, BECAUSE A TEST READS THIS LINE.
+          # CiLabWorkflow.Tests.ps1 asserts the SET both ways: that docs/,
+          # .planning/, .github/ and README.md are all in it, and that src/,
+          # tests/, schemas/ and build.ps1 are NOT - which is the case that
+          # fails the day somebody widens the skip to quieten a noisy run.
+          #
+          # NAMED, NOT INFERRED. Everything absent from this line starts the
+          # lab, including a directory that does not exist yet.
+          inert='^README\.md$|^NOTICE\.md$|^CHANGELOG\.md$|^LICENSE$|^\.gitignore$|^\.gitattributes$|^docs/|^\.planning/|^\.github/|^\.claude/|\.md$'
+
+          decide () {
+            echo "run=$1" >> "$GITHUB_OUTPUT"
+            printf '%s\n' "$2"
+            printf '%s\n' "$2" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          }
+
+          echo "event: ${HDT_EVENT}"
+          echo "before: ${HDT_BEFORE:-none}"
+          echo "head:   ${HDT_HEAD}"
+
+          # A HAND-STARTED RUN IS A DELIBERATE ACT and never skips. The
+          # commonest reason to press the button is that the `clean` checkpoint
+          # has just been retaken and the machine wants proving, which is
+          # precisely when nothing about the last push has changed.
+          if [ "${HDT_EVENT}" != 'push' ]; then
+            decide true "started by hand (${HDT_EVENT}); the lab runs whatever the version says."
+          fi
+
+          # NO HONEST COMPARISON MEANS RUN. The first push to a branch, a force
+          # push that orphaned the old tip, a `before` of forty zeroes: the safe
+          # answer to "I cannot tell" is nine minutes of a machine, not a commit
+          # nothing ever checked.
+          base="${HDT_BEFORE:-}"
+          if [ -z "${base}" ] ||
+             [ "${base}" = '0000000000000000000000000000000000000000' ] ||
+             ! git cat-file -e "${base}^{commit}" 2>/dev/null; then
+            decide true "there is no commit to compare against (before: '${base:-none}'); the lab runs."
+          fi
+
+          version_at () {
+            git show "$1:${manifest}" 2>/dev/null |
+              sed -n "s/^[[:space:]]*ModuleVersion[[:space:]]*=[[:space:]]*'\([^']*\)'.*/\1/p" |
+              head -n 1
+          }
+
+          was="$(version_at "${base}")"
+          now="$(version_at "${HDT_HEAD}")"
+          echo "ModuleVersion: '${was:-none}' -> '${now:-none}'"
+
+          # THE FIRST CLAUSE, AND THE ONE THIS WAS ASKED FOR BY NAME.
+          if [ "${was}" != "${now}" ]; then
+            decide true "ModuleVersion moved ${was:-none} -> ${now:-none}; this is a release-shaped commit and the lab runs."
+          fi
+
+          changed="$(git diff --name-only "${base}" "${HDT_HEAD}")"
+          echo 'files this push changed:'
+          printf '%s\n' "${changed}" | sed 's/^/  /'
+
+          # `|| true` ON THE WHOLE PIPELINE, because grep exits 1 when it
+          # matches nothing and `set -e` would read that as the step failing -
+          # on precisely the input that means "skip".
+          meaningful="$(printf '%s\n' "${changed}" | grep -v '^$' | grep -Ev "${inert}" || true)"
+
+          if [ -n "${meaningful}" ]; then
+            decide true "$(printf 'the gate reads files this push changed:\n%s' "$(printf '%s\n' "${meaningful}" | sed 's/^/  /')")"
+          fi
+
+          decide false "ModuleVersion is unchanged at ${now:-none} and every file this push touched is a document, a plan or a workflow. GHRUNNER01 is not started for it."
+
+  # ==========================================================================
   # ONE JOB ON THE LAB MACHINE, AND THAT IS A CONSTRAINT RATHER THAN A TIDY
   # SHAPE. MS-A2's hourly task reverts GHRUNNER01 to its `clean` checkpoint,
   # and it skips only while Runner.Worker.exe exists in the guest (PROJECT.md,
@@ -232,7 +428,14 @@ jobs:
   # ==========================================================================
   lab:
     name: powershell
-    needs: guard
+    needs: [ guard, changes ]
+
+    # THE SKIP HAS TO BE ON THIS JOB. A condition anywhere else - inside a
+    # step, inside build.ps1 - has already queued against `hdt-ci`, started a
+    # worker on GHRUNNER01 and checked the repository out onto it, which is
+    # the whole thing being saved.
+    if: needs.changes.outputs.run == 'true'
+
     runs-on: [self-hosted, windows, hdt-ci]
 
     # ~10 minutes on a developer machine, ~20 on a hosted runner. GitHub's
