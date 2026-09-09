@@ -26,39 +26,94 @@ BeforeAll {
 
     $script:templateRoot = Join-Path -Path $script:repoRoot -ChildPath 'src/Hephaestus/Templates'
 
-    # Every DiskPartition step in every shipped template, flattened out of the
-    # group tree with the template and step name kept, so a failure says WHICH.
+    # EVERY SEQUENCE THIS REPOSITORY SHIPS, not only the ones under Templates.
+    # A sample and an e2e payload are copied onto real shares and run on real
+    # machines exactly as written, so a rule that judged Templates alone would
+    # exempt fourteen sequences that partition disks for a living.
+    $script:sequenceFile = New-Object -TypeName System.Collections.ArrayList
+
+    foreach ($file in @(Get-ChildItem -LiteralPath $script:templateRoot -Filter '*.yaml' -File -ErrorAction SilentlyContinue)) {
+        [void] $script:sequenceFile.Add($file)
+    }
+
+    foreach ($relative in @('samples/workspace/TaskSequences', 'tests/e2e/payload')) {
+        $root = Join-Path -Path $script:repoRoot -ChildPath $relative
+        if (-not (Test-Path -LiteralPath $root)) { continue }
+
+        foreach ($file in @(Get-ChildItem -LiteralPath $root -Filter 'sequence.yaml' -File -Recurse -ErrorAction SilentlyContinue)) {
+            [void] $script:sequenceFile.Add($file)
+        }
+    }
+
+    # Every DiskPartition step in every shipped sequence, flattened out of the
+    # group tree with the template and step name kept, so a failure says WHICH -
+    # and with the condition of every group it sits inside, because a group
+    # condition gates its children and Invoke-HDTTaskSequence evaluates the
+    # ancestors before the step's own.
     $script:diskStep = New-Object -TypeName System.Collections.ArrayList
 
     $script:walk = {
-        param($Node, [string] $Template)
+        param($Node, [string] $Template, $Ancestor = @())
 
         foreach ($current in @($Node)) {
             if ($null -eq $current) { continue }
             if (-not ($current -is [System.Collections.IDictionary])) { continue }
 
-            if ($current.Contains('steps')) { & $script:walk -Node $current['steps'] -Template $Template }
+            if ($current.Contains('steps')) {
+                $inner = @($Ancestor)
+
+                if ($current.Contains('condition')) {
+                    $groupName = '(unnamed group)'
+                    if ($current.Contains('group')) { $groupName = [string] $current['group'] }
+
+                    $inner += [pscustomobject] @{
+                        Owner     = "group '$groupName'"
+                        Condition = [string] $current['condition']
+                    }
+                }
+
+                & $script:walk -Node $current['steps'] -Template $Template -Ancestor $inner
+            }
+
             if (-not $current.Contains('type')) { continue }
             if ([string] $current['type'] -ne 'DiskPartition') { continue }
 
             $stepName = '(unnamed)'
             if ($current.Contains('name')) { $stepName = [string] $current['name'] }
 
+            # EVERY CONDITION THAT STANDS BETWEEN THIS STEP AND RUNNING, in the
+            # order the engine tests them: the groups outermost first, the step's
+            # own last.
+            $gate = @($Ancestor)
+
+            if ($current.Contains('condition')) {
+                $gate += [pscustomobject] @{
+                    Owner     = "the step itself"
+                    Condition = [string] $current['condition']
+                }
+            }
+
             [void] $script:diskStep.Add([pscustomobject] @{
                     Template = $Template
                     Name     = $stepName
                     Step     = $current
+                    Gate     = [pscustomobject[]] @($gate)
                 })
         }
     }
 
-    foreach ($file in @(Get-ChildItem -LiteralPath $script:templateRoot -Filter '*.yaml' -File -ErrorAction SilentlyContinue)) {
+    foreach ($file in @($script:sequenceFile)) {
         $document = ConvertFrom-Yaml -Yaml ([System.IO.File]::ReadAllText($file.FullName)) -Ordered
 
         if ($null -eq $document) { continue }
         if (-not $document.Contains('steps')) { continue }
 
-        & $script:walk -Node $document['steps'] -Template $file.Name
+        # 'client.yaml' names itself; 'REF-BUILD/sequence.yaml' needs its folder
+        # to, because every one of those files has the same name.
+        $label = $file.Name
+        if ($file.Name -eq 'sequence.yaml') { $label = '{0}/{1}' -f (Split-Path -Leaf $file.DirectoryName), $file.Name }
+
+        & $script:walk -Node $document['steps'] -Template $label -Ancestor @()
     }
 
     # The style the step would resolve: an EFI row means the template wrote
@@ -87,6 +142,74 @@ Describe 'Shipped sequence template plan contract' {
     It 'finds the DiskPartition steps to check' {
         # A guard on the guard: an empty list passes every assertion below.
         $script:diskStep.Count | Should -BeGreaterThan 0
+    }
+
+    It 'gates every DiskPartition step on the deployment type, in every shipped sequence' {
+        # MDT'S OWN SHAPE. Client.xml wraps Validate and both partition steps in
+        # a group called "New Computer only", conditioned on DeploymentType, and
+        # leaves the firmware test on the step. HDT does the same thing with the
+        # same two levels, because its condition grammar is a single comparison -
+        # there is no '-and', so a step already carrying '$HDTIsUEFI -eq $true'
+        # has nowhere to put a second test and the group is where it goes.
+        #
+        # THIS IS DEFENCE IN DEPTH, NOT THE GUARANTEE. The engine already refuses
+        # DiskPartition on any resumed leg outright, under every deployment type
+        # (Get-HDTResumeForbiddenStepType), and it FAILS rather than skips. A
+        # condition is evaluated against the variable bag, which on a resumed leg
+        # is rehydrated from state.json - the same trust as the value the resume
+        # refusal reads, no more. What it adds is that an administrator opening
+        # the template can SEE that a Refresh does not repartition, instead of
+        # having to know a rule in the engine.
+        #
+        # TESTED BY EVALUATING IT, NOT BY MATCHING TEXT. '%HDTDeploymentType%'
+        # and '$HDTDeploymentType' are the same token to the engine, and '!=' and
+        # '-ne' the same operator, so a spelling test would pass the wrong things
+        # and fail the right ones. A condition qualifies when the real evaluator
+        # says true for NEWCOMPUTER and false for REFRESH, with nothing else set -
+        # which is exactly what the step needs and no other condition can fake.
+        # The firmware conditions compare an unresolved '%HDTIsUEFI%' to 'True'
+        # in both bags, so they answer false twice and are never mistaken for it.
+        $ungated = New-Object -TypeName System.Collections.ArrayList
+
+        foreach ($current in $script:diskStep) {
+            $found = $false
+
+            foreach ($clause in @($current.Gate)) {
+                $onNew = Test-HDTStepCondition -Condition $clause.Condition -Variable @{ HDTDeploymentType = 'NEWCOMPUTER' }
+                $onRefresh = Test-HDTStepCondition -Condition $clause.Condition -Variable @{ HDTDeploymentType = 'REFRESH' }
+
+                if ($onNew -and -not $onRefresh) {
+                    $found = $true
+                    break
+                }
+            }
+
+            if (-not $found) {
+                [void] $ungated.Add(('{0} / {1}: nothing between it and running says the deployment type is not REFRESH ({2})' -f
+                        $current.Template, $current.Name,
+                        $(if (@($current.Gate).Count -eq 0) { 'it carries no condition at all' } else { (@($current.Gate) | ForEach-Object { $_.Condition }) -join ' ; ' })))
+            }
+        }
+
+        # THE WHOLE LIST, NOT THE FIRST ONE. A template added without the gate is
+        # usually a template copied from one that had it and lost a level.
+        ($ungated -join ' | ') | Should -BeNullOrEmpty
+    }
+
+    It 'ships no DiskPartition step in refresh.yaml at all' {
+        # THE OTHER HALF OF THE SAME DECISION, PINNED RATHER THAN LEFT TRUE BY
+        # HABIT. A Refresh empties the volume by deletion and keeps the partition
+        # table it found; refresh.yaml says so in a comment ("THERE IS NO
+        # DiskPartition STEP IN THIS FILE, AND ITS ABSENCE IS THE DESIGN") and a
+        # comment stops nobody. The condition above would gate a DiskPartition
+        # step added here into never running, which is the quiet failure - a step
+        # in the file that an administrator reads as part of a Refresh and that
+        # is skipped on every run. It does not belong in the file.
+        @($script:sequenceFile | Where-Object { $_.Name -eq 'refresh.yaml' }).Count |
+            Should -Be 1 -Because 'the assertion below is vacuous if the file was never read'
+
+        @($script:diskStep | Where-Object { $_.Template -eq 'refresh.yaml' } | ForEach-Object { $_.Name }) -join ', ' |
+            Should -BeNullOrEmpty
     }
 
     It 'gives every partition a drive letter, in every shipped template' {

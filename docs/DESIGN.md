@@ -331,6 +331,25 @@ puts every partition and format step inside one group conditioned
 partition that is already there. HDT follows exactly — the Refresh sequence
 carries no `DiskPartition` step at all.
 
+**And the group is HDT's too.** Every shipped sequence that partitions a disk
+carries the same gate MDT does: the UEFI/BIOS pair sits inside a group named
+`New Computer only`, conditioned `'$HDTDeploymentType -ne "REFRESH"'`, and the
+firmware test stays on the step — because the condition grammar is a single
+comparison with no `-and`, so a step already carrying `'$HDTIsUEFI -eq $true'`
+has nowhere to put a second test. A sequence with one partition step and no
+firmware condition carries the same condition on the step itself.
+`SequenceTemplatePlan.Contract.Tests.ps1` asserts it against the SET, by
+evaluating each condition rather than matching its text, so a template added
+later is judged the day it lands.
+
+This is defence in depth and documentation in place, not a new guarantee.
+`Get-HDTResumeForbiddenStepType` already refuses `DiskPartition` on any resumed
+leg under every deployment type, and it *fails* rather than skips; a condition
+is evaluated against the variable bag, which on a resumed leg is rehydrated
+from `state.json` — the same trust as the value that refusal reads, no more.
+What the group adds is that an administrator opening the template can see the
+rule instead of having to know it.
+
 The question that invites is whether wipe-and-load is still honest with no
 repartition in it, and the answer is that **the wipe is a deletion, run
 immediately before the apply.** `DISM /Apply-Image` overlays a volume; it does

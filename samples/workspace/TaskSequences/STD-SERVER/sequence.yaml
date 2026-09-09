@@ -42,6 +42,19 @@ steps:
         type: DiskPartition
         layout: "%HDTDiskLayout%"
         wipe: true
+        # NOT ON A REFRESH, WHICH IS MDT'S OWN GATE. Client.xml conditions all of
+        # its partition work on DeploymentType, because a Refresh keeps the
+        # partition table it found and empties the volume instead.
+        #
+        # IT IS DEFENCE IN DEPTH AND DOCUMENTATION IN PLACE, NOT A NEW GUARANTEE.
+        # The engine already refuses a DiskPartition step on any resumed leg
+        # outright, under every deployment type, and it FAILS rather than skips -
+        # Get-HDTResumeForbiddenStepType, which is the real guard. A condition is
+        # evaluated against the variable bag, and on a resumed leg that bag is
+        # rehydrated from state.json: the same trust as the value the resume
+        # refusal itself reads, no more. What it adds is that an administrator
+        # reading this sequence can SEE that a Refresh does not repartition.
+        condition: '$HDTDeploymentType -ne "REFRESH"'
 
   - group: Install
     runIn: WinPE

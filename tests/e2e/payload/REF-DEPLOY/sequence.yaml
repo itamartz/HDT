@@ -70,39 +70,59 @@ steps:
   - group: Preinstall
     runIn: WinPE
     steps:
-      - name: Format and Partition Disk (UEFI)
-        type: DiskPartition
-        diskNumber: 0
-        wipe: true
-        condition: '$HDTIsUEFI -eq $true'
-        partition:
-          - name: System
-            type: EFI
-            size: 260MB
-            filesystem: FAT32
-          - name: Windows
-            type: Primary
-            size: remainder
-            filesystem: NTFS
-          - name: Recovery
-            type: Recovery
-            size: 1GB
-            filesystem: NTFS
+      # NEW COMPUTER ONLY, AND THE GROUP IS MDT'S OWN. Client.xml wraps Validate
+      # and both partition steps in a group of exactly this name, conditioned on
+      # DeploymentType, and leaves the firmware test on the step. This is the
+      # same shape for the same reason: HDT's condition grammar is a SINGLE
+      # comparison with no '-and', so a step already carrying
+      # '$HDTIsUEFI -eq $true' has nowhere to put a second test, and the group
+      # is where the second one goes.
+      #
+      # IT IS DEFENCE IN DEPTH AND DOCUMENTATION IN PLACE, NOT A NEW GUARANTEE.
+      # The engine already refuses a DiskPartition step on any resumed leg
+      # outright, under every deployment type, and it FAILS rather than skips -
+      # Get-HDTResumeForbiddenStepType, which is the real guard. This condition
+      # is evaluated against the variable bag, and on a resumed leg that bag is
+      # rehydrated from state.json: the same trust as the value the resume
+      # refusal itself reads, no more and no less. What it adds is that an
+      # administrator reading this file can SEE that a Refresh does not
+      # repartition, instead of having to know a rule inside the engine.
+      - group: New Computer only
+        condition: '$HDTDeploymentType -ne "REFRESH"'
+        steps:
+          - name: Format and Partition Disk (UEFI)
+            type: DiskPartition
+            diskNumber: 0
+            wipe: true
+            condition: '$HDTIsUEFI -eq $true'
+            partition:
+              - name: System
+                type: EFI
+                size: 260MB
+                filesystem: FAT32
+              - name: Windows
+                type: Primary
+                size: remainder
+                filesystem: NTFS
+              - name: Recovery
+                type: Recovery
+                size: 1GB
+                filesystem: NTFS
 
-      - name: Format and Partition Disk (BIOS)
-        type: DiskPartition
-        diskNumber: 0
-        wipe: true
-        condition: '$HDTIsUEFI -eq $false'
-        partition:
-          - name: System
-            type: Primary
-            size: 500MB
-            filesystem: NTFS
-          - name: Windows
-            type: Primary
-            size: remainder
-            filesystem: NTFS
+          - name: Format and Partition Disk (BIOS)
+            type: DiskPartition
+            diskNumber: 0
+            wipe: true
+            condition: '$HDTIsUEFI -eq $false'
+            partition:
+              - name: System
+                type: Primary
+                size: 500MB
+                filesystem: NTFS
+              - name: Windows
+                type: Primary
+                size: remainder
+                filesystem: NTFS
 
   # ------------------------------------------------------------------- Install
   - group: Install
