@@ -1,4 +1,4 @@
-function Assert-HDTBootLoaderServicingLevel {
+﻿function Assert-HDTBootLoaderServicingLevel {
     <#
         .SYNOPSIS
             Refuses a Secure Boot bootloader swap whose boot image still carries
