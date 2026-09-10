@@ -301,9 +301,11 @@ about the narrower claim.
 
 - **No WDS import has ever run.** Gap 1. **Closed on 2026-09-07 against
   `HDT-WDS-01`, and on 2026-09-10 a client PXE booted from it and reached the
-  engine in 28 seconds (SPIKES S27). What is still not proven is PXE with
-  Secure Boot ON, and a full PXE-to-installed-Windows deployment — that client
-  had Secure Boot off and no disk.**
+  engine in 28 seconds (SPIKES S27). **Secure Boot ON is proven too** — the same
+  client booted twice more that evening with `-EnableSecureBoot On` and the
+  `MicrosoftWindows` template, clean both times, zero WDS Warning or Error
+  events (SPIKES S27.6). What is still not proven is a full
+  PXE-to-installed-Windows deployment — that client had no disk.**
 - **No VM has deployed over SMB.** Gap 2 - and PROJECT.md changed today to permit
   the `HDT External` switch, which removes the reason it was refused.
 - **The PXE payload has never network-booted.** **Still true, and S27 is not

@@ -1965,6 +1965,13 @@ removed; they were created by this spike. `CM01` and `DC01` were never touched.
 
 ## S20 — the ADK's WinPE bootloader is below the Secure Boot SVN floor ⚠
 
+> **ISO / local-boot path only — the PXE path is unaffected (S27.6, S27.7,
+> 2026-09-10).** A client network booted `HDTPE_x64.wim` from WDS **twice with
+> Secure Boot ON**, clean both times. Over PXE the loader that *executes* is
+> WDS's own `wdsmgfw.efi`/`bootmgfw.efi`; the ADK loader inside the WIM is a
+> RAMDISK payload and never on the boot path. Everything below is about media
+> that boots its own loader.
+
 **Rufus refuses to write the ISO quietly.** Writing
 `C:\HDTLab\Share\Boot\HDTPE_wiz_x64.iso` to a USB stick raises:
 
@@ -2134,6 +2141,10 @@ possible malware indicator because it cannot know where an image came from. This
 one was built on this machine, from the installed ADK, minutes earlier.
 
 ### S20.2 — the swap boots WORSE than the ADK's own media, and the boot manager is what refuses it ⚠
+
+> **ISO path only — see S27.6/S27.7 (2026-09-10).** The `0xc0430001` below is
+> the boot manager *on the media* refusing the next stage. Over PXE the boot
+> manager is WDS's own and it refused nothing, in two Secure-Boot-on runs.
 
 Date: 2026-09-07. The bootloader swap S20 asked for was built
 (`-BootLoaderPath` on `Update-HDTBootImage` and `New-HDTPxePayload`) and then
@@ -3941,8 +3952,9 @@ change made to the boot image since is unproven over PXE.
 ### S27.1 — the two machines, as configured
 
 **Client `HDT-PXE-01`** — Generation 2, **no hard disk**, 4096 MB static, 2 vCPU,
-**Secure Boot OFF**, one NIC on the **`HDT External`** switch, boot order
-network-first. Created for this test and still present.
+**Secure Boot OFF for this run and ON for the two in S27.6**, one NIC on the
+**`HDT External`** switch, boot order network-first. Created for this test and
+still present.
 
 **Server `HDT-WDS-01`** — Windows Server 2025 Standard, workgroup,
 192.168.1.206, WDS standalone, `C:\RemoteInstall`. PXE response: answer clients
@@ -4033,11 +4045,77 @@ disk at all, so there is nothing to deploy to.
 correctly and refused for the right reason; the message names the cause rather
 than the symptom. Nothing here is a defect.
 
-### S27.6 — what this run did NOT prove
+### S27.6 — Secure Boot ON, twice, and nothing refused anything ✅
 
-- **PXE with Secure Boot ON is untried.** The client had Secure Boot **off**.
-  That is S20 / S20.2 territory — the ADK's WinPE bootloader is below the Secure
-  Boot SVN floor — and nothing in this run touches it.
+Date: 2026-09-10, hours after the run above. `HDT-PXE-01` was reconfigured with
+`Set-VMFirmware -EnableSecureBoot On` and the **`MicrosoftWindows`** template —
+the same template every other VM in this lab uses — and a network-only boot
+order. **Nothing else changed:** Generation 2, no hard disk, 4096 MB static,
+2 vCPU, one NIC on `HDT External`. The setting was read back before, during and
+after each run.
+
+**It booted. Twice. Identically. No failure of any kind.**
+
+| Run | Power-on | Engine reading the share | Secure Boot |
+|---|---|---|---|
+| the S27.2 run | 19:05:39 | 19:06:06 — **28 s** | Off |
+| run 1 | 19:10:59 | 19:11:23 — **24 s** | **On** |
+| run 2 | 19:13:50.201 | 19:14:15 — **25 s** | **On** |
+
+**There is no Secure Boot penalty to find.** The two ON runs came in *under* the
+OFF one, which on a 25-second boot is noise rather than a speed-up — the point
+is that nothing was slower, retried or renegotiated.
+
+Run 2 in full, offsets from power-on at `19:13:50.201`:
+
+| Offset | |
+|---|---|
+| t+4 s | firmware prints `>>Start PXE over IPv4.` |
+| t+5 s | TFTP `wdsmgfw.efi` (1,095,072 B) complete |
+| t+5 s | `bootmgfw.efi` (2,759,624 B), then the per-client BCD `\Tmp\x64uefi{C10F9EA6-…}.bcd` (12,288 B), then `bootmgfw.efi` again, then `Boot.SDI` (3,170,304 B) |
+| t+5–12 s | `HDTPE_x64.wim` — 534,103,377 B in **7 s** |
+| t+19 s | WinPE up, `startnet.cmd` |
+| t+25 s | HDT engine, run id `run-20260910-191415` |
+| t+39 s | the same correct `Validate` stop at step 2 of 17 — no disk holds 60 GB, and this VM has none (S27.5) |
+
+**The WDS event picture is boring, and that is the finding.** Event 4096 twice
+(`ClientArchitecture: 4`, `Prestaged: false`), a 4099/4100 TFTP start/complete
+pair for every file, 57348/57349 buffer create/delete. **Zero Warning and zero
+Error events in any `Microsoft-Windows-Deployment-Services-Diagnostics/*` log
+since 19:10.** No `0xc0430001`, no `0xc0000428`, no Secure Boot violation,
+nothing rejected by anything.
+
+### S27.7 — why S20 / S20.2's SVN wall is not on this path
+
+S20 found the ADK bootloader in the HDT boot image carries an SVN below an
+enforced floor, and S20.2 boot-tested a swap and got `0xc0430001` on Generation
+2 Hyper-V. **Neither finding carries over to PXE, and the reason is
+structural.**
+
+Over PXE the bootloader chain that **executes** is **WDS's own** —
+`wdsmgfw.efi`, then `bootmgfw.efi`, both served from `C:\RemoteInstall\Boot\x64\`
+on `HDT-WDS-01`, both Microsoft-signed and in the shim chain. The ADK bootloader
+**inside `HDTPE_x64.wim` is never executed**: `bootmgfw.efi` loads the WIM as a
+**RAMDISK payload** through `Boot.SDI` — the
+`ramdisk=[boot]\Boot\x64\Images\HDTPE_x64.wim,{devopts-GUID}` device S27.3
+dumped — and jumps straight to its `winload`/kernel. The low-SVN binary is
+*present in the image* and *off the boot path*, so firmware never measures it.
+**The ISO path executes it directly, which is exactly where S20 and S20.2 hit
+the wall.**
+
+> **The observations are verified; the "never executed" explanation is
+> inference.** That it booted, twice, clean, with Secure Boot on and zero WDS
+> errors is measured. That the ADK loader is off the boot path is read off the
+> observed behaviour, the file layout and the BCD dump — **nothing was
+> instrumented to watch which binary the firmware measured.**
+
+**So S20/S20.2's SVN finding is ISO-path-specific.** The loader-replacement work
+those entries drive, and the servicing rule S20.3 settles, are about media that
+boots its own loader. Nothing here says the ISO path is fixed, and nothing here
+changes that rule.
+
+### S27.8 — what this run did NOT prove
+
 - **No PXE-to-installed-Windows deployment.** The VM had no disk, so the run
   ended at `Validate` and the apply, the unattend and the reboot were never
   reached over PXE.

@@ -254,10 +254,12 @@ are scheduled out, not cut, and nothing in v1 assumes they are absent.
 met.** `HDT-WDS-01` was built on 2026-09-02, the import ran against it on
 2026-09-07, and on **2026-09-10 `HDT-PXE-01` PXE booted from it** — power-on to
 the HDT engine reading the share in **28 seconds**, task sequence `PNP-TEST`
-started zero-touch (SPIKES S27). Two things it did not prove and the clause
-should not be read as covering: the client had **Secure Boot off**, and it had
-**no disk**, so the sequence stopped at `Validate` and no PXE-to-installed-
-Windows deployment has run. The clause is left struck through above because
+started zero-touch (SPIKES S27). One thing it did not prove and the clause
+should not be read as covering: the client had **no disk**, so the sequence
+stopped at `Validate` and no PXE-to-installed-Windows deployment has run.
+**Secure Boot is no longer one of them** — the same client PXE booted twice more
+that evening with Secure Boot **ON** and the `MicrosoftWindows` template, clean
+both times (SPIKES S27.6). The clause is left struck through above because
 that is the scoping decision the user made on 2026-08-25; what changed is the
 evidence, not the scope.
 
@@ -328,11 +330,13 @@ all.
   `PreviousVersion: 10.0.26100`, one x64 image named `HDTPE_x64` left on the
   server. **The replace-in-place semantics held on a real server.** ~~What
   remains unproven is the BOOT: no client has PXE booted from it.~~ **THE BOOT
-  IS NOW PROVEN TOO, on 2026-09-10** — `HDT-PXE-01` (Gen 2, Secure Boot off, no
-  disk, `HDT External`) network booted from `HDT-WDS-01`, DHCP from the home
+  IS NOW PROVEN TOO, on 2026-09-10** — `HDT-PXE-01` (Gen 2, no disk,
+  `HDT External`) network booted from `HDT-WDS-01`, DHCP from the home
   router with no options 66/67, and 28 seconds after power-on the HDT engine had
-  mapped the share and started `PNP-TEST` zero-touch (SPIKES S27). Still
-  unproven: **PXE with Secure Boot ON**, and a **complete PXE-to-installed-
+  mapped the share and started `PNP-TEST` zero-touch (SPIKES S27). **And with
+  Secure Boot ON, twice, later the same evening** — `MicrosoftWindows` template,
+  24 s and 25 s power-on to engine, zero Warning or Error events in any WDS
+  diagnostics log (SPIKES S27.6). Still unproven: a **complete PXE-to-installed-
   Windows deployment** — the client was deliberately diskless, so the sequence
   stopped at `Validate`. The rest of this
   paragraph describes why the suite still cannot repeat that run. This host is
@@ -370,9 +374,21 @@ all.
   gives: there is no domain controller in this lab, and the `HDT Lab` switch is
   isolated by design.
 - **DESIGN 11's technician UI is absent.** It is M8.
-- **The boot image carries the ADK's bootloader, and a fully patched machine
-  with Secure Boot on will refuse it.** SPIKES S20: `bootmgr.efi` and
-  `EFI\Boot\bootx64.efi` out of the ADK's WinPE Media carry **SVN 3.0 against an
+- **On the ISO / local-boot path, the boot image carries the ADK's bootloader,
+  and a fully patched machine with Secure Boot on will refuse it.**
+
+  **Scope, since 2026-09-10: this whole bullet — the 7.0-floor note at the end
+  of it included — is about media that boots its own loader. The PXE path is
+  unaffected, and boots clean with Secure Boot ON** (SPIKES S27.6, S27.7):
+  `HDT-PXE-01` network booted `HDTPE_x64.wim` from WDS twice with Secure Boot on
+  and the `MicrosoftWindows` template, 24 s and 25 s to the engine, zero WDS
+  Warning or Error events. Over PXE the loader that *executes* is WDS's own
+  `wdsmgfw.efi`/`bootmgfw.efi`; the ADK loader inside the WIM is a RAMDISK
+  payload loaded through `Boot.SDI` and is never on the boot path. **That says
+  nothing about whether the ISO path is fixed.**
+
+  SPIKES S20: `bootmgr.efi` and `EFI\Boot\bootx64.efi` out of the
+  ADK's WinPE Media carry **SVN 3.0 against an
   enforced floor of 7.0** — a Secure Version Number check, not a DBX hash entry
   and not the signing certificate, both of which are fine. The work is to
   **replace both files with current ones from a fully patched Windows and

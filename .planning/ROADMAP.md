@@ -65,8 +65,10 @@ What deferring the rest actually costs, stated so it is not discovered later:
   The import ran against it on 2026-09-07 and **a client PXE booted from it on
   2026-09-10**, on the `HDT External` switch with DHCP from the home router and
   no options 66/67, reaching the HDT engine 28 seconds after power-on (SPIKES
-  S27). What v2 still owes is **Secure Boot on** and a **complete PXE-to-
-  installed-Windows deployment**; the test client had Secure Boot off and no
+  S27). **Secure Boot on was settled the same evening** — the same client booted
+  twice more with `-EnableSecureBoot On` and the `MicrosoftWindows` template,
+  clean both times, zero WDS Warning or Error events (S27.6). What v2 still owes
+  is a **complete PXE-to-installed-Windows deployment**; the test client had no
   disk. And it owes nothing to `New-HDTPxePayload`'s own store, which took no
   part — WDS composes its per-client BCD at request time (S27.4).
 - **No in-sequence patching.** A machine HDT builds leaves the bench with exactly
@@ -84,7 +86,11 @@ is just as easy to discover late:
 - **A fully patched machine with Secure Boot on will refuse the boot image.**
   The ADK's `bootmgr.efi` and `EFI\Boot\bootx64.efi` carry SVN 3.0 against an
   enforced floor of 7.0 (SPIKES S20 — a Secure Version Number check, not a DBX
-  hash entry). The lab turns Secure Boot off; a fleet cannot. The fix — swap
+  hash entry). **This is the ISO / local-boot path only — PXE is unaffected and
+  boots clean with Secure Boot on, because the loader that executes there is
+  WDS's own and the ADK one inside the WIM is a RAMDISK payload off the boot
+  path (SPIKES S27.6, S27.7).** The lab turns Secure Boot off; a fleet
+  cannot. The fix — swap
   both files for patched ones, in `Update-HDTBootImage` **and** in
   `New-HDTPxePayload`, then prove it on a Secure Boot VM — is an open item under
   **05** in `docs/ROADMAP.md`'s M4 list.
@@ -315,9 +321,10 @@ PROJECT.md rule 3 confines a PXE responder to the isolated `HDT Lab` switch, so
 no WDS import had executed anywhere in this repository. **Both halves of that
 have since closed, outside the phase**: the import ran against the lab's
 `HDT-WDS-01` on 2026-09-07, and a client PXE booted from it on 2026-09-10,
-reaching the engine 28 seconds after power-on (SPIKES S27). Secure Boot on and
-a full PXE-to-installed-Windows deployment are still unproven — the test client
-had Secure Boot off and no disk. No VM deployed over SMB **at the
+reaching the engine 28 seconds after power-on (SPIKES S27). **Secure Boot on
+followed the same evening — two more boots, clean, 24 s and 25 s to the engine
+(S27.6).** A full PXE-to-installed-Windows deployment is still unproven — the
+test client had no disk. No VM deployed over SMB **at the
 time this phase closed**, for the reason SPIKES S6 records about the isolated
 switch — **that gap is now closed by SPIKES S14**, which deployed `HDT-SMB-01`
 on `HDT External` with `provider: Smb`. `05-VERIFICATION.md`

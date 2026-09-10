@@ -22,10 +22,16 @@ gaps:
       HDT-PXE-01 PXE booted from it on the HDT External switch - DHCP from the
       home router at 192.168.1.1 with no options 66/67, no prestaging - and the
       HDT engine was reading the share 28 seconds after power-on, starting
-      PNP-TEST zero-touch. SPIKES S27. The status above is left at not_met
-      because it records what THIS phase proved.
+      PNP-TEST zero-touch. SPIKES S27. Later that evening HDT-PXE-01 was
+      reconfigured with -EnableSecureBoot On and the MicrosoftWindows template
+      and PXE booted twice more, clean both times - 24 s and 25 s power-on to
+      engine, zero Warning or Error events in any WDS diagnostics log (SPIKES
+      S27.6). Over PXE the executed loader chain is WDS's own wdsmgfw.efi and
+      bootmgfw.efi; the ADK loader inside the WIM is a RAMDISK payload and off
+      the boot path, so S20/S20.2's SVN finding is ISO-path-specific (S27.7).
+      The status above is left at not_met because it records what THIS phase
+      proved.
     still_not_proven_after_S27:
-      - "a PXE boot with Secure Boot ON. HDT-PXE-01 had Secure Boot off; that is S20/S20.2 territory and untried."
       - "a complete PXE-to-installed-Windows deployment. HDT-PXE-01 had no disk deliberately, so the sequence stopped at step 2 of 17, Validate, which refused correctly."
       - "anything about New-HDTPxePayload. WDS composes its own per-client BCD at request time and never read the payload's ADK-media store, so the payload took no part in this boot (SPIKES S27.4)."
     substituted_by:
