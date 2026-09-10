@@ -65,8 +65,9 @@
             increment; claiming to check something this does not check would be
             worse than saying so.
 
-            ⚠ SWAPPING THE LOADERS IS NOT ENOUGH, AND THAT IS MEASURED
-            (SPIKES S20.2). Three Generation 2 Hyper-V runs on 2026-09-07:
+            ⚠ SWAPPING THE BOOT MANAGERS ALONE IS NOT ENOUGH, AND THAT IS
+            MEASURED (SPIKES S20.2). Three Generation 2 Hyper-V runs on
+            2026-09-07:
 
               swapped media, Secure Boot ON    FAIL - 0xc0430001
               the same ISO,  Secure Boot OFF   PASS - WinPE reached
@@ -76,57 +77,69 @@
             says so, and it also says this host's Hyper-V Secure Boot template
             does not enforce the 7.0 floor at all. What refused the media was
             the BOOT MANAGER, on the stage after itself: the built boot.wim's
-            winload.efi is 10.0.26100.1 while the swapped boot manager is
-            10.0.28000.342, and a boot manager will not start an OS loader from
-            an older servicing level while Secure Boot is on. 0xc0430001 is
+            winload.efi was 10.0.26100.1, the ADK's RTM copy. 0xc0430001 is
             STATUS_SECUREBOOT_ROLLBACK_DETECTED, and it arrives on Windows Boot
             Manager's recovery screen rather than a firmware Security Violation.
-            winload.efi carries no BOOTMGRSECURITYVERSIONNUMBER resource at all,
-            so nothing about it can be corrected by copying files.
+            winload.efi carries no BOOTMGRSECURITYVERSIONNUMBER resource at all
+            - probed directly on 2026-09-10 - so the SVN is not what it is being
+            judged on.
 
-            Assert-HDTBootLoaderServicingLevel is the guard that now refuses
-            that pair. It is a guard and not a cure.
+            THE CURE, AND IT IS -Target Image (SPIKES S20.3). THE OS LOADER
+            MOVES WITH THE BOOT MANAGER: this table also names the winload.efi
+            and winload.exe of the SAME serviced Windows the boot managers come
+            off, and Update-HDTBootImage copies them into the mounted boot.wim.
+            The pair is then matched by construction rather than by coincidence.
 
-            WHAT THE CURE WOULD TAKE, written down here so the next person does
-            not start from the two-file copy again. THE OS LOADER HAS TO MOVE
-            WITH THE BOOT MANAGER, which means SERVICING the WinPE image rather
-            than overwriting files in the media tree:
+              -Target Image
+              winload.efi   -> Windows\System32\Boot\winload.efi
+              winload.exe   -> Windows\System32\Boot\winload.exe
 
-              1. Apply the current Windows cumulative update (.msu) to the
-                 mounted boot.wim - Add-WindowsPackage against the mount, the
-                 same mount step 7 already opens. The LCU is what carries the
-                 post-revocation winload.efi; it is not on the ADK media and it
-                 is not in the install media either (S20's measurements: both
-                 are 26100-series).
-              2. Take the boot manager from the SAME update level rather than
-                 from whatever this build host happens to be patched to, so the
-                 pair is matched by construction instead of by coincidence. A
-                 -BootLoaderPath pointing at the build host is only ever right
-                 by accident.
-              3. Re-run this check afterwards. It costs two calls and it is the
-                 difference between "the versions agree" and "we believe they
-                 agree".
-              4. Prove it the only way it can be proved: a Generation 2 VM with
-                 Secure Boot ON, booted from the built ISO. Every analyser on
-                 this host said the SVN-9.0 media was correct, and it was not.
+            SERVICING THE IMAGE TO THE BOOT MANAGER'S BUILD IS NEITHER POSSIBLE
+            NOR NEEDED, and believing otherwise cost a rewrite. There is no
+            26100-era LCU that produces a 28000-series winload.efi: 28000 is the
+            BOOT MANAGER's own servicing track and 26100 is the OS's. Read off
+            this build host on 2026-09-10, with Secure Boot ON and booting:
 
-            The open questions that go with it: which servicing package HDT is
-            entitled to assume is available (the ADK ships none), where it comes
-            from on a disconnected build host, and whether the ADK's own
-            26100-era BCD is happy under a 28000-series boot manager - which the
-            failing run could not answer, because it never got that far.
+              C:\Windows\Boot\EFI\bootmgfw.efi      10.0.28000.342   SVN 9.0
+              C:\Windows\System32\Boot\winload.efi  10.0.26100.8655
+
+            So the whole fix is taking BOTH files off ONE fully patched Windows.
+            The failing pair was 28000.342 over 26100.1; the working pair - the
+            one this machine runs - is 28000.342 over 26100.8655.
+
+            ⚠ AND IT IS UNPROVEN ON HARDWARE. Nothing has been booted from an
+            image built this way. It stays unproven until a Generation 2 VM with
+            Secure Boot ON starts the built ISO, because every analyser on this
+            host said the SVN-9.0 media was correct and it was not.
 
             PURE, so the whole decision is provable against New-HDTFakeFileSystem
             (CLAUDE.md rule 5). Nothing here copies anything.
 
         .PARAMETER BootLoaderPath
-            The folder holding the replacement loaders: bootmgr.efi and
+            The folder holding the replacement boot managers: bootmgr.efi and
             bootmgfw.efi, taken from a fully patched Windows -
             %SystemRoot%\Boot\EFI on the build host is the usual one.
 
+            It is also what -Target Image derives its own source from when
+            -OsLoaderPath is not given, which is the point: one folder named
+            once means both halves of the pair come off one machine.
+
+        .PARAMETER OsLoaderPath
+            The folder holding the replacement OS loaders, winload.efi and
+            winload.exe - '%SystemRoot%\System32\Boot' on the same serviced
+            Windows. Only -Target Image reads it.
+
+            DERIVED FROM -BootLoaderPath WHEN OMITTED, and derived purely:
+            <X>\Boot\EFI becomes <X>\System32\Boot with two
+            [IO.Path]::GetDirectoryName calls and a Combine, so nothing here
+            resolves a drive and the derivation is provable against a fake
+            (CLAUDE.md rule 8). Name it explicitly for a serviced tree that is
+            not laid out the way a live Windows is.
+
         .PARAMETER Target
             Media for a WinPE media tree (the ISO and the WIM are built from it),
-            Pxe for a non-WDS TFTP or HTTP payload.
+            Pxe for a non-WDS TFTP or HTTP payload, Image for the OS loaders
+            INSIDE a mounted boot.wim.
 
         .PARAMETER Architecture
             amd64 (default) or arm64, in the ADK's vocabulary. Only -Target Pxe
@@ -153,6 +166,14 @@
             Get-HDTBootLoaderSource -BootLoaderPath 'C:\Windows\Boot\EFI' -Target Pxe -FileSystem $fs
 
             The same two loaders under the names a TFTP root serves them by.
+
+        .EXAMPLE
+            Get-HDTBootLoaderSource -BootLoaderPath 'C:\Windows\Boot\EFI' -Target Image -FileSystem $fs
+
+            The OS loaders off the same Windows - read from
+            'C:\Windows\System32\Boot' without being told - which
+            Update-HDTBootImage copies into the mounted boot.wim so the boot
+            manager and the loader behind it are at one servicing level.
     #>
     [CmdletBinding()]
     [OutputType([pscustomobject])]
@@ -162,8 +183,12 @@
         [string] $BootLoaderPath,
 
         [Parameter(Mandatory = $true)]
-        [ValidateSet('Media', 'Pxe')]
+        [ValidateSet('Media', 'Pxe', 'Image')]
         [string] $Target,
+
+        [Parameter()]
+        [AllowEmptyString()]
+        [string] $OsLoaderPath = '',
 
         [Parameter()]
         [ValidateSet('amd64', 'arm64')]
@@ -187,10 +212,48 @@
     # THE TABLE, IN COPY ORDER. Keyed by the leaf in the source folder, because
     # that is the set the refusal below is written against: two names, whichever
     # target asked.
+    # WHERE THE FILES COME FROM. Media and Pxe replace BOOT MANAGERS and read
+    # -BootLoaderPath; Image replaces the OS LOADERS behind them and reads the
+    # System32\Boot of the same Windows.
+    $sourceFolder = $BootLoaderPath
+
     if ($Target -eq 'Pxe') {
         $plan = @(
             @{ Name = 'bootmgr.efi'; Destination = [System.IO.Path]::Combine($boot, 'bootmgfw.efi') }
             @{ Name = 'bootmgfw.efi'; Destination = [System.IO.Path]::Combine($boot, 'wdsmgfw.efi') }
+        )
+    } elseif ($Target -eq 'Image') {
+        # DERIVED, SO THE PAIR CANNOT BE MIXED BY ACCIDENT. <X>\Boot\EFI is two
+        # levels below <X>, and the OS loaders are at <X>\System32\Boot. An
+        # administrator who named one folder has named both, which is the whole
+        # point: the boot manager and the loader behind it must come off ONE
+        # serviced Windows (SPIKES S20.3).
+        #
+        # PURELY, with GetDirectoryName and Combine and no filesystem call, so
+        # a folder on a drive this process has not mounted still plans - and so
+        # the derivation is provable against New-HDTFakeFileSystem. Join-Path
+        # would resolve the drive and throw DriveNotFound (CLAUDE.md rule 8).
+        $sourceFolder = $OsLoaderPath
+
+        if ([string]::IsNullOrWhiteSpace($sourceFolder)) {
+            $windowsRoot = [System.IO.Path]::GetDirectoryName(
+                [System.IO.Path]::GetDirectoryName($BootLoaderPath))
+
+            $sourceFolder = [System.IO.Path]::Combine($windowsRoot, 'System32', 'Boot')
+        }
+
+        # BOTH NAMES, BECAUSE A REAL WINDOWS CARRIES BOTH AND THEY SERVICE
+        # TOGETHER. winload.efi is what a UEFI boot manager starts; winload.exe
+        # is its BIOS twin. Read off this host on 2026-09-10, both are
+        # 10.0.26100.8655. The caller copies only over names the image already
+        # has - a WinPE that carries one of them gets one replaced.
+        $plan = @(
+            @{ Name = 'winload.efi'
+                Destination = [System.IO.Path]::Combine('Windows', 'System32', 'Boot', 'winload.efi')
+            }
+            @{ Name = 'winload.exe'
+                Destination = [System.IO.Path]::Combine('Windows', 'System32', 'Boot', 'winload.exe')
+            }
         )
     } else {
         $plan = @(
@@ -207,7 +270,7 @@
     $row = New-Object -TypeName System.Collections.ArrayList
 
     foreach ($entry in $plan) {
-        $source = [System.IO.Path]::Combine($BootLoaderPath, [string] $entry['Name'])
+        $source = [System.IO.Path]::Combine($sourceFolder, [string] $entry['Name'])
 
         if (-not $FileSystem.TestPath($source)) {
             # EVERY MISSING ONE, NOT THE FIRST. An administrator who fixes the
@@ -231,10 +294,25 @@
         # all, and the one folder on this machine that satisfies it - because
         # the obvious alternative, the Windows install media, carries the SAME
         # revoked SVN and looks like a fix.
+        $nameList = ($missing | ForEach-Object { "'" + $_ + "'" }) -join ' and '
+        $areThere = 'neither is'
+        if ($missing.Count -eq 1) { $areThere = 'it is not' }
+
+        if ($Target -eq 'Image') {
+            # A DIFFERENT CAUSE FROM THE ONE ABOVE, so it gets its own sentence.
+            # These are the OS LOADERS, and what they fix is the boot manager's
+            # rollback check on the stage after itself - not the firmware's SVN
+            # floor. Sending the reader to Boot\EFI here would be sending them
+            # to the wrong folder for the wrong reason.
+            throw (New-HDTErrorRecord -TargetObject $sourceFolder -Category ObjectNotFound `
+                    -Message ("the Secure Boot bootloader swap needs {0} in '{1}' and {2} there. That folder is a fully patched Windows's own '%SystemRoot%\System32\Boot', and the swap replaces the OS loaders in the boot image from it so they come off the SAME serviced Windows as the replacement boot managers. Without that, a boot manager refuses the loader behind it while Secure Boot is on - 0xc0430001, STATUS_SECUREBOOT_ROLLBACK_DETECTED, on a Windows Boot Manager recovery screen with nothing in any log. The folder was {3}; name it explicitly with -OsLoaderPath if the serviced tree is not laid out the way a live Windows is. See .planning/SPIKES.md, S20.3." -f
+                        $nameList, $sourceFolder, $areThere,
+                        $(if ([string]::IsNullOrWhiteSpace($OsLoaderPath)) { "derived from -BootLoaderPath '" + $BootLoaderPath + "'" } else { 'given as -OsLoaderPath' })))
+        }
+
         throw (New-HDTErrorRecord -TargetObject $BootLoaderPath -Category ObjectNotFound `
                 -Message ("the Secure Boot bootloader swap needs {0} in '{1}' and {2} there. The ADK's own bootloaders carry Secure Version Number 3.0 against an enforced floor of 7.0, so a fully patched machine with Secure Boot enabled refuses this media before WinPE loads and shows only a firmware Security Violation. Point -BootLoaderPath at a fully patched Windows's own '%SystemRoot%\Boot\EFI', which holds both files - NOT at a Windows install media, whose copies carry the same revoked SVN 3.0. Both loaders are replaced or neither is: one corrected file out of two is still a machine that will not start." -f
-                    (($missing | ForEach-Object { "'" + $_ + "'" }) -join ' and '), $BootLoaderPath,
-                    $(if ($missing.Count -eq 1) { 'it is not' } else { 'neither is' })))
+                    $nameList, $BootLoaderPath, $areThere))
     }
 
     return [pscustomobject[]] @($row)

@@ -1,4 +1,4 @@
-# Behaviour that belongs to the fake itself rather than to the IFileSystem
+﻿# Behaviour that belongs to the fake itself rather than to the IFileSystem
 # contract: seeding, operation recording, and the guarantee that nothing the
 # fake does reaches the real disk.
 #
@@ -265,6 +265,67 @@ Describe 'New-HDTFakeFileSystem' {
             $fs.CopyItem('X:\HDT\Logs\HDT.jsonl', 'W:\HDT\Logs\HDT.log')
 
             $fs.ReadAllText('W:\HDT\Logs\HDT.log') | Should -BeExactly 'line'
+        }
+    }
+
+    Context 'the version resource travels with the file' {
+
+        # THE FAKE WAS WRONG, NOT THE CALLER (CLAUDE.md rule 8, "the fakes").
+        # Copy-Item copies the whole PE and a file version lives inside it, so a
+        # copy's destination reads the SOURCE's version. This double dropped it,
+        # and Update-HDTBootImage - which replaces the boot image's winload.efi
+        # and then re-reads the version to prove the replacement took - read the
+        # OLD version back and looked broken when it was not.
+
+        It 'gives a copy the source''s version' {
+            $fs = New-HDTFakeFileSystem -File @{
+                'C:\Windows\System32\Boot\winload.efi' = 'MZ'
+                'C:\mount\Windows\System32\Boot\winload.efi' = 'MZ'
+            } -Version @{
+                'C:\Windows\System32\Boot\winload.efi' = '10.0.26100.8655'
+                'C:\mount\Windows\System32\Boot\winload.efi' = '10.0.26100.1'
+            }
+
+            $fs.CopyItem('C:\Windows\System32\Boot\winload.efi',
+                'C:\mount\Windows\System32\Boot\winload.efi')
+
+            $fs.GetVersion('C:\mount\Windows\System32\Boot\winload.efi') |
+                Should -BeExactly '10.0.26100.8655'
+        }
+
+        It 'clears a destination version when the source has none' {
+            # A copy REPLACES the destination. Leaving the old version behind
+            # would let a file answer for content it no longer holds.
+            $fs = New-HDTFakeFileSystem -File @{
+                'C:\src\plain.bin' = 'no resource'
+                'C:\dst\plain.bin' = 'MZ'
+            } -Version @{ 'C:\dst\plain.bin' = '4.1.0.0' }
+
+            $fs.CopyItem('C:\src\plain.bin', 'C:\dst\plain.bin')
+
+            $fs.GetVersion('C:\dst\plain.bin') | Should -BeExactly '0.0.0.0'
+        }
+
+        It 'takes the version with a move, and leaves none behind' {
+            $fs = New-HDTFakeFileSystem -File @{ 'C:\src\agent.exe' = 'MZ' } `
+                -Version @{ 'C:\src\agent.exe' = '4.1.0.0' }
+
+            $fs.MoveItem('C:\src\agent.exe', 'C:\dst\agent.exe')
+
+            $fs.GetVersion('C:\dst\agent.exe') | Should -BeExactly '4.1.0.0'
+            $fs.TestPath('C:\src\agent.exe') | Should -BeFalse
+        }
+
+        It 'does NOT carry a seeded hash across a copy' {
+            # A SEEDED HASH IS HOW A TEST SAYS "THIS COPY LANDED CORRUPT", which
+            # is a statement about one path. Propagating it would make the only
+            # way to express a corrupt copy impossible.
+            $fs = New-HDTFakeFileSystem -File @{ 'C:\src\boot.sdi' = 'bytes' } `
+                -Hash @{ 'C:\src\boot.sdi' = 'AAAA' }
+
+            $fs.CopyItem('C:\src\boot.sdi', 'C:\dst\boot.sdi')
+
+            $fs.GetHash('C:\dst\boot.sdi') | Should -Not -BeExactly 'AAAA'
         }
     }
 

@@ -356,6 +356,39 @@ class HDTFakeFileSystem {
         $this.Directory.Remove($full)
     }
 
+    # A COPY CARRIES THE VERSION RESOURCE, because Copy-Item copies the whole
+    # file and a PE's version lives inside it. This fake did not, and the
+    # difference is not academic: Update-HDTBootImage copies a serviced
+    # winload.efi into a mounted image and then RE-READS the version to prove
+    # the replacement took. Against a fake that dropped it, the re-read answered
+    # with the old version and the servicing guard refused a swap that had
+    # actually worked - correct code made to look broken by its double
+    # (CLAUDE.md rule 8, "the fakes").
+    #
+    # THE HASH DELIBERATELY DOES NOT CARRY. A seeded hash is how a test says
+    # "this copy landed corrupt", which is a statement about the destination
+    # alone; propagating it would make that impossible to express.
+    hidden [void] CarryVersion([string] $SourceFull, [string] $DestinationFull) {
+        if ($this.VersionOverride.ContainsKey($SourceFull)) {
+            $this.VersionOverride[$DestinationFull] = $this.VersionOverride[$SourceFull]
+        } else {
+            [void] $this.VersionOverride.Remove($DestinationFull)
+        }
+
+        if ($this.VersionInfoOverride.ContainsKey($SourceFull)) {
+            $this.VersionInfoOverride[$DestinationFull] = $this.VersionInfoOverride[$SourceFull]
+        } else {
+            [void] $this.VersionInfoOverride.Remove($DestinationFull)
+        }
+    }
+
+    # AND A MOVE TAKES IT WITH IT. The file at the old path is gone, so a
+    # version left behind there would answer for a file that is not there.
+    hidden [void] DropVersion([string] $Full) {
+        [void] $this.VersionOverride.Remove($Full)
+        [void] $this.VersionInfoOverride.Remove($Full)
+    }
+
     [void] CopyItem([string] $Source, [string] $Destination) {
         $this.Record('CopyItem', @($Source, $Destination))
         $sourcePath = $this.Normalize($Source)
@@ -372,6 +405,7 @@ class HDTFakeFileSystem {
         $this.AssertWritable($destinationPath)
 
         $this.AddFile($destinationPath, $this.File[$sourcePath])
+        $this.CarryVersion($sourcePath, $destinationPath)
     }
 
     # See New-HDTFileSystem's MoveItem: a rename is how a build publishes an
@@ -406,7 +440,11 @@ class HDTFakeFileSystem {
 
             foreach ($one in $under) {
                 $tail = ([string] $one).Substring($prefix.Length)
-                $this.AddFile(($newPrefix + $tail), $this.File[$one])
+                $moved = $newPrefix + $tail
+
+                $this.AddFile($moved, $this.File[$one])
+                $this.CarryVersion($one, $moved)
+                $this.DropVersion($one)
                 [void] $this.File.Remove($one)
             }
 
@@ -442,6 +480,8 @@ class HDTFakeFileSystem {
         $this.AssertWritable($destinationPath)
 
         $this.AddFile($destinationPath, $this.File[$sourcePath])
+        $this.CarryVersion($sourcePath, $destinationPath)
+        $this.DropVersion($sourcePath)
         [void] $this.File.Remove($sourcePath)
     }
 
@@ -715,6 +755,10 @@ function New-HDTFakeFileSystem {
             mismatch" provable - and a truncated boot.sdi on a TFTP server is a
             machine that hangs at boot with no message.
 
+            A SEEDED HASH DOES NOT TRAVEL ACROSS A COPY, unlike the version
+            below: it describes one file at one path, which is the only way
+            "the copy landed corrupt" can be said at all.
+
         .PARAMETER Version
             Paths whose GetVersion answers with a stated four-part version. A
             seeded content string carries no version resource, so this is how a
@@ -722,6 +766,13 @@ function New-HDTFakeFileSystem {
             DESIGN 8's file detection rule compares against. Unseeded files
             answer 0.0.0.0, exactly as the real adapter does for a file with no
             version resource.
+
+            IT TRAVELS WITH A COPY AND WITH A MOVE, because the real Copy-Item
+            copies the whole PE and the version resource is inside it. Without
+            that, a command which replaces a file and re-reads the version to
+            prove the replacement took - Update-HDTBootImage does exactly this
+            with the boot image's winload.efi - reads the OLD version back and
+            looks broken when it is not.
 
         .PARAMETER Journal
             The shared cross-service operation journal. When supplied, every
@@ -5573,7 +5624,22 @@ class HDTFakeBootImageService {
     # S20.2). Update-HDTBootImage reads it to refuse a bootloader swap whose
     # replacement boot manager is from a newer servicing level, so the fake has
     # to carry a version at all or the guard cannot be exercised at all.
+    #
+    # AND THE BUILDER NOW REPLACES IT (S20.3): the swap copies the serviced
+    # Windows's own winload.efi into the mount and re-reads this. A fake that
+    # dropped the version on a copy made that look broken - see CopyItem.
     [string] $OsLoaderVersion = '10.0.26100.1'
+
+    # EXTRA OS LOADER PATHS THE MOUNTED IMAGE CARRIES, relative to the mount
+    # root. A WinPE has exactly one - Windows\System32\Boot\winload.efi - and a
+    # full Windows keeps winload.exe beside it and a second winload.efi directly
+    # under System32. Update-HDTBootImage replaces every one it FINDS and creates
+    # none, so the fake has to be able to model both layouts (SPIKES S20.3).
+    [string[]] $ExtraOsLoader = @()
+
+    # NO OS LOADER AT ALL. Not a real boot image, and that is the case the
+    # builder has to refuse rather than swap loaders into blind.
+    [bool] $OmitOsLoader = $false
 
     # Method name -> the message that method throws, as
     # System.InvalidOperationException - the type the real adapter throws when a
@@ -5719,9 +5785,13 @@ class HDTFakeBootImageService {
         # would let a swap that produces non-booting media pass every test here
         # - which is precisely the defect S20.2 records, so the fake is the
         # place it has to stop being possible.
-        $winload = [System.IO.Path]::Combine($key, 'Windows\System32\Boot\winload.efi')
-        $this.FileSystem.SeedFile($winload, 'MZ WinPE OS loader')
-        $this.FileSystem.SeedVersion($winload, $this.OsLoaderVersion)
+        if (-not $this.OmitOsLoader) {
+            foreach ($relative in @(@('Windows\System32\Boot\winload.efi') + @($this.ExtraOsLoader))) {
+                $winload = [System.IO.Path]::Combine($key, $relative)
+                $this.FileSystem.SeedFile($winload, 'MZ WinPE OS loader')
+                $this.FileSystem.SeedVersion($winload, $this.OsLoaderVersion)
+            }
+        }
     }
 
     [void] DismountImage([string] $MountPath, [bool] $Save) {
@@ -5902,8 +5972,20 @@ function New-HDTFakeBootImageService {
             The file version MountImage gives the seeded
             Windows\System32\Boot\winload.efi. Defaults to 10.0.26100.1, which
             is what the ADK's WinPE image really carries. Raise it to model a
-            SERVICED boot image - the one thing that would make a Secure Boot
-            bootloader swap legitimate (SPIKES S20.2).
+            SERVICED boot image, which is what Update-HDTBootImage's own
+            injection produces (SPIKES S20.3).
+
+        .PARAMETER ExtraOsLoader
+            Extra OS loader paths the mounted image carries, relative to the
+            mount root - 'Windows\System32\winload.efi' and
+            'Windows\System32\Boot\winload.exe' are the two a full Windows adds.
+            A WinPE has only Windows\System32\Boot\winload.efi, which is seeded
+            always. The swap replaces every location that is THERE and creates
+            none, and a fake that could model only one layout could not prove it.
+
+        .PARAMETER OmitOsLoader
+            Seed no OS loader at all. Not a real boot image - which is the point:
+            the build has to refuse a swap it cannot judge rather than ship one.
 
         .PARAMETER Journal
             The shared cross-service operation journal. When supplied, every
@@ -5955,12 +6037,21 @@ function New-HDTFakeBootImageService {
         [string] $OsLoaderVersion = '10.0.26100.1',
 
         [Parameter()]
+        [AllowEmptyCollection()]
+        [string[]] $ExtraOsLoader = @(),
+
+        [Parameter()]
+        [switch] $OmitOsLoader,
+
+        [Parameter()]
         [AllowNull()]
         [System.Collections.ArrayList] $Journal
     )
 
     $fake = [HDTFakeBootImageService]::new()
     $fake.OsLoaderVersion = $OsLoaderVersion
+    $fake.ExtraOsLoader = [string[]] @($ExtraOsLoader)
+    $fake.OmitOsLoader = $OmitOsLoader.IsPresent
     $fake.Journal = $Journal
 
     $fake.FileSystem = $FileSystem

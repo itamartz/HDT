@@ -143,7 +143,7 @@
             NOT a Windows install media: its copies carry the same revoked
             Secure Version Number the ADK's do. See SPIKES S20.
 
-            ⚠ IT IS NOT YET A WORKING FIX, AND THAT WAS MEASURED ON HARDWARE.
+            IT ALSO REPLACES THE BOOT IMAGE'S OWN OS LOADER, and it has to.
             Three Generation 2 Hyper-V runs, 2026-09-07 (SPIKES S20.2):
 
               swapped media, Secure Boot ON    FAIL - 0xc0430001
@@ -152,13 +152,39 @@
 
             0xc0430001 is STATUS_SECUREBOOT_ROLLBACK_DETECTED. The firmware
             ACCEPTED the swapped boot manager; the boot manager then refused the
-            OS loader behind it, because the boot image's own winload.efi is
-            10.0.26100.1 against a boot manager of 10.0.28000.342. So the swap
-            alone turns working Secure Boot media into media that does not boot,
-            and the build now REFUSES that combination rather than shipping it.
-            The complete fix is to service the WinPE image so its winload.efi
-            comes up with the boot manager; until then this parameter is only
-            useful against an image that has been.
+            OS loader behind it, because the boot image's own winload.efi was
+            the ADK's RTM 10.0.26100.1. So replacing the boot managers alone
+            turned working Secure Boot media into media that does not boot.
+
+            The build now copies winload.efi and winload.exe from the SAME
+            serviced Windows - '%SystemRoot%\System32\Boot' beside the
+            '%SystemRoot%\Boot\EFI' named here - into the mounted image, over
+            the paths the image already has and never creating one it did not.
+            The boot manager and the loader behind it are then at one servicing
+            level by construction.
+
+            IT IS NOT THAT THE LOADER MUST REACH THE BOOT MANAGER'S BUILD, and
+            believing that cost a rewrite (SPIKES S20.3). This build host runs
+            boot manager 10.0.28000.342 over OS loader 10.0.26100.8655 with
+            Secure Boot ON, every day: 28000 is the boot manager's own servicing
+            track and 26100 is the OS's. The failing pair was 28000.342 over
+            26100.1; the working pair is 28000.342 over 26100.8655.
+
+            ⚠ AND IT IS UNPROVEN ON HARDWARE. Nothing has been booted from an
+            image built this way. It stays unproven until a Generation 2 VM with
+            Secure Boot ON starts the built ISO - every analyser on this host
+            said the SVN-9.0 media was correct, and it was not.
+
+        .PARAMETER OsLoaderPath
+            The folder holding the replacement OS loaders, winload.efi and
+            winload.exe - '%SystemRoot%\System32\Boot' on the same serviced
+            Windows that -BootLoaderPath names. Only read when -BootLoaderPath
+            is given.
+
+            DERIVED FROM -BootLoaderPath WHEN OMITTED: '<X>\Boot\EFI' becomes
+            '<X>\System32\Boot', so the usual build names one folder and both
+            halves of the pair come off one machine. Name it explicitly for a
+            serviced tree that is not laid out the way a live Windows is.
 
         .PARAMETER BootImageService
             An IBootImageService. Defaults to the real adapter.
@@ -218,8 +244,11 @@
         .EXAMPLE
             Update-HDTBootImage -WorkspaceRoot 'C:\HDTLab\Share' -BootLoaderPath "$env:SystemRoot\Boot\EFI"
 
-            The same build with the ADK's revoked bootloaders replaced, so a
-            Generation 2 machine with Secure Boot enabled will start the media.
+            The same build with the ADK's revoked bootloaders replaced - both
+            boot managers on the media tree AND the OS loader inside the image,
+            all four off this host's own patched Windows - so a Generation 2
+            machine with Secure Boot enabled will start the media. Unproven on
+            hardware: see -BootLoaderPath.
     #>
     [CmdletBinding(SupportsShouldProcess = $true)]
     [OutputType([pscustomobject])]
@@ -312,6 +341,15 @@
         [Parameter()]
         [AllowEmptyString()]
         [string] $BootLoaderPath = '',
+
+        # THE OTHER HALF OF THE SAME SERVICED WINDOWS, and it is derived rather
+        # than demanded. -BootLoaderPath '<X>\Boot\EFI' gives '<X>\System32\Boot'
+        # on its own, which is the point: one folder named once cannot produce a
+        # boot manager from one machine and an OS loader from another. It is here
+        # for the tree that is not laid out like a live Windows.
+        [Parameter()]
+        [AllowEmptyString()]
+        [string] $OsLoaderPath = '',
 
         [Parameter()]
         [AllowNull()]
@@ -799,11 +837,26 @@
     # calls and refuses in one sentence that names the cause.
 
     $bootLoaderRow = @()
+    $imageLoaderRow = @()
 
     if (-not [string]::IsNullOrWhiteSpace($BootLoaderPath)) {
         try {
             $bootLoaderRow = @(Get-HDTBootLoaderSource -BootLoaderPath $BootLoaderPath -Target Media `
                     -Architecture $buildArchitecture -FileSystem $FileSystem)
+
+            # THE OS LOADERS TOO, PLANNED HERE AND COPIED INSIDE THE MOUNT AT
+            # STEP 7b. Replacing the boot managers alone produced media that
+            # failed 0xc0430001 with Secure Boot on (SPIKES S20.2): the boot
+            # manager accepted by the firmware then refused the ADK's RTM
+            # winload.efi behind it. Both halves come off ONE serviced Windows,
+            # which is what makes the pair matched by construction rather than
+            # by coincidence (S20.3).
+            #
+            # PLANNED BEFORE THE MOUNT for the same reason the boot managers
+            # are: a folder that cannot do the job is knowable now, and finding
+            # out three minutes into a mount is finding out too late.
+            $imageLoaderRow = @(Get-HDTBootLoaderSource -BootLoaderPath $BootLoaderPath -Target Image `
+                    -OsLoaderPath $OsLoaderPath -FileSystem $FileSystem)
         } catch {
             $PSCmdlet.ThrowTerminatingError($_)
         }
@@ -949,15 +1002,15 @@
         $BootImageService.MountImage($scratchWim, 1, $mountPath)
         $mounted = $true
 
-        # -- 7b. THE SECURE BOOT SERVICING CHECK -----------------------------
+        # -- 7b. THE SECURE BOOT OS LOADER, REPLACED AND THEN CHECKED --------
         #
-        # THE ONE REFUSAL THAT COSTS A MOUNT, and it costs one because the fact
-        # it needs is INSIDE the image. Everything else this command can refuse -
-        # a missing loader, a locked ISO, a certificate that is not there - is
-        # knowable before step 7 and is refused there.
+        # THE ONE PART OF THE SWAP THAT COSTS A MOUNT, and it costs one because
+        # the file it replaces is INSIDE the image. Everything else this command
+        # can refuse - a missing loader, a locked ISO, a certificate that is not
+        # there - is knowable before step 7 and is refused there.
         #
         # WHAT IT IS FOR, measured on hardware and not inferred (SPIKES S20.2).
-        # -BootLoaderPath as first shipped turned WORKING Secure Boot media into
+        # Replacing the boot managers ALONE turned WORKING Secure Boot media into
         # media that does not boot, silently. Three Generation 2 Hyper-V runs on
         # 2026-09-07:
         #
@@ -968,10 +1021,14 @@
         # The firmware ACCEPTED the swapped boot manager - the control run says
         # so, and it also says this host's Secure Boot template does not enforce
         # the 7.0 floor at all. What refused it was the BOOT MANAGER, on the next
-        # stage: this image's winload.efi is 10.0.26100.1 and the swapped boot
-        # manager is 10.0.28000.342, and a boot manager will not start an OS
-        # loader from an older servicing level while Secure Boot is on.
+        # stage: that image's winload.efi was the ADK's RTM 10.0.26100.1.
         # 0xc0430001 is STATUS_SECUREBOOT_ROLLBACK_DETECTED.
+        #
+        # SO THE LOADER MOVES WITH THE BOOT MANAGER (SPIKES S20.3). Both come off
+        # ONE serviced Windows and the pair is matched by construction. It is NOT
+        # that the loader must reach the boot manager's BUILD - 28000 is the boot
+        # manager's own servicing track and 26100 is the OS's, and this build host
+        # runs 10.0.28000.342 over 10.0.26100.8655 with Secure Boot ON every day.
         #
         # BOTH NAMES ARE PROBED, because the layout is the image's and not ours.
         # A WinPE image carries Windows\System32\Boot\winload.efi; a full
@@ -982,46 +1039,108 @@
         # it and New-HDTPxePayload reads it back: that command can swap the same
         # loaders into a TFTP tree and has no way to mount the WIM it stages. Two
         # calls through IFileSystem is the whole cost.
-        $osLoaderPath = ''
-        $osLoaderVersion = ''
+        $imageLoaderPath = ''
+        $imageLoaderVersion = ''
 
         foreach ($candidate in @(
                 [System.IO.Path]::Combine($mountPath, 'Windows\System32\Boot\winload.efi'),
                 [System.IO.Path]::Combine($mountPath, 'Windows\System32\winload.efi'))) {
 
             if ($FileSystem.TestPath($candidate)) {
-                $osLoaderPath = $candidate
-                $osLoaderVersion = [string] $FileSystem.GetVersion($candidate)
+                $imageLoaderPath = $candidate
+                $imageLoaderVersion = [string] $FileSystem.GetVersion($candidate)
                 break
             }
         }
 
         if (@($bootLoaderRow).Count -gt 0) {
-            $Progress.Report(7, $stepTotal, 'Checking the Secure Boot servicing levels',
-                'comparing the replacement boot manager against the image''s own winload.efi')
+            $Progress.Report(7, $stepTotal, 'Replacing the boot image OS loader for Secure Boot',
+                ('{0} loader(s) from the same serviced Windows as the boot managers' -f @($imageLoaderRow).Count))
 
-            if ([string]::IsNullOrEmpty($osLoaderPath)) {
+            if ([string]::IsNullOrEmpty($imageLoaderPath)) {
                 # NOT A PASS. A boot image with no OS loader in it is either not
                 # a boot image or not a layout this check understands, and either
                 # way the swap cannot be shown to be safe - which for a feature
                 # whose failure mode is a machine that will not start has to stop
                 # the build rather than shrug.
                 throw (New-HDTErrorRecord -TargetObject $mountPath -Category ObjectNotFound `
-                        -Message ("the Secure Boot bootloader swap cannot be proved safe, so it is refused: no winload.efi was found in the mounted boot image. Looked at 'Windows\System32\Boot\winload.efi' and 'Windows\System32\winload.efi' under '{0}'. The swap replaces the BOOT MANAGER, and a boot manager refuses to start an OS loader from an older servicing level while Secure Boot is on (0xc0430001, STATUS_SECUREBOOT_ROLLBACK_DETECTED) - so the OS loader's version is the one fact this decision turns on. Build without -BootLoaderPath to skip the swap entirely. See .planning/SPIKES.md, S20.2." -f $mountPath))
+                        -Message ("the Secure Boot bootloader swap cannot be proved safe, so it is refused: no winload.efi was found in the mounted boot image. Looked at 'Windows\System32\Boot\winload.efi' and 'Windows\System32\winload.efi' under '{0}'. The swap replaces the boot image's OS loader as well as the media tree's boot managers, and a boot manager refuses to start an OS loader from an older servicing level while Secure Boot is on (0xc0430001, STATUS_SECUREBOOT_ROLLBACK_DETECTED) - so there has to be a loader to replace and to read back. Build without -BootLoaderPath to skip the swap entirely. See .planning/SPIKES.md, S20.3." -f $mountPath))
             }
 
             # THE VALUE AND WHERE IT CAME FROM (CLAUDE.md, logging). An
-            # administrator reading this a week later has to be able to see the
-            # two numbers that were compared without rebuilding anything.
-            Write-Verbose ("Secure Boot servicing check: the OS loader inside this image is '{0}', version {1}. It is compared against each replacement boot manager, because a boot manager will not start an OS loader older than itself while Secure Boot is on." -f
-                $osLoaderPath, $osLoaderVersion)
+            # administrator reading this a week later has to be able to see what
+            # the image carried BEFORE anything was replaced, without rebuilding.
+            Write-Verbose ("Secure Boot OS loader replacement: the boot image's own OS loader is '{0}', version {1}, before the swap. It is replaced from '{2}' so it comes off the same serviced Windows as the replacement boot managers - a boot manager will not start an OS loader from an older servicing level while Secure Boot is on (0xc0430001)." -f
+                $imageLoaderPath, $imageLoaderVersion,
+                $(if (@($imageLoaderRow).Count -gt 0) { [System.IO.Path]::GetDirectoryName([string] $imageLoaderRow[0].Source) } else { '' }))
 
+            # ONLY OVER A PATH THE IMAGE ALREADY HAS, NEVER CREATING ONE. A WinPE
+            # image carries Windows\System32\Boot\winload.efi; whether it also
+            # carries winload.exe, or the full-Windows Windows\System32\winload.efi,
+            # is the image's business and not this command's. Writing a loader
+            # into a layout that never had one is inventing a boot path nobody
+            # measured, on a feature whose failure mode is a machine that will
+            # not start.
+            $replacementLoaderVersion = ''
+
+            foreach ($loader in @($imageLoaderRow)) {
+                $sourceFolder = [System.IO.Path]::GetDirectoryName([string] $loader.Source)
+
+                # THE UEFI LOADER IS THE ONE THE GUARD MEASURES, and it is also
+                # the one a full Windows keeps a second copy of directly under
+                # System32. Both get replaced when both are there.
+                $relative = @([string] $loader.Destination)
+
+                if ([string] $loader.Name -eq 'winload.efi') {
+                    $relative += [System.IO.Path]::Combine('Windows', 'System32', 'winload.efi')
+
+                    $replacementLoaderVersion = [string] $loader.Version
+                }
+
+                foreach ($item in @($relative)) {
+                    $destination = [System.IO.Path]::Combine($mountPath, $item)
+
+                    if (-not $FileSystem.TestPath($destination)) {
+                        # THE THING THAT WAS SKIPPED AND THE CONDITION THAT
+                        # SKIPPED IT (CLAUDE.md, logging). "2 files copied" would
+                        # leave an administrator unable to tell a deliberate skip
+                        # from a copy that silently did not happen.
+                        Write-Verbose ("Secure Boot OS loader replacement: SKIPPED '{0}' - this boot image does not carry that path, and the swap replaces only files the image already has rather than creating a boot path it never had. The source '{1}' version {2} was not copied." -f
+                            $destination, [string] $loader.Source, [string] $loader.Version)
+                        continue
+                    }
+
+                    $before = [string] $FileSystem.GetVersion($destination)
+
+                    $FileSystem.CopyItem([string] $loader.Source, $destination)
+
+                    Write-Verbose ("Secure Boot OS loader replacement: '{0}' was version {1} and is now version {2}, copied from '{3}' in '{4}' - the same serviced Windows the replacement boot managers came from." -f
+                        $destination, $before, [string] $loader.Version, [string] $loader.Name, $sourceFolder)
+                }
+            }
+
+            # RE-READ, BECAUSE THE MANIFEST IS THE ONLY THING New-HDTPxePayload
+            # CAN CONSULT. That command stages a TFTP tree and never mounts the
+            # WIM, so the version recorded here is the version it judges by - and
+            # recording what was in the image BEFORE the replacement would tell
+            # it a lie about the artifact that shipped.
+            $imageLoaderVersion = [string] $FileSystem.GetVersion($imageLoaderPath)
+
+            Write-Verbose ("Secure Boot OS loader replacement: the shipped boot image's OS loader is '{0}', version {1}, read back after the replacement. That is what goes into the manifest, and what New-HDTPxePayload reads when it stages a TFTP tree it cannot mount." -f
+                $imageLoaderPath, $imageLoaderVersion)
+
+            # CHECKED AFTER THE REPLACEMENT, so it is judging the pair that will
+            # actually ship rather than the one that arrived. The comparison is
+            # SAME-TRACK - the image's winload.efi against the serviced Windows's
+            # own - because the boot manager runs on its own servicing track and
+            # ordering the two is meaningless (SPIKES S20.3).
             Assert-HDTBootLoaderServicingLevel -BootLoaderRow $bootLoaderRow `
-                -OsLoaderVersion $osLoaderVersion -OsLoaderPath $osLoaderPath
+                -OsLoaderVersion $imageLoaderVersion -OsLoaderPath $imageLoaderPath `
+                -ReplacementOsLoaderVersion $replacementLoaderVersion
 
             foreach ($loader in @($bootLoaderRow)) {
-                Write-Verbose ("Secure Boot servicing check: '{0}' version {1} is not a rollback over the image's OS loader {2} - the swap may proceed." -f
-                    [string] $loader.Name, [string] $loader.Version, $osLoaderVersion)
+                Write-Verbose ("Secure Boot servicing check: '{0}' version {1} ships over an OS loader at {2}, which is at or above the serviced source {3} - the swap may proceed. The two version numbers are on different servicing tracks by design and are NOT compared: this build host runs boot manager 10.0.28000.342 over OS loader 10.0.26100.8655 with Secure Boot on." -f
+                    [string] $loader.Name, [string] $loader.Version, $imageLoaderVersion, $replacementLoaderVersion)
             }
         }
 
@@ -1894,7 +2013,7 @@
     # THE OS LOADER, RECORDED WHETHER OR NOT ANYTHING WAS SWAPPED. See step 7b:
     # New-HDTPxePayload judges its own bootloader swap against this number, and
     # it cannot mount the image to read it for itself.
-    $osLoaderRecord = @{ Path = $osLoaderPath; Version = $osLoaderVersion }
+    $osLoaderRecord = @{ Path = $imageLoaderPath; Version = $imageLoaderVersion }
 
     $manifestText = New-HDTBootImageManifest -BuildId $buildId -BuiltUtc $builtUtc -BuiltOn $env:COMPUTERNAME `
         -EngineVersion (Get-HDTModuleVersion) -WorkspaceId ([string] $workspace.Id) `

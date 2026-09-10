@@ -30,7 +30,21 @@ BeforeAll {
     Import-Module -Name (Join-Path -Path $script:repoRoot -ChildPath 'src/Hephaestus/Hephaestus.psd1') -Force -ErrorAction Stop
     Import-Module -Name (Join-Path -Path $script:repoRoot -ChildPath 'tests/helpers/HDTFakes/HDTFakes.psd1') -Force -ErrorAction Stop
 
-    $script:loaderRoot = 'C:\PatchedBoot\EFI'
+    # THE SHAPE OF A REAL SERVICED WINDOWS, because the OS loader folder is
+    # DERIVED from this one: <Windows>\Boot\EFI is two levels below <Windows>,
+    # and <Windows>\System32\Boot is where winload.efi and winload.exe live. A
+    # stand-in root with no <Windows> above it would let a broken derivation
+    # pass.
+    $script:windowsRoot = 'C:\PatchedWindows'
+    $script:loaderRoot = $script:windowsRoot + '\Boot\EFI'
+    $script:osLoaderRoot = $script:windowsRoot + '\System32\Boot'
+
+    # Read off this build host on 2026-09-10. The boot manager is on its own
+    # servicing track (28000) and the OS loader on the OS's (26100); this host
+    # boots that pair with Secure Boot ON, which is why nothing here compares
+    # the two numbers - see SPIKES S20.3.
+    $script:patchedBootManagerVersion = '10.0.28000.342'
+    $script:servicedOsLoaderVersion = '10.0.26100.8655'
 
     function New-HDTBootLoaderTestFileSystem {
         [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',
@@ -39,7 +53,13 @@ BeforeAll {
         param(
             [Parameter()]
             [AllowEmptyCollection()]
-            [string[]] $Leaf = @('bootmgr.efi', 'bootmgfw.efi')
+            [string[]] $Leaf = @('bootmgr.efi', 'bootmgfw.efi'),
+
+            # THE OS LOADER HALF OF THE SAME SERVICED WINDOWS. The swap now
+            # takes both off one machine, so the fixture has to hold both.
+            [Parameter()]
+            [AllowEmptyCollection()]
+            [string[]] $OsLoaderLeaf = @('winload.efi', 'winload.exe')
         )
 
         $seed = @{}
@@ -47,7 +67,12 @@ BeforeAll {
 
         foreach ($name in @($Leaf)) {
             $seed[($script:loaderRoot + '\' + $name)] = 'MZ patched loader'
-            $version[($script:loaderRoot + '\' + $name)] = '10.0.28000.342'
+            $version[($script:loaderRoot + '\' + $name)] = $script:patchedBootManagerVersion
+        }
+
+        foreach ($name in @($OsLoaderLeaf)) {
+            $seed[($script:osLoaderRoot + '\' + $name)] = 'MZ serviced OS loader'
+            $version[($script:osLoaderRoot + '\' + $name)] = $script:servicedOsLoaderVersion
         }
 
         return (New-HDTFakeFileSystem -File $seed -Version $version)
@@ -101,7 +126,7 @@ Describe 'Get-HDTBootLoaderSource' {
             # 10.0.26100.1085" - an administrator reading a firmware refusal a
             # week later cannot open the image to find out.
             foreach ($row in @($script:mediaRow)) {
-                [string] $row.Version | Should -BeExactly '10.0.28000.342'
+                [string] $row.Version | Should -BeExactly $script:patchedBootManagerVersion
             }
         }
     }
@@ -151,6 +176,132 @@ Describe 'Get-HDTBootLoaderSource' {
 
             @($row | ForEach-Object { [string] $_.Destination }) |
                 Should -Be @('Boot\arm64\bootmgfw.efi', 'Boot\arm64\wdsmgfw.efi')
+        }
+    }
+
+    Context 'the OS loader inside the boot image' {
+
+        # THE CURE, NOT THE GUARD (SPIKES S20.3). Replacing the boot managers
+        # alone produced media that failed 0xc0430001 on a Gen 2 VM with Secure
+        # Boot on, because the image behind them still carried the ADK's
+        # 10.0.26100.1 winload.efi. The OS loader has to move WITH the boot
+        # manager - off the SAME serviced Windows - and then the pair is matched
+        # by construction rather than by coincidence.
+        #
+        # It is NOT that the loader must reach the boot manager's build. This
+        # build host runs boot manager 10.0.28000.342 over OS loader
+        # 10.0.26100.8655 with Secure Boot ON, every day.
+
+        BeforeAll {
+            $script:imageRow = InModuleScope Hephaestus -Parameters @{
+                LoaderRoot = $script:loaderRoot
+                FileSystem = (New-HDTBootLoaderTestFileSystem)
+            } {
+                param($LoaderRoot, $FileSystem)
+
+                @(Get-HDTBootLoaderSource -BootLoaderPath $LoaderRoot -Target Image -FileSystem $FileSystem)
+            }
+        }
+
+        It 'replaces both OS loader names a mounted image can carry' {
+            # THE SET, NOT ONE NAME (CLAUDE.md rule 8). winload.efi is what a
+            # UEFI boot manager starts and winload.exe is its BIOS twin; a real
+            # Windows carries both in System32\Boot and they service together.
+            $destination = @($script:imageRow | ForEach-Object { [string] $_.Destination })
+
+            $destination | Should -Be @(
+                'Windows\System32\Boot\winload.efi',
+                'Windows\System32\Boot\winload.exe')
+        }
+
+        It 'derives the source folder from the bootloader folder, with no second argument' {
+            # <Windows>\Boot\EFI -> <Windows>\System32\Boot. Two levels up and
+            # back down, so -BootLoaderPath "$env:SystemRoot\Boot\EFI" just
+            # works: the two files come off ONE serviced Windows because they
+            # were never named separately.
+            $source = @($script:imageRow | ForEach-Object { [string] $_.Source })
+
+            $source | Should -Be @(
+                ($script:osLoaderRoot + '\winload.efi'),
+                ($script:osLoaderRoot + '\winload.exe'))
+        }
+
+        It 'reports the version of what it is about to copy in' {
+            # The log has to be able to say "10.0.26100.8655 replaces
+            # 10.0.26100.1", and the guard compares exactly these two numbers.
+            foreach ($row in @($script:imageRow)) {
+                [string] $row.Version | Should -BeExactly $script:servicedOsLoaderVersion
+            }
+        }
+
+        It 'takes an explicit -OsLoaderPath over the derivation' {
+            # THE DERIVATION IS A CONVENIENCE, NOT A LAW. An administrator
+            # holding a serviced tree that is not laid out the way a live
+            # Windows is names the folder instead.
+            $row = InModuleScope Hephaestus -Parameters @{
+                LoaderRoot   = $script:loaderRoot
+                OsLoaderRoot = 'D:\Serviced\System32\Boot'
+                FileSystem   = (New-HDTFakeFileSystem -File @{
+                        'D:\Serviced\System32\Boot\winload.efi' = 'MZ'
+                        'D:\Serviced\System32\Boot\winload.exe' = 'MZ'
+                    } -Version @{
+                        'D:\Serviced\System32\Boot\winload.efi' = '10.0.26100.8655'
+                        'D:\Serviced\System32\Boot\winload.exe' = '10.0.26100.8655'
+                    })
+            } {
+                param($LoaderRoot, $OsLoaderRoot, $FileSystem)
+
+                @(Get-HDTBootLoaderSource -BootLoaderPath $LoaderRoot -Target Image `
+                        -OsLoaderPath $OsLoaderRoot -FileSystem $FileSystem)
+            }
+
+            @($row | ForEach-Object { [string] $_.Source }) | Should -Be @(
+                'D:\Serviced\System32\Boot\winload.efi',
+                'D:\Serviced\System32\Boot\winload.exe')
+        }
+
+        It 'refuses when a loader is missing, and names the cause and not the symptom' {
+            # "Could not find file" would send the reader looking for a typo.
+            # What they need is which folder holds the file and why it is wanted:
+            # the boot manager and the OS loader must come off ONE serviced
+            # Windows, or the media fails 0xc0430001 with Secure Boot on.
+            $refusal = InModuleScope Hephaestus -Parameters @{
+                LoaderRoot = $script:loaderRoot
+                FileSystem = (New-HDTBootLoaderTestFileSystem -OsLoaderLeaf @('winload.efi'))
+            } {
+                param($LoaderRoot, $FileSystem)
+
+                try {
+                    $null = Get-HDTBootLoaderSource -BootLoaderPath $LoaderRoot -Target Image -FileSystem $FileSystem
+                    return ''
+                } catch {
+                    return [string] $_.Exception.Message
+                }
+            }
+
+            $refusal | Should -Match 'winload\.exe'
+            $refusal | Should -Match ([regex]::Escape($script:osLoaderRoot))
+            $refusal | Should -Match ([regex]::Escape('System32\Boot'))
+            $refusal | Should -Not -Match 'Could not find file'
+        }
+
+        It 'lists every missing loader, not just the first' {
+            $refusal = InModuleScope Hephaestus -Parameters @{
+                LoaderRoot = $script:loaderRoot
+                FileSystem = (New-HDTBootLoaderTestFileSystem -OsLoaderLeaf @())
+            } {
+                param($LoaderRoot, $FileSystem)
+
+                try {
+                    $null = Get-HDTBootLoaderSource -BootLoaderPath $LoaderRoot -Target Image -FileSystem $FileSystem
+                    return ''
+                } catch {
+                    return [string] $_.Exception.Message
+                }
+            }
+
+            $refusal | Should -Match 'winload\.efi'
+            $refusal | Should -Match 'winload\.exe'
         }
     }
 
