@@ -273,9 +273,15 @@ Describe 'New-HDTFakeFileSystem' {
         # THE FAKE WAS WRONG, NOT THE CALLER (CLAUDE.md rule 8, "the fakes").
         # Copy-Item copies the whole PE and a file version lives inside it, so a
         # copy's destination reads the SOURCE's version. This double dropped it,
-        # and Update-HDTBootImage - which replaces the boot image's winload.efi
-        # and then re-reads the version to prove the replacement took - read the
-        # OLD version back and looked broken when it was not.
+        # so a caller that copied a binary and then re-read the version to prove
+        # the copy took read the OLD version back and looked broken when it was
+        # not.
+        #
+        # The caller that found it - Update-HDTBootImage replacing the boot
+        # image's own winload.efi - has since been REMOVED, because media built
+        # that way does not boot (SPIKES S20.4). The fake's defect goes nowhere
+        # with it: this was a double disagreeing with the real adapter, and that
+        # is true whether or not anything currently copies a PE.
 
         It 'gives a copy the source''s version' {
             $fs = New-HDTFakeFileSystem -File @{

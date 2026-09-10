@@ -94,33 +94,36 @@
             S20 for why the ADK's copies are refused and why a Windows install
             media is not the fix.
 
-            THE OS LOADER HAS TO MOVE WITH THE BOOT MANAGER, AND THAT HAPPENS
-            IN Update-HDTBootImage, NOT HERE. Three Generation 2 Hyper-V runs,
-            2026-09-07 (SPIKES S20.2):
+            ⚠ THE SWAP PRODUCES MEDIA THAT DOES NOT BOOT. DO NOT USE IT.
+            Six Generation 2 Hyper-V runs across two builds (SPIKES S20.2 and
+            S20.4), and no build has ever produced swapped media that starts:
 
-              swapped media, Secure Boot ON    FAIL - 0xc0430001
-              the same ISO,  Secure Boot OFF   PASS - WinPE reached
-              unswapped ADK, Secure Boot ON    PASS - WinPE reached
+              2026-09-07, boot managers only
+                swapped media, Secure Boot ON    FAIL - 0xc0430001
+                the same ISO,  Secure Boot OFF   PASS - WinPE reached
+                unswapped ADK, Secure Boot ON    PASS - WinPE reached
+
+              2026-09-10, boot managers AND a serviced OS loader copied in
+                swapped media, Secure Boot ON    FAIL - 0xc0430001
+                the same ISO,  Secure Boot OFF   FAIL - 0xc0430001
+                unswapped ADK, Secure Boot ON    PASS - WinPE and the engine up
 
             0xc0430001 is STATUS_SECUREBOOT_ROLLBACK_DETECTED. The firmware
             ACCEPTED the swapped boot manager; the boot manager then refused the
-            OS loader behind it, because the boot image's own winload.efi was
-            the ADK's RTM 10.0.26100.1.
+            OS loader behind it, because the boot image's own winload.efi is
+            10.0.26100.1 against a boot manager of 10.0.28000.342 - an image
+            nobody has serviced. It is not gated on Secure Boot; the 2026-09-10
+            media refused with Secure Boot off as well. The build REFUSES that
+            combination rather than shipping it, and that refusal is correct.
 
-            THIS COMMAND STAGES A WIM IT NEVER MOUNTS, so it grows no injection
-            of its own - putting one here would mean a second code path opening
-            an image, and DESIGN's rule is one build, one mount. Update-HDTBootImage
-            replaces the image's winload.efi from the same serviced Windows as
-            the boot managers and RECORDS what shipped in
-            Boot\<name>.manifest.json; this command reads that record and
-            refuses a payload whose boot image is behind the loaders it is about
-            to serve. A manifest that records no OS loader version is refused
-            outright: rebuild the boot image first.
+            The cure is to SERVICE the boot image - the cumulative update moves
+            winload.efi and ntoskrnl.exe together. Copying a serviced loader in
+            was built, boot-tested and measured to make the media strictly
+            worse, and it is gone.
 
-            ⚠ UNPROVEN ON HARDWARE, AND THAT MATTERS MOST HERE. Nothing has been
-            network-booted from a payload built this way - see the ⚠ block in
-            this command's own DESCRIPTION. Every analyser on the build host said
-            the SVN-9.0 media was correct, and it was not.
+            This command cannot mount the WIM it stages, so it reads the OS
+            loader version out of Boot\<name>.manifest.json. A manifest that does
+            not record one is refused: rebuild the boot image first.
 
         .PARAMETER FileSystem
             An IFileSystem. Defaults to the real adapter.
@@ -330,44 +333,18 @@
 
         if ([string]::IsNullOrWhiteSpace($osLoaderVersion)) {
             $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $manifestSource -Category ObjectNotFound `
-                        -Message ("the Secure Boot bootloader swap cannot be proved safe, so it is refused: the boot image manifest '{0}' records no OS loader version. A replacement boot manager will not start an OS loader from an older servicing level while Secure Boot is on (0xc0430001, STATUS_SECUREBOOT_ROLLBACK_DETECTED), and this command stages the WIM without mounting it, so the manifest is the only place that version exists. Run Update-HDTBootImage against this workspace to rebuild the boot image and record it, or stage without -BootLoaderPath and leave the ADK's own matched loaders in place. See .planning/SPIKES.md, S20.3." -f $manifestSource)))
+                        -Message ("the Secure Boot bootloader swap cannot be proved safe, so it is refused: the boot image manifest '{0}' records no OS loader version. A replacement boot manager will not start an OS loader from an older servicing level while Secure Boot is on (0xc0430001, STATUS_SECUREBOOT_ROLLBACK_DETECTED), and this command stages the WIM without mounting it, so the manifest is the only place that version exists. Run Update-HDTBootImage against this workspace to rebuild the boot image and record it, or stage without -BootLoaderPath and leave the ADK's own matched loaders in place. See .planning/SPIKES.md, S20.2." -f $manifestSource)))
         }
 
         if ([string]::IsNullOrWhiteSpace($osLoaderPath)) { $osLoaderPath = $manifestSource }
 
-        # THE YARDSTICK, READ WITHOUT MOUNTING ANYTHING. The comparison is
-        # SAME-TRACK: the boot image's own winload.efi against the winload.efi of
-        # the serviced Windows the replacement boot managers came off. Ordering
-        # the loader against the BOOT MANAGER's version would be comparing two
-        # different servicing tracks, which is the false refusal SPIKES S20.3
-        # records - this build host runs boot manager 10.0.28000.342 over OS
-        # loader 10.0.26100.8655 with Secure Boot ON, every day.
-        #
-        # Get-HDTBootLoaderSource -Target Image is PURE - a TestPath and a
-        # GetVersion per file - so reading it here costs nothing and is not an
-        # injection: this command copies no loader into any image.
-        try {
-            $imageLoaderRow = @(Get-HDTBootLoaderSource -BootLoaderPath $BootLoaderPath -Target Image `
-                    -FileSystem $FileSystem)
-        } catch {
-            $PSCmdlet.ThrowTerminatingError($_)
-        }
-
-        $replacementOsLoaderVersion = ''
-        foreach ($loader in @($imageLoaderRow)) {
-            if ([string] $loader.Name -eq 'winload.efi') {
-                $replacementOsLoaderVersion = [string] $loader.Version
-            }
-        }
-
         # THE VALUE AND WHERE IT CAME FROM (CLAUDE.md, logging).
-        Write-Verbose ("Secure Boot servicing check: '{0}' records the boot image's OS loader as '{1}', version {2}. It is compared against the serviced Windows's own winload.efi, version {3}, because both are on the OS's servicing track and the boot manager is not." -f
-            $manifestSource, $osLoaderPath, $osLoaderVersion, $replacementOsLoaderVersion)
+        Write-Verbose ("Secure Boot servicing check: '{0}' records the boot image's OS loader as '{1}', version {2}. Each replacement boot manager is compared against it." -f
+            $manifestSource, $osLoaderPath, $osLoaderVersion)
 
         try {
             Assert-HDTBootLoaderServicingLevel -BootLoaderRow $loaderRow `
-                -OsLoaderVersion $osLoaderVersion -OsLoaderPath $osLoaderPath `
-                -ReplacementOsLoaderVersion $replacementOsLoaderVersion
+                -OsLoaderVersion $osLoaderVersion -OsLoaderPath $osLoaderPath
         } catch {
             $PSCmdlet.ThrowTerminatingError($_)
         }

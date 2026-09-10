@@ -386,28 +386,14 @@ Describe 'New-HDTPxePayload' {
         # shows Security Violation and nothing else.
 
         BeforeAll {
-            # THE SHAPE OF A REAL SERVICED WINDOWS. The swap now takes the OS
-            # loader off the SAME machine as the boot managers, and this command
-            # reads that loader's version as the yardstick the manifest's
-            # recorded version is measured against - so <Windows>\Boot\EFI has
-            # to have a <Windows>\System32\Boot beside it.
-            $script:windowsRoot = 'C:\PatchedWindows'
-            $script:bootLoaderPath = $script:windowsRoot + '\Boot\EFI'
-            $script:osLoaderSourcePath = $script:windowsRoot + '\System32\Boot'
+            $script:bootLoaderPath = 'C:\PatchedBoot\EFI'
 
-            # THE MEASURED PAIR (SPIKES S20.2, S20.3). 10.0.28000.342 is this laptop's
+            # THE MEASURED PAIR (SPIKES S20.2). 10.0.28000.342 is this laptop's
             # own C:\Windows\Boot\EFI, and 10.0.26100.1 is the winload.efi the
             # ADK's WinPE really carries - the two versions whose combination
             # failed 0xc0430001 on a Gen 2 VM with Secure Boot on.
             $script:patchedLoaderVersion = '10.0.28000.342'
             $script:adkOsLoaderVersion = '10.0.26100.1'
-
-            # WHAT A SERVICED WINDOWS CARRIES, read off the build host on
-            # 2026-09-10. It is on the OS's track (26100) and the boot manager
-            # is on its own (28000); that host boots the pair with Secure Boot
-            # ON, which is why the check compares loader against loader and
-            # never loader against boot manager (SPIKES S20.3).
-            $script:servicedOsLoaderVersion = '10.0.26100.8655'
 
             # A PXE PAYLOAD CANNOT MOUNT THE IMAGE IT STAGES, so the OS loader
             # version comes from the manifest Update-HDTBootImage wrote beside
@@ -421,11 +407,7 @@ Describe 'New-HDTPxePayload' {
             }
 
             $script:newSwapFileSystem = {
-                param(
-                    [string[]] $Omit,
-                    [string] $OsLoaderVersion = '10.0.26100.8655',
-                    [string] $LoaderVersion = '10.0.28000.342',
-                    [string] $ServicedOsLoaderVersion = '10.0.26100.8655')
+                param([string[]] $Omit, [string] $OsLoaderVersion = '10.0.28000.342', [string] $LoaderVersion = '10.0.28000.342')
 
                 $file = @{}
                 foreach ($key in @($script:adkFile.Keys)) { $file[$key] = $script:adkFile[$key] }
@@ -440,16 +422,6 @@ Describe 'New-HDTPxePayload' {
                     if (@($Omit) -contains $leaf) { continue }
                     $file[($script:bootLoaderPath + '\' + $leaf)] = ('patched {0} bytes' -f $leaf)
                     $version[($script:bootLoaderPath + '\' + $leaf)] = $LoaderVersion
-                }
-
-                # THE OS LOADER HALF OF THE SAME WINDOWS. This command copies
-                # none of it - it cannot mount the WIM it stages - but it reads
-                # the version, because that is what the manifest's recorded
-                # version has to be at or above.
-                foreach ($leaf in @('winload.efi', 'winload.exe')) {
-                    if (@($Omit) -contains $leaf) { continue }
-                    $file[($script:osLoaderSourcePath + '\' + $leaf)] = ('serviced {0} bytes' -f $leaf)
-                    $version[($script:osLoaderSourcePath + '\' + $leaf)] = $ServicedOsLoaderVersion
                 }
 
                 return (New-HDTFakeFileSystem -File $file -Version $version)
@@ -559,7 +531,7 @@ Describe 'New-HDTPxePayload' {
         }
 
         # =================================================================
-        # THE SERVICING CHECK - SPIKES S20.2, corrected by S20.3
+        # THE SERVICING CHECK - SPIKES S20.2
         # =================================================================
         #
         # THE SWAP AS FIRST SHIPPED PRODUCED MEDIA THAT DOES NOT BOOT, and said
@@ -568,36 +540,12 @@ Describe 'New-HDTPxePayload' {
         # the unswapped ADK media passed with it ON. The firmware accepted the
         # loader; the BOOT MANAGER refused the OS loader behind it.
         #
-        # WHAT IS COMPARED IS LOADER AGAINST LOADER. Update-HDTBootImage now
-        # replaces the image's own winload.efi from the same serviced Windows as
-        # the boot managers; this command reads that Windows's winload.efi
-        # version - purely, no mount - and holds the manifest's recorded version
-        # to it. Comparing against the BOOT MANAGER's version would order two
-        # different servicing tracks, which is the false refusal S20.3 records:
-        # the build host runs 10.0.28000.342 over 10.0.26100.8655, Secure Boot
-        # ON, every day.
-        #
-        # A PXE PAYLOAD CANNOT MOUNT THE IMAGE, so the manifest is the only place
-        # the image's own version exists on this side. Both delivery paths or
-        # neither, which is already this file's rule for the swap itself.
+        # A PXE PAYLOAD CANNOT MOUNT THE IMAGE, so the check reads the version
+        # Update-HDTBootImage recorded in the manifest it stages beside the WIM.
+        # Both delivery paths or neither, which is already this file's rule for
+        # the swap itself.
 
-        It 'accepts a 28000-series boot manager over a 26100-series OS loader' {
-            # THE FALSE REFUSAL, GUARDED. This pair is what the build host boots
-            # with Secure Boot on; a payload command that refused it would refuse
-            # every correctly built image.
-            $fs = & $script:newSwapFileSystem @() $script:servicedOsLoaderVersion
-            $registry = & $script:newRegistry
-
-            $result = New-HDTPxePayload -WorkspaceRoot $script:workspace -Path $script:payloadPath `
-                -BootLoaderPath $script:bootLoaderPath -FileSystem $fs -Registry $registry -Confirm:$false
-
-            $result.Complete | Should -BeTrue
-        }
-
-        It 'refuses a boot image whose recorded OS loader is behind the serviced one' {
-            # THE REAL DEFECT: an image built before the injection existed, or
-            # one built against a different Windows, still carrying the ADK's
-            # RTM 10.0.26100.1 under a serviced 10.0.26100.8655.
+        It 'refuses a boot manager newer than the OS loader the image records' {
             $fs = & $script:newSwapFileSystem @() $script:adkOsLoaderVersion
             $registry = & $script:newRegistry
 
@@ -614,8 +562,7 @@ Describe 'New-HDTPxePayload' {
             $message = [string] $record.Exception.Message
             $message | Should -Match 'rollback'
             $message | Should -Match '0xc0430001'
-            $message | Should -Match ([regex]::Escape($script:adkOsLoaderVersion))
-            $message | Should -Match ([regex]::Escape($script:servicedOsLoaderVersion))
+            $message | Should -Match ([regex]::Escape($script:patchedLoaderVersion))
         }
 
         It 'stages nothing at all when it refuses' {

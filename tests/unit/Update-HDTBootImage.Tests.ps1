@@ -41,14 +41,7 @@ BeforeAll {
     # A stand-in for a fully patched Windows's %SystemRoot%\Boot\EFI - the ONE
     # source on this host whose loaders clear the Secure Boot SVN floor. See
     # tests/unit/Get-HDTBootLoaderSource.Tests.ps1 for the measured numbers.
-    # THE SHAPE OF A REAL SERVICED WINDOWS. The swap now takes the boot image's
-    # own OS loader off the SAME machine as the boot managers, and the folder it
-    # reads is DERIVED - <Windows>\Boot\EFI gives <Windows>\System32\Boot - so a
-    # stand-in root with no <Windows> above it would let a broken derivation
-    # pass (SPIKES S20.3).
-    $script:patchedWindowsRoot = 'C:\PatchedWindows'
-    $script:bootLoaderPath = $script:patchedWindowsRoot + '\Boot\EFI'
-    $script:osLoaderSourcePath = $script:patchedWindowsRoot + '\System32\Boot'
+    $script:bootLoaderPath = 'C:\PatchedBoot\EFI'
 
     $script:enginePath = 'C:\Modules\Hephaestus'
     $script:yamlPath = 'C:\Modules\powershell-yaml'
@@ -195,22 +188,7 @@ bootImage:
             # 10.0.26100.1, is what the ADK's WinPE really carries.
             [Parameter()]
             [AllowEmptyString()]
-            [string] $OsLoaderVersion = '',
-
-            # EXTRA OS LOADER PATHS THE MOUNTED IMAGE CARRIES, relative to the
-            # mount root. The fake mount models a WinPE, which has exactly one -
-            # Windows\System32\Boot\winload.efi. A full-Windows layout keeps
-            # winload.exe beside it and a second winload.efi directly under
-            # System32, and the swap has to replace every one it finds.
-            [Parameter()]
-            [AllowEmptyCollection()]
-            [string[]] $ExtraImageOsLoader = @(),
-
-            # NO OS LOADER AT ALL IN THE MOUNT. Not a real WinPE, and that is the
-            # point: the build must refuse rather than swap loaders into an image
-            # it cannot judge.
-            [Parameter()]
-            [switch] $OmitImageOsLoader
+            [string] $OsLoaderVersion = ''
         )
 
         $journal = [System.Collections.ArrayList]::new()
@@ -229,8 +207,6 @@ bootImage:
         if ($PSBoundParameters.ContainsKey('Failure')) { $bootSplat['Failure'] = $Failure }
         if ($PSBoundParameters.ContainsKey('Driver')) { $bootSplat['Driver'] = $Driver }
         if (-not [string]::IsNullOrEmpty($OsLoaderVersion)) { $bootSplat['OsLoaderVersion'] = $OsLoaderVersion }
-        if (@($ExtraImageOsLoader).Count -gt 0) { $bootSplat['ExtraOsLoader'] = $ExtraImageOsLoader }
-        if ($OmitImageOsLoader.IsPresent) { $bootSplat['OmitOsLoader'] = $true }
 
         $boot = New-HDTFakeBootImageService @bootSplat
         $clock = New-HDTFakeClock -UtcNow ([datetime]::new(2026, 8, 14, 9, 14, 22, [System.DateTimeKind]::Utc)) -TickMillisecond 1000
@@ -342,11 +318,6 @@ bootImage:
                 # destinations are ordinary media-tree names that the ADK copy
                 # also writes - only the origin says which of the two wrote it.
                 $name = 'SwapBootLoader'
-            } elseif ($service -eq 'FileSystem' -and $operation -eq 'CopyItem' -and $first -like ($script:osLoaderSourcePath + '\*')) {
-                # AND THE OTHER HALF OF IT. The OS loader goes INSIDE the mount,
-                # so it is a different milestone at a different point in the
-                # order: after MountImage, not after the media tree.
-                $name = 'InjectOsLoader'
             } elseif ($service -eq 'FileSystem' -and $operation -eq 'CopyItem' -and $second -eq ($script:mediaPath + '\sources\boot.wim')) {
                 $name = 'CopyWimIntoMedia'
             } elseif ($service -eq 'FileSystem' -and $operation -eq 'WriteAllText' -and $first -like '*.manifest.json') {
@@ -2052,14 +2023,8 @@ Describe 'Update-HDTBootImage and the Secure Boot bootloader swap' {
 
     BeforeAll {
         $script:loaderFile = @{
-            ($script:bootLoaderPath + '\bootmgr.efi')     = 'MZ patched boot manager'
-            ($script:bootLoaderPath + '\bootmgfw.efi')    = 'MZ patched firmware boot manager'
-
-            # THE OS LOADER HALF, off the same Windows. Without it the swap has
-            # only one of the two files the fix is made of, and S20.2's measured
-            # failure is what ships.
-            ($script:osLoaderSourcePath + '\winload.efi') = 'MZ serviced OS loader'
-            ($script:osLoaderSourcePath + '\winload.exe') = 'MZ serviced OS loader (BIOS)'
+            ($script:bootLoaderPath + '\bootmgr.efi')  = 'MZ patched boot manager'
+            ($script:bootLoaderPath + '\bootmgfw.efi') = 'MZ patched firmware boot manager'
         }
 
         # THE REAL VERSION OF THIS LAPTOP'S OWN C:\Windows\Boot\EFI PAIR, and the
@@ -2068,38 +2033,20 @@ Describe 'Update-HDTBootImage and the Secure Boot bootloader swap' {
         # seeding bytes and no version models a file that cannot exist.
         $script:patchedLoaderVersion = '10.0.28000.342'
 
-        # WHAT A SERVICED WINDOWS'S OWN OS LOADER READS, off this build host on
-        # 2026-09-10. It is on the OS's servicing track (26100); the boot manager
-        # above is on its own (28000). This host boots that pair with Secure Boot
-        # ON, every day - which is why nothing here compares the two numbers and
-        # why the first rule, which did, was a false refusal (SPIKES S20.3).
-        $script:servicedOsLoaderVersion = '10.0.26100.8655'
-
-        # THE ADK'S RTM LOADER, which is what an unserviced WinPE really carries
-        # and what the image that failed on hardware held. It is the fake's
-        # default, named here because the injection has to visibly replace it.
-        $script:adkOsLoaderVersion = '10.0.26100.1'
-
         $script:loaderVersion = @{
-            ($script:bootLoaderPath + '\bootmgr.efi')     = $script:patchedLoaderVersion
-            ($script:bootLoaderPath + '\bootmgfw.efi')    = $script:patchedLoaderVersion
-            ($script:osLoaderSourcePath + '\winload.efi') = $script:servicedOsLoaderVersion
-            ($script:osLoaderSourcePath + '\winload.exe') = $script:servicedOsLoaderVersion
+            ($script:bootLoaderPath + '\bootmgr.efi')  = $script:patchedLoaderVersion
+            ($script:bootLoaderPath + '\bootmgfw.efi') = $script:patchedLoaderVersion
         }
 
-        # AN ORDINARY, UNSERVICED BOOT IMAGE - the ADK's own 10.0.26100.1 - and
-        # that is the point. The build is expected to bring it up to the serviced
-        # Windows's level itself rather than to be handed an image that is
-        # already there, which is the whole difference between S20.2's guard and
-        # S20.3's cure.
+        # A SERVICED BOOT IMAGE - the only configuration in which this swap is
+        # legitimate, and the thing HDT cannot yet produce (SPIKES S20.2). The
+        # happy-path assertions below are about WHICH file moves WHERE, and
+        # without this they would all be asserting the inside of a refusal.
         $script:swapContext = New-HDTBootImageTestContext -ExtraFile $script:loaderFile `
-            -ExtraVersion $script:loaderVersion
+            -ExtraVersion $script:loaderVersion -OsLoaderVersion $script:patchedLoaderVersion
         $script:swapResult = Invoke-HDTBootImageTestBuild -Context $script:swapContext `
             -Argument @{ BootLoaderPath = $script:bootLoaderPath }
         $script:swapMilestone = Get-HDTBootImageTestMilestone -Journal $script:swapContext.Journal
-
-        $script:swapInjection = @($script:swapContext.FileSystem.Operations |
-                Where-Object { $_.Operation -eq 'CopyItem' -and ([string] $_.Arguments[0]) -like ($script:osLoaderSourcePath + '\*') })
 
         $script:swapCopy = @($script:swapContext.FileSystem.Operations |
                 Where-Object { $_.Operation -eq 'CopyItem' -and ([string] $_.Arguments[0]) -like ($script:bootLoaderPath + '\*') })
@@ -2149,9 +2096,7 @@ Describe 'Update-HDTBootImage and the Secure Boot bootloader swap' {
         # The swap inserts one milestone and moves nothing. Asserted against the
         # same list the default build is held to, so a swap that reordered the
         # mount cycle could not hide behind its own new Context.
-        $without = @($script:swapMilestone | Where-Object {
-                $_ -ne 'SwapBootLoader' -and $_ -ne 'InjectOsLoader'
-            })
+        $without = @($script:swapMilestone | Where-Object { $_ -ne 'SwapBootLoader' })
 
         $without | Should -Be $script:expectedOrder
     }
@@ -2204,12 +2149,11 @@ Describe 'Update-HDTBootImage and the Secure Boot bootloader swap' {
     }
 
     # =====================================================================
-    # THE OS LOADER - SPIKES S20.2, measured on hardware; cured in S20.3
+    # THE GUARD - SPIKES S20.2, measured on hardware 2026-09-07
     # =====================================================================
     #
-    # REPLACING THE BOOT MANAGERS ALONE TURNED WORKING SECURE BOOT MEDIA INTO
-    # MEDIA THAT DOES NOT BOOT, and said nothing about it. Three Gen 2 Hyper-V
-    # runs, 2026-09-07:
+    # THE SWAP AS FIRST SHIPPED TURNED WORKING SECURE BOOT MEDIA INTO MEDIA THAT
+    # DOES NOT BOOT, and said nothing about it. Three Gen 2 Hyper-V runs:
     #
     #   swapped media, Secure Boot ON    FAIL 0xc0430001
     #   the same ISO,  Secure Boot OFF   PASS
@@ -2217,123 +2161,16 @@ Describe 'Update-HDTBootImage and the Secure Boot bootloader swap' {
     #
     # The firmware ACCEPTED the swapped boot manager - the control run proves the
     # SVN floor was never the gate on this host. The boot manager then refused the
-    # OS loader inside boot.wim, which was the ADK's RTM 10.0.26100.1, and
-    # STATUS_SECUREBOOT_ROLLBACK_DETECTED is what the Windows Boot Manager
+    # OS loader inside boot.wim: 10.0.28000.342 over 10.0.26100.1 is a rollback,
+    # and STATUS_SECUREBOOT_ROLLBACK_DETECTED is what the Windows Boot Manager
     # recovery screen shows for it.
-    #
-    # SO THE LOADER MOVES WITH THE BOOT MANAGER, off the SAME serviced Windows
-    # (S20.3). The tests below are about that replacement: which file, over which
-    # paths, at which point in the mount, and what version the manifest ends up
-    # recording. What is NOT tested here is a build comparison between the two -
-    # there is none, because 28000 and 26100 are different servicing tracks and
-    # the build host boots that pair with Secure Boot on.
-    #
-    # NONE OF IT IS PROVEN ON HARDWARE. Nothing has been booted from an image
-    # built this way, and every analyser on this host said the SVN-9.0 media was
-    # correct when it was not.
 
-    It 'replaces the image own OS loader from the same serviced Windows' {
-        # THE CURE, IN ONE TEST. Replacing the boot managers alone produced media
-        # that failed 0xc0430001 on a Gen 2 VM with Secure Boot on, because the
-        # ADK's RTM 10.0.26100.1 winload.efi was still behind them. The loader has
-        # to move WITH the boot manager, off the SAME Windows, or the pair is
-        # matched only by luck.
-        @($script:swapInjection | ForEach-Object {
-                '{0} -> {1}' -f [System.IO.Path]::GetFileName([string] $_.Arguments[0]),
-                ([string] $_.Arguments[1]).Substring($script:mountPath.Length + 1)
-            }) | Should -Be @('winload.efi -> Windows\System32\Boot\winload.efi')
-    }
-
-    It 'copies only over paths the image already has, and creates none' {
-        # NEVER INVENTING A BOOT PATH NOBODY MEASURED. A WinPE image carries
-        # Windows\System32\Boot\winload.efi; whether it also carries winload.exe,
-        # or the full-Windows Windows\System32\winload.efi, is the image's
-        # business. Writing a loader into a layout that never had one is a
-        # change to how the thing boots, on a feature whose failure mode is a
-        # machine that will not start.
-        $destination = @($script:swapInjection | ForEach-Object { [string] $_.Arguments[1] })
-
-        $destination | Should -Not -Contain ($script:mountPath + '\Windows\System32\Boot\winload.exe')
-        $destination | Should -Not -Contain ($script:mountPath + '\Windows\System32\winload.efi')
-    }
-
-    It 'replaces every location the image DOES have, not just the first' {
-        # THE SET, NOT ONE NAME (CLAUDE.md rule 8). A full-Windows layout keeps a
-        # second winload.efi directly under System32 and a winload.exe beside the
-        # first; an image carrying them must have all of them replaced, or one
-        # stale loader is left for the boot manager to refuse.
+    It 'refuses a boot manager from a newer servicing level than the image own winload.efi' {
+        # THE DEFECT, IN ONE TEST. The default fake image carries the ADK real
+        # 10.0.26100.1 winload.efi and the loaders are the patched 28000 pair -
+        # exactly the media that failed on the VM.
         $context = New-HDTBootImageTestContext -ExtraFile $script:loaderFile `
-            -ExtraVersion $script:loaderVersion -ExtraImageOsLoader @(
-            'Windows\System32\Boot\winload.exe', 'Windows\System32\winload.efi')
-
-        [void] (Invoke-HDTBootImageTestBuild -Context $context `
-                -Argument @{ BootLoaderPath = $script:bootLoaderPath })
-
-        $destination = @($context.FileSystem.Operations |
-                Where-Object { $_.Operation -eq 'CopyItem' -and ([string] $_.Arguments[0]) -like ($script:osLoaderSourcePath + '\*') } |
-                ForEach-Object { ([string] $_.Arguments[1]).Substring($script:mountPath.Length + 1) })
-
-        $destination | Should -Be @(
-            'Windows\System32\Boot\winload.efi',
-            'Windows\System32\winload.efi',
-            'Windows\System32\Boot\winload.exe')
-    }
-
-    It 'injects inside the mount, after it opens and before the components go on' {
-        # IT IS A DIFFERENT PLACE FROM THE MEDIA-TREE SWAP, and it has to be: the
-        # OS loader lives inside boot.wim, so it can only be written while the
-        # image is mounted, and it must be in before the image is committed.
-        $mountAt = [array]::IndexOf($script:swapMilestone, 'MountImage')
-        $injectAt = [array]::IndexOf($script:swapMilestone, 'InjectOsLoader')
-        $dismountAt = [array]::IndexOf($script:swapMilestone, 'DismountImage')
-
-        $injectAt | Should -BeGreaterThan $mountAt
-        $dismountAt | Should -BeGreaterThan $injectAt -Because (
-            'the build performed:' + [System.Environment]::NewLine +
-            (($script:swapMilestone | ForEach-Object { '  ' + $_ }) -join [System.Environment]::NewLine))
-    }
-
-    It 'records the POST-replacement OS loader version in the manifest' {
-        # THE MANIFEST IS THE ONLY THING New-HDTPxePayload CAN CONSULT. That
-        # command stages a TFTP tree and never mounts the WIM, so a manifest
-        # recording what the image held BEFORE the injection would tell it a lie
-        # about the artifact that shipped - and it would refuse a payload for an
-        # image that is in fact correct.
-        $write = @($script:swapContext.FileSystem.Operations |
-                Where-Object { $_.Operation -eq 'WriteAllText' -and ([string] $_.Arguments[0]) -like '*.manifest.json' })
-
-        $write | Should -Not -BeNullOrEmpty
-
-        $manifest = ConvertFrom-Json -InputObject ([string] $write[-1].Arguments[1])
-
-        [string] $manifest.osLoader.version | Should -BeExactly $script:servicedOsLoaderVersion
-        [string] $manifest.osLoader.version | Should -Not -BeExactly $script:adkOsLoaderVersion
-    }
-
-    It 'reads the OS loader out of the mounted image rather than guessing' {
-        # PROVEN BY THE CALL, not by the outcome. The version has to come from the
-        # image being built - the ADK WinPE, whatever it happens to be on the
-        # build host - and not from a number written down here.
-        @($script:swapContext.FileSystem.Operations |
-                Where-Object { $_.Operation -eq 'GetVersion' -and ([string] $_.Arguments[0]) -like '*\mount\Windows\System32\Boot\winload.efi' }) |
-            Should -Not -BeNullOrEmpty
-    }
-
-    It 'does not refuse a 28000-series boot manager over a 26100-series loader' {
-        # THE FALSE REFUSAL THAT WAS SHIPPED AND MEASURED WRONG (SPIKES S20.3).
-        # The first rule compared BUILDS and would have refused this pair - which
-        # is what the machine running this test boots, Secure Boot on. The swap
-        # above completes, so the guard let it through.
-        @($script:swapResult.BootLoader).Count | Should -Be 2
-    }
-
-    It 'refuses, and writes no boot image, when the image has no OS loader to replace' {
-        # NOT A PASS. An image with no winload.efi in it is either not a boot
-        # image or not a layout this understands, and either way the swap cannot
-        # be shown to be safe. A refusal that left an ISO behind would be the
-        # original defect with an error on top.
-        $context = New-HDTBootImageTestContext -ExtraFile $script:loaderFile `
-            -ExtraVersion $script:loaderVersion -OmitImageOsLoader
+            -ExtraVersion $script:loaderVersion
 
         $record = $null
         try {
@@ -2346,8 +2183,26 @@ Describe 'Update-HDTBootImage and the Secure Boot bootloader swap' {
         $record | Should -Not -BeNullOrEmpty
 
         $message = [string] $record.Exception.Message
-        $message | Should -Match 'winload\.efi'
+        $message | Should -Match 'rollback'
         $message | Should -Match '0xc0430001'
+        $message | Should -Match 'winload\.efi'
+        $message | Should -Match ([regex]::Escape($script:patchedLoaderVersion))
+        $message | Should -Match ([regex]::Escape('10.0.26100.1'))
+    }
+
+    It 'writes no boot image at all when it refuses' {
+        # A REFUSAL THAT LEFT AN ISO BEHIND WOULD BE THE ORIGINAL DEFECT WITH AN
+        # ERROR ON TOP. The share must be exactly as it was; the scratch tree the
+        # swap already wrote into goes away with the mount.
+        $context = New-HDTBootImageTestContext -ExtraFile $script:loaderFile `
+            -ExtraVersion $script:loaderVersion
+
+        try {
+            [void] (Invoke-HDTBootImageTestBuild -Context $context `
+                    -Argument @{ BootLoaderPath = $script:bootLoaderPath })
+        } catch {
+            $null = $_
+        }
 
         @($context.FileSystem.Operations |
                 Where-Object { $_.Operation -eq 'MoveItem' -and ([string] $_.Arguments[1]) -like ($script:workspaceRoot + '\Boot\*') }) |
@@ -2357,14 +2212,31 @@ Describe 'Update-HDTBootImage and the Secure Boot bootloader swap' {
             Should -BeNullOrEmpty
     }
 
+    It 'reads the OS loader out of the mounted image rather than guessing' {
+        # PROVEN BY THE CALL, not by the outcome. The version has to come from the
+        # image being built - the ADK WinPE, whatever it happens to be on the
+        # build host - and not from a number written down here.
+        @($script:swapContext.FileSystem.Operations |
+                Where-Object { $_.Operation -eq 'GetVersion' -and ([string] $_.Arguments[0]) -like '*\mount\Windows\System32\Boot\winload.efi' }) |
+            Should -Not -BeNullOrEmpty
+    }
+
+    It 'allows the swap once the image has been serviced to the same level' {
+        # THE SHAPE OF THE REAL FIX, asserted so the guard cannot quietly become a
+        # blanket refusal of the feature. A boot image whose own winload.efi has
+        # come up to the boot manager build is the configuration this swap was
+        # always for.
+        @($script:swapResult.BootLoader).Count | Should -Be 2
+    }
+
     It 'discards the mount it had to open to find out' {
         # THE ONE REFUSAL THAT COSTS A MOUNT. Everything else this command can
-        # refuse is knowable before it opens the image; the OS loader inside it
-        # is not. So the mount happens - and the image must be dismounted with
-        # Save false, or the build leaves a mount behind on a machine whose next
-        # build then fails for a different reason.
+        # refuse is knowable before it opens the image; the OS loader version is
+        # not, because it is inside the image. So the mount happens - and the
+        # image must be dismounted with Save false, or the build leaves a mount
+        # behind on a machine whose next build then fails for a different reason.
         $context = New-HDTBootImageTestContext -ExtraFile $script:loaderFile `
-            -ExtraVersion $script:loaderVersion -OmitImageOsLoader
+            -ExtraVersion $script:loaderVersion
 
         try {
             [void] (Invoke-HDTBootImageTestBuild -Context $context `
@@ -2378,37 +2250,5 @@ Describe 'Update-HDTBootImage and the Secure Boot bootloader swap' {
 
         @($context.Boot.Operations | Where-Object { $_.Operation -eq 'DismountImage' -and -not [bool] $_.Arguments[1] }) |
             Should -Not -BeNullOrEmpty -Because 'the mount it had to open must be discarded, not saved'
-    }
-
-    It 'names the OS loader folder it derived, so a wrong one can be seen' {
-        # THE VALUE AND WHERE IT CAME FROM (CLAUDE.md, logging). An administrator
-        # who pointed -BootLoaderPath at a folder that is not under a Windows gets
-        # told which folder was looked in and that it was DERIVED - not "file not
-        # found" for a path they never typed.
-        $context = New-HDTBootImageTestContext -ExtraFile @{
-            ($script:bootLoaderPath + '\bootmgr.efi')  = 'MZ patched boot manager'
-            ($script:bootLoaderPath + '\bootmgfw.efi') = 'MZ patched firmware boot manager'
-        } -ExtraVersion @{
-            ($script:bootLoaderPath + '\bootmgr.efi')  = $script:patchedLoaderVersion
-            ($script:bootLoaderPath + '\bootmgfw.efi') = $script:patchedLoaderVersion
-        }
-
-        $record = $null
-        try {
-            [void] (Invoke-HDTBootImageTestBuild -Context $context `
-                    -Argument @{ BootLoaderPath = $script:bootLoaderPath })
-        } catch {
-            $record = $_
-        }
-
-        $record | Should -Not -BeNullOrEmpty
-
-        $message = [string] $record.Exception.Message
-        $message | Should -Match ([regex]::Escape($script:osLoaderSourcePath))
-        $message | Should -Match 'derived'
-        $message | Should -Match 'OsLoaderPath'
-
-        @($context.Boot.Operations | Where-Object { $_.Operation -eq 'MountImage' }) |
-            Should -BeNullOrEmpty -Because 'a folder that cannot do the job is knowable before the mount'
     }
 }
