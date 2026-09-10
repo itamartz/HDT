@@ -59,12 +59,30 @@
             makes against the real adapter is still that New-HDTWdsService
             refuses with a named dependency error.
 
-            WHAT IS STILL UNPROVEN IS THE BOOT. No machine has PXE booted from
-            the imported image - a Generation 2 client needs the Secure Boot
-            work, and the UEFI network boot program WDS on Server 2025 does not
-            stage for itself (Initialize-HDTWdsBootFile). An import that lands
-            is not a fleet that boots, and this file will not make the larger
-            claim.
+            THE BOOT IS PROVEN TOO, and that sentence replaces "no machine has
+            PXE booted from the imported image". On 2026-09-10 the client
+            HDT-PXE-01 - Generation 2, on the HDT External switch - network
+            booted from HDT-WDS-01 and ran an image this command had imported.
+            DHCP came from the home router, not from WDS, with no options 66/67
+            and no prestaging; WDS TFTP'd wdsmgfw.efi, bootmgfw.efi, a BCD it
+            composed per request, Boot.SDI, and then 534 MB of boot WIM in
+            SEVEN SECONDS on a variable TFTP window. Twenty-eight seconds after
+            power-on the HDT engine had mapped the share, read eight rules and
+            started a task sequence with nobody at the keyboard. SPIKES S27.
+
+            TWO THINGS ARE STILL UNPROVEN, and neither is a detail.
+            SECURE BOOT WAS OFF on that client - a Secure Boot ON network boot
+            is untried and runs into the ADK bootloader's SVN floor (SPIKES
+            S20/S20.2). And NO PXE DEPLOYMENT HAS COMPLETED: the client had no
+            disk deliberately, so the sequence refused at Validate and never
+            reached an apply. An import that lands and a client that boots are
+            still not a fleet that deploys, and this file will not make the
+            larger claim.
+
+            NONE OF THIS IS EVIDENCE FOR New-HDTPxePayload. WDS composes its
+            own per-client BCD at request time, merging its architecture store
+            with the per-image one it writes at import; the payload's ADK-media
+            store was never read. That command's own claim is unchanged.
 
         .PARAMETER Path
             The boot WIM to import, normally <workspace>\Boot\<name>.wim as

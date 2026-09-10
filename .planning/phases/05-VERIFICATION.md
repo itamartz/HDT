@@ -15,12 +15,25 @@ gaps:
       on 'Default Switch', and a second responder would either break the user's
       SCCM lab or answer our test VMs and silently invalidate the test. So no WDS
       import has ever executed anywhere in this repository.
+    closed_later: >
+      Both halves, outside this phase and after it closed. The lab built
+      HDT-WDS-01 (Windows Server 2025 Standard, standalone WDS) on 2026-09-02;
+      Import-HDTBootImageToWds ran against it on 2026-09-07; and on 2026-09-10
+      HDT-PXE-01 PXE booted from it on the HDT External switch - DHCP from the
+      home router at 192.168.1.1 with no options 66/67, no prestaging - and the
+      HDT engine was reading the share 28 seconds after power-on, starting
+      PNP-TEST zero-touch. SPIKES S27. The status above is left at not_met
+      because it records what THIS phase proved.
+    still_not_proven_after_S27:
+      - "a PXE boot with Secure Boot ON. HDT-PXE-01 had Secure Boot off; that is S20/S20.2 territory and untried."
+      - "a complete PXE-to-installed-Windows deployment. HDT-PXE-01 had no disk deliberately, so the sequence stopped at step 2 of 17, Validate, which refused correctly."
+      - "anything about New-HDTPxePayload. WDS composes its own per-client BCD at request time and never read the payload's ADK-media store, so the payload took no part in this boot (SPIKES S27.4)."
     substituted_by:
       - "Import-HDTBootImageToWds's replace-in-place semantics, including ROADMAP M4's named 'importing twice leaves one image', asserted against New-HDTFakeWdsService"
       - "the ONE fact this machine can prove, asserted against the REAL adapter: New-HDTWdsService refuses with a named HDTDependencyError"
       - "New-HDTPxePayload's staging completeness against the real ADK media tree and the real boot WIM, hash-verified file by file"
     not_claimed:
-      - "that New-HDTPxePayload's output will PXE boot a machine. Complete means staged-and-verified. The BCD staged is the ADK media template, which describes booting sources\\boot.wim from removable media; a TFTP/HTTP stack generally needs its own store and its own device element."
+      - "that New-HDTPxePayload's output will PXE boot a machine. Complete means staged-and-verified. The BCD staged is the ADK media template, which describes booting sources\\boot.wim from removable media; a TFTP/HTTP stack generally needs its own store and its own device element. STILL NOT CLAIMED after the 2026-09-10 PXE boot - WDS composes its own store and never read this one."
   - truth: "a VM deploys over SMB"
     status: not_met
     reason: >
@@ -196,9 +209,12 @@ Every item here is also in `docs/ROADMAP.md` M4 and in `05-05-SUMMARY.md`, in th
 same words.
 
 - No VM deployed over SMB in this lab, and why. **Closed later by SPIKES S14.**
-- No WDS import has ever executed, and why.
+- No WDS import has ever executed, and why. **Closed later: the import ran
+  against `HDT-WDS-01` on 2026-09-07, and a client PXE booted from it on
+  2026-09-10 (SPIKES S27).**
 - The PXE payload is staged and hash-verified but **has never been
-  network-booted**.
+  network-booted**. **Still true after S27** — WDS composes its own per-client
+  BCD at request time and never read the payload's store.
 - No drivers (M5, deferred to v2); no applications, updates, roles or BitLocker
   (M6).
 - No engine-driven reboot into an autologon resume — `DEMO-M4` has no `Restart`

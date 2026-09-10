@@ -250,6 +250,17 @@ the `HDT Lab` switch, and waiting on lab hardware is not a reason to
 hold v1. `Import-HDTBootImageToWds` and `New-HDTPxePayload` still ship — they
 are scheduled out, not cut, and nothing in v1 assumes they are absent.
 
+**The deferral's stated reason has since expired, and the clause itself is now
+met.** `HDT-WDS-01` was built on 2026-09-02, the import ran against it on
+2026-09-07, and on **2026-09-10 `HDT-PXE-01` PXE booted from it** — power-on to
+the HDT engine reading the share in **28 seconds**, task sequence `PNP-TEST`
+started zero-touch (SPIKES S27). Two things it did not prove and the clause
+should not be read as covering: the client had **Secure Boot off**, and it had
+**no disk**, so the sequence stopped at `Validate` and no PXE-to-installed-
+Windows deployment has run. The clause is left struck through above because
+that is the scoping decision the user made on 2026-08-25; what changed is the
+evidence, not the scope.
+
 **✅ Met, as scoped above.**
 
 `tests/e2e/UnattendedDeployment.E2E.Tests.ps1` builds a boot image with
@@ -315,8 +326,15 @@ all.
   lab's `HDT-WDS-01` — Windows Server 2025 Standard, standalone WDS, reached by
   PowerShell Direct — and replaced the boot image in place: `Replaced: True`,
   `PreviousVersion: 10.0.26100`, one x64 image named `HDTPE_x64` left on the
-  server. **The replace-in-place semantics held on a real server.** What remains
-  unproven is the BOOT: no client has PXE booted from it. The rest of this
+  server. **The replace-in-place semantics held on a real server.** ~~What
+  remains unproven is the BOOT: no client has PXE booted from it.~~ **THE BOOT
+  IS NOW PROVEN TOO, on 2026-09-10** — `HDT-PXE-01` (Gen 2, Secure Boot off, no
+  disk, `HDT External`) network booted from `HDT-WDS-01`, DHCP from the home
+  router with no options 66/67, and 28 seconds after power-on the HDT engine had
+  mapped the share and started `PNP-TEST` zero-touch (SPIKES S27). Still
+  unproven: **PXE with Secure Boot ON**, and a **complete PXE-to-installed-
+  Windows deployment** — the client was deliberately diskless, so the sequence
+  stopped at `Validate`. The rest of this
   paragraph describes why the suite still cannot repeat that run. This host is
   Windows 11 Pro; `Get-Module -ListAvailable WDS` and `Get-Command wdsutil.exe`
   both return nothing, and `PROJECT.md` rule 3 confines a PXE responder to the
@@ -332,7 +350,12 @@ all.
   this". The `BCD` it stages is the ADK media template, which describes booting
   `sources\boot.wim` from removable media; a TFTP/HTTP stack generally needs its
   own store and its own device element. The source file, the integration test and
-  this list all say so in those words.
+  this list all say so in those words. **The 2026-09-10 PXE boot does not close
+  this one, and the distinction is the easy thing to get wrong:** WDS composes
+  its own per-client BCD at request time, merging its architecture store with
+  the per-image one it wrote at import, and the payload's ADK-media BCD was
+  never read (SPIKES S27.3, S27.4). What booted is WDS's store, not the
+  payload's.
 - **No drivers in the deployed OS** (M5) and **no applications, updates, roles
   or BitLocker** (M6). Drivers reach the BOOT IMAGE — a selection profile names
   folders and `Update-HDTBootImage` injects them — but nothing puts a driver on

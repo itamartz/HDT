@@ -30,6 +30,12 @@ step out of 07, and — added 2026-08-25 — **PXE boot from WDS out of 05**. Al
 keep their full design and roadmap entries below; they are scheduled out, not
 cut, and nothing in v1 was built in a way that assumes they are absent.
 
+**PXE boot was demonstrated on 2026-09-10, ahead of its milestone.** A client
+network booted from the lab's own WDS and reached the HDT engine in 28 seconds
+(SPIKES S27). It stays scheduled in v2 because what v2 owes it is the rest:
+**Secure Boot on** (the test client had it off) and a **complete PXE-to-
+installed-Windows deployment** (the test client had no disk).
+
 **06 drivers came BACK from v2 on 2026-08-27** — the `ApplyDrivers` step, the
 PnP fallback, the class filter and `Get-HDTDriverCoverage` — **and its exit was
 proven on hardware on 2026-08-30**: a physical Latitude 5420 whose driver group
@@ -48,13 +54,21 @@ What deferring the rest actually costs, stated so it is not discovered later:
   boot ISO. `New-HDTBootIso` (phase 05) still produces a bootable WinPE ISO —
   what moves to v2 is `New-HDTMedia`, the full content projection that puts the
   OS, applications and sequences on a USB stick for a site with no server.
-- **No PXE boot.** v1 boots the ISO `New-HDTBootIso` builds, which is proven
-  end to end and is what the lab uses. A site that wants a machine to boot off
-  the wire burns the ISO to a USB stick or attaches it, exactly as it would for
-  a one-off MDT build. `Import-HDTBootImageToWds` and `New-HDTPxePayload` ship
-  and are tested against a fake; what v2 owes them is an isolated `HDT-WDS01`
-  and a real network boot on the isolated `HDT Lab` switch, which nothing in
-  this lab can stand up today.
+- **No PXE boot in v1.** v1 boots the ISO `New-HDTBootIso` builds, which is
+  proven end to end and is what the lab uses. A site that wants a machine to
+  boot off the wire burns the ISO to a USB stick or attaches it, exactly as it
+  would for a one-off MDT build. `Import-HDTBootImageToWds` and
+  `New-HDTPxePayload` ship and are tested against a fake.
+  ~~What v2 owes them is an isolated `HDT-WDS01` and a real network boot, which
+  nothing in this lab can stand up today.~~ **That premise died on 2026-09-02**,
+  when `HDT-WDS-01` was built — Windows Server 2025 Standard, standalone WDS.
+  The import ran against it on 2026-09-07 and **a client PXE booted from it on
+  2026-09-10**, on the `HDT External` switch with DHCP from the home router and
+  no options 66/67, reaching the HDT engine 28 seconds after power-on (SPIKES
+  S27). What v2 still owes is **Secure Boot on** and a **complete PXE-to-
+  installed-Windows deployment**; the test client had Secure Boot off and no
+  disk. And it owes nothing to `New-HDTPxePayload`'s own store, which took no
+  part — WDS composes its per-client BCD at request time (S27.4).
 - **No in-sequence patching.** A machine HDT builds leaves the bench with exactly
   the patches its source image carried. There is no `WindowsUpdate` step, so
   currency after deployment is whatever Windows Update does on its own schedule
@@ -240,10 +254,18 @@ boot path itself**: `startnet.cmd` plus `Start-HDTDeployment.ps1`, so a machine
 deploys with nobody at the keyboard.
 *Exit (v1):* a VM boots the ISO **HDT built** and deploys Windows 11 with **zero
 keystrokes**. ~~the same image PXE-boots from WDS~~ — **moved to v2 on
-2026-08-25**: there is no WDS on this host and PROJECT.md confines a PXE
+2026-08-25**: there was no WDS on this host and PROJECT.md confines a PXE
 responder to the isolated `HDT Lab` switch, so the import is proven against a fake and
 `New-HDTPxePayload`'s staging completeness is demonstrated instead. v1 ships the
 ISO.
+
+**The "no WDS on this host" premise expired on 2026-09-02**, when the lab built
+`HDT-WDS-01` as a Server 2025 guest. The import ran against it on 2026-09-07,
+and on 2026-09-10 a client PXE booted from it on the `HDT External` switch and
+reached the engine in 28 seconds (SPIKES S27). The build host is still Windows
+11 Pro with no WDS module, so the suite still cannot repeat either run; that
+part of the reason stands. Secure Boot on and a full PXE deployment remain
+unproven.
 
 **Plans:** 6 plans in 6 waves (each depends on the ones before it — the pure
 logic before the providers, the providers before the entry point, the entry point
@@ -287,9 +309,15 @@ Generation 2 VM booted an ISO `Update-HDTBootImage` produced and deployed Window
 11 to completion with **zero keystrokes sent to it** — `RESULT.json` reports
 `status Succeeded`, `launchedBy startnet`, `deployRootSource Discovered`,
 `endedWith "wpeutil shutdown"` (SPIKES S12). The **second** clause, PXE boot from
-WDS, **moved to v2 on 2026-08-25** — v1 ships the ISO. It was never met here: this host is Windows 11 Pro with no WDS, and PROJECT.md
-rule 3 confines a PXE responder to the isolated `HDT Lab` switch, so no WDS import has
-ever executed anywhere in this repository. No VM deployed over SMB **at the
+WDS, **moved to v2 on 2026-08-25** — v1 ships the ISO. It was never met **at the
+time this phase closed**: this build host is Windows 11 Pro with no WDS, and
+PROJECT.md rule 3 confines a PXE responder to the isolated `HDT Lab` switch, so
+no WDS import had executed anywhere in this repository. **Both halves of that
+have since closed, outside the phase**: the import ran against the lab's
+`HDT-WDS-01` on 2026-09-07, and a client PXE booted from it on 2026-09-10,
+reaching the engine 28 seconds after power-on (SPIKES S27). Secure Boot on and
+a full PXE-to-installed-Windows deployment are still unproven — the test client
+had Secure Boot off and no disk. No VM deployed over SMB **at the
 time this phase closed**, for the reason SPIKES S6 records about the isolated
 switch — **that gap is now closed by SPIKES S14**, which deployed `HDT-SMB-01`
 on `HDT External` with `provider: Smb`. `05-VERIFICATION.md`

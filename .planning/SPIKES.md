@@ -1153,9 +1153,19 @@ Stated here rather than left to be inferred:
   nothing, and PROJECT.md rule 3 forbids standing one up beside CM01's PXE
   responder. `New-HDTWdsService` throws `HDTDependencyError` here, which is
   asserted, and the replace-in-place semantics are asserted against a fake.
+  **SUPERSEDED ON 2026-09-07**, when `Import-HDTBootImageToWds` replaced the
+  boot image on the lab's `HDT-WDS-01` for real. The refusal on THIS host is
+  still true and still asserted; what is no longer true is "anywhere in this
+  repository". This entry records what *this* run did not prove and is left
+  standing as that record.
 - **The PXE payload has never been network-booted.** It is staged and
   hash-verified against the real ADK media and the real boot WIM; that is
   completeness, not bootability.
+  **STILL TRUE, and S27 does not supersede it.** On 2026-09-10 a client PXE
+  booted from WDS and reached the HDT engine in 28 seconds, so network boot of
+  an HDT boot image is proven. But WDS composes its own per-client BCD at
+  request time (S27.3) and never read the payload's ADK-media store, so the
+  payload itself has still booted nothing.
 - **`New-HDTPowerService` still has never executed.** ROADMAP M2 asked whether
   WinPE needs `wpeutil reboot` rather than `shutdown.exe` and called it a phase
   05 question. `DEMO-M4` has no `Restart` step, so the only evidence this phase
@@ -3801,3 +3811,123 @@ idle in the sense of having nothing left it wants to do, not merely idle of the
 work you are watching. A pending reboot, a staged update, a scheduled task due
 in ten minutes — whatever the guest intends to do next is captured with it and
 replayed on every revert, for as long as that checkpoint stands.
+
+---
+
+## S27 — a client PXE booted from WDS, and 28 seconds later the engine was reading the share ✅⚠
+
+Date: 2026-09-10. **The first network boot in this project's history.** Every
+prior claim about PXE in this repository was staging completeness, a fake, or an
+import that landed — this is a machine that took its bootloader off the wire and
+ran HDT.
+
+**What booted is not what `src/` builds today.** The WIM WDS served is
+534,103,415 bytes; `C:\HDTLab\Share\Boot\HDTPE_x64.wim` is 534,210,980 bytes,
+modified 2026-09-07. So this run exercised a 2026-09-07-era boot image, and any
+change made to the boot image since is unproven over PXE.
+
+### S27.1 — the two machines, as configured
+
+**Client `HDT-PXE-01`** — Generation 2, **no hard disk**, 4096 MB static, 2 vCPU,
+**Secure Boot OFF**, one NIC on the **`HDT External`** switch, boot order
+network-first. Created for this test and still present.
+
+**Server `HDT-WDS-01`** — Windows Server 2025 Standard, workgroup,
+192.168.1.206, WDS standalone, `C:\RemoteInstall`. PXE response: answer clients
+**Yes**, answer only known clients **No**, response delay **0**, prompt policy
+**NoPrompt**, "Use DHCP ports" **Yes**, and **no DHCP options 66/67** anywhere.
+Default boot image blank for every architecture. One boot image, `HDTPE_x64`,
+X64, index 1, 534,103,415 bytes.
+
+**DHCP came from the home router at 192.168.1.1, not from WDS.** The client
+leased 192.168.1.229 on MAC `00-15-5D-86-01-5F`. That combination — router DHCP,
+no options 66/67, WDS sharing the DHCP ports on the same segment — is the one
+that worked, and it is the arrangement worth writing down.
+
+**No prestaging.** WDS event 4096 recorded `Prestaged: false`,
+`ClientArchitecture: 4`, and `Get-WdsClient` returns nothing. Nothing about this
+boot depended on the client being known to the server in advance.
+
+### S27.2 — the timeline, 28 seconds power-on to engine
+
+| Time | |
+|---|---|
+| 19:05:39 | VM started |
+| 19:05:44 | WDS **event 4096** — the request answered |
+| 19:05:45 | TFTP `wdsmgfw.efi` (1,095,072 B) → `bootmgfw.efi` (2,759,624 B) → `x64uefi{…}.bcd` (12,288 B) → `Boot.SDI` (3,170,304 B) |
+| 19:05:45–52 | TFTP `\Boot\x64\Images\HDTPE_x64.wim` — **534,103,377 bytes in 7 seconds**, variable window on |
+| 19:05:55 | Windows Boot Manager |
+| 19:06:03 | WinPE up, `startnet.cmd` |
+| 19:06:06 | HDT engine mapped `\192.168.1.219\HDTShare`, read 8 rules, `HDTSkipWizard` → **0 pages asked / 7 skipped** |
+| 19:06:17 | task sequence `PNP-TEST` started, zero-touch |
+
+Half a gigabyte of WIM in seven seconds is the variable-window TFTP settings in
+the device-options object doing their job (S27.3); the older fixed-window
+default is the reason PXE has a reputation for being slow.
+
+Run id `run-20260910-190600`.
+
+### S27.3 — WDS composes THREE BCD stores, and the per-request one is the one that boots
+
+Dumped for real off `HDT-WDS-01`, because the composition is not obvious from
+the on-disk layout:
+
+| Store | Written | Holds |
+|---|---|---|
+| `Boot\x64uefi\default.bcd` | by WDS setup | boot manager, `{dbgsettings}`, base device options — **no loader entry at all** |
+| `Boot\x64\Images\HDTPE_x64.wim.bcd` | at image import | the per-image loader |
+| `Tmp\x64uefi{GUID}.bcd` | **at request time**, per client | the merge of the two, and the file actually TFTP'd |
+
+The loader entry carries `device` and `osdevice` as
+`ramdisk=[boot]\Boot\x64\Images\HDTPE_x64.wim,{devopts-GUID}`, `systemroot`
+`\WINDOWS`, `detecthal Yes`, `winpe Yes`, and **no `path` element whatsoever** —
+which is the opposite of the hand-built ramdisk entry S23 composed, where `path`
+is `\windows\system32\boot\winload.efi`.
+
+The device-options object carries `ramdisksdidevice boot`, `ramdisksdipath
+\Boot\Boot.SDI`, `ramdisktftpblocksize 1456`, `ramdisktftpwindowsize 4`,
+`ramdisktftpvarwindow Yes`.
+
+`{bootmgr} path` is `\Boot\x64\bootmgfw.efi` — note that the **x64uefi** store
+points into `Boot\x64\`, not `Boot\x64uefi\`. Getting that wrong by inference
+would be an easy way to break a hand-edit.
+
+**All of this is `wdsutil`'s to own.** The stores are regenerated from
+`Stores\Metadata\WDSMD.mdb`, so a hand edit is overwritten rather than honoured.
+
+### S27.4 — `New-HDTPxePayload`'s staged payload played NO PART in this boot
+
+Stated separately because it is the easy thing to get wrong. **WDS composes its
+own per-client BCD at request time** (S27.3). The payload's ADK-media BCD — the
+one `New-HDTPxePayload` stages and hash-verifies — was never read by anything
+here.
+
+So the sentence in `src/Hephaestus/Public/New-HDTPxePayload.ps1` that says
+**THIS PAYLOAD HAS NEVER BEEN NETWORK-BOOTED remains literally true**, and the
+integration test that asserts it is still correct. What was proven on 2026-09-10
+is that **WDS** can network-boot an image HDT built and imported. The payload's
+own store is a separate mechanism and remains unproven.
+
+### S27.5 — where it stopped, and why that is not a defect
+
+The sequence stopped at **step 2 of 17, `Validate`**:
+
+```
+no disk on this machine holds at least 60 GB (none). this machine reports no
+disk at all, so there is nothing to deploy to.
+```
+
+**`HDT-PXE-01` is the deliberately diskless test VM.** The step read the machine
+correctly and refused for the right reason; the message names the cause rather
+than the symptom. Nothing here is a defect.
+
+### S27.6 — what this run did NOT prove
+
+- **PXE with Secure Boot ON is untried.** The client had Secure Boot **off**.
+  That is S20 / S20.2 territory — the ADK's WinPE bootloader is below the Secure
+  Boot SVN floor — and nothing in this run touches it.
+- **No PXE-to-installed-Windows deployment.** The VM had no disk, so the run
+  ended at `Validate` and the apply, the unattend and the reboot were never
+  reached over PXE.
+- **The image booted is 2026-09-07-era, not today's `src/`** (byte counts at the
+  head of this entry).

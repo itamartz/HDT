@@ -67,15 +67,25 @@ gaps:
       real adapter's only executed row is its named HDTDependencyError refusal.
       New-HDTPxePayload's Complete means staged-and-hash-verified, not bootable -
       the BCD staged is the ADK media template, which describes removable media.
+    closed_later: >
+      The venue arrived on 2026-09-02 as HDT-WDS-01, a Server 2025 Standard
+      guest running standalone WDS. Import-HDTBootImageToWds ran against it on
+      2026-09-07, and on 2026-09-10 HDT-PXE-01 PXE booted from it on the
+      HDT External switch and reached the HDT engine 28 seconds after power-on.
+      SPIKES S27. Status left at failed because it records this phase.
+    still_not_proven_after_S27:
+      - "PXE with Secure Boot ON - HDT-PXE-01 had it off"
+      - "a complete PXE-to-installed-Windows deployment - HDT-PXE-01 was deliberately diskless and the sequence refused at Validate"
+      - "anything about New-HDTPxePayload's own store, which WDS never read"
     artifacts:
       - path: "src/Hephaestus/Public/Import-HDTBootImageToWds.ps1"
-        issue: "Never executed against a real WDS; replace-in-place is fake-proven only"
+        issue: "Never executed against a real WDS; replace-in-place is fake-proven only. RESOLVED 2026-09-07 - ran against HDT-WDS-01, Replaced True, one x64 image left."
       - path: "src/Hephaestus/Public/New-HDTPxePayload.ps1"
-        issue: "Staging completeness proven against the real ADK tree; network boot never attempted"
+        issue: "Staging completeness proven against the real ADK tree; network boot never attempted. STILL OPEN - the 2026-09-10 boot used WDS's own per-request BCD, not this payload."
     missing:
-      - "One execution of Import-HDTBootImageToWds against a real WDS server"
-      - "One machine PXE-booting the staged payload and reaching the engine"
-      - "A venue for it - a Windows Server VM on the isolated HDT Lab switch, or the MS-A2 host PROJECT.md now names"
+      - "One execution of Import-HDTBootImageToWds against a real WDS server - SUPPLIED 2026-09-07"
+      - "One machine PXE-booting the staged payload and reaching the engine - a machine PXE booted from WDS and reached the engine on 2026-09-10, but from WDS's store, not the STAGED PAYLOAD. This row is half supplied."
+      - "A venue for it - a Windows Server VM on the isolated HDT Lab switch, or the MS-A2 host PROJECT.md now names - SUPPLIED as HDT-WDS-01 on 2026-09-02, on HDT External rather than HDT Lab"
   - truth: "A VM deploys over SMB, so the Smb content provider is proven end to end"
     status: partial
     reason: >
@@ -234,8 +244,8 @@ Every artifact named in the six plans' `must_haves` exists and exceeds its
 | `src/Hephaestus/Public/Get-HDTBootImageComponent.ps1` | 231 | WIRED - the nine components asserted inside the built image |
 | `src/Hephaestus/Private/Get-HDTPowerCommand.ps1` | 120 | WIRED - New-HDTPowerService powered the smoke VM off |
 | `src/Hephaestus/Public/New-HDTSmbContentProvider.ps1` | 425 | PARTIAL - wired to the contract and a loopback share, never to a deployment |
-| `src/Hephaestus/Public/Import-HDTBootImageToWds.ps1` | 200 | PARTIAL - wired to a fake only |
-| `src/Hephaestus/Public/New-HDTPxePayload.ps1` | 298 | PARTIAL - staged and hash-verified, never booted |
+| `src/Hephaestus/Public/Import-HDTBootImageToWds.ps1` | 200 | PARTIAL - wired to a fake only **at the time. Wired to a real WDS on 2026-09-07, and a client booted the imported image on 2026-09-10 (S27).** |
+| `src/Hephaestus/Public/New-HDTPxePayload.ps1` | 298 | PARTIAL - staged and hash-verified, never booted. **Still never booted after S27 - WDS composed its own store.** |
 | `tests/e2e/UnattendedDeployment.E2E.Tests.ps1` | 988 | WIRED - the exit criterion, executed |
 | `tests/unit/UnattendedDeploymentE2E.Tests.ps1` | 397 | WIRED - the zero-keystroke AST proof, in the fast suite |
 
@@ -289,10 +299,16 @@ about the narrower claim.
 
 ## What is still not proven, stated plainly
 
-- **No WDS import has ever run.** Gap 1.
+- **No WDS import has ever run.** Gap 1. **Closed on 2026-09-07 against
+  `HDT-WDS-01`, and on 2026-09-10 a client PXE booted from it and reached the
+  engine in 28 seconds (SPIKES S27). What is still not proven is PXE with
+  Secure Boot ON, and a full PXE-to-installed-Windows deployment — that client
+  had Secure Boot off and no disk.**
 - **No VM has deployed over SMB.** Gap 2 - and PROJECT.md changed today to permit
   the `HDT External` switch, which removes the reason it was refused.
-- **The PXE payload has never network-booted.**
+- **The PXE payload has never network-booted.** **Still true, and S27 is not
+  a counterexample** — WDS composes its own per-client BCD at request time, so
+  the boot on 2026-09-10 read WDS's store and not this payload's.
 - **No Restart step has executed in WinPE.** Stop has, through the real adapter,
   in the smoke E2E. Restart differs only in the verb taken from the same asserted
   table, which is an argument rather than a measurement.

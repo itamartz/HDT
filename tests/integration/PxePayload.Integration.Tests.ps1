@@ -1,7 +1,7 @@
-# THE DEMONSTRATION THAT STANDS IN FOR THE WDS ONE, AND WHY IT HAS TO.
+# THE DEMONSTRATION THAT STANDS IN FOR THE WDS ONE, AND WHY IT STILL HAS TO.
 #
 # ROADMAP M4's second exit clause is "a physical or virtual machine PXE-boots the
-# same image from WDS and deploys". IT IS NOT MET, AND IT CANNOT BE MET HERE:
+# same image from WDS and deploys". IT CANNOT BE MET ON THIS HOST:
 #
 #   * There is no WDS on this host. It is Windows 11 Pro; the WDS PowerShell
 #     module and the wdsutil.exe binary ship with a Windows SERVER role.
@@ -11,10 +11,23 @@
 #     would answer machines that are not part of the test, and anything else
 #     answering there would silently invalidate the run.
 #
-# So NO WDS IMPORT HAS EVER EXECUTED, anywhere in this repository. What is proven
-# instead is New-HDTPxePayload's staging completeness against the REAL ADK media
-# tree and the REAL boot WIM 05-04 built: every file a TFTP/HTTP stack needs is
-# there and its bytes verify.
+# IT HAS SINCE BEEN MET ELSEWHERE, BY HAND, AND THAT DOES NOT CHANGE THIS FILE.
+# The lab built HDT-WDS-01 (Server 2025, standalone WDS) on 2026-09-02;
+# Import-HDTBootImageToWds ran against it on 2026-09-07; and on 2026-09-10 the
+# client HDT-PXE-01 network booted from it and had the HDT engine reading the
+# share 28 seconds after power-on (SPIKES S27). None of that is repeatable from
+# this build host, so it is a spike record and not a test.
+#
+# AND IT PROVES NOTHING ABOUT THE PAYLOAD THIS FILE TESTS. This is the easy
+# distinction to lose. WDS composes its OWN per-client BCD at request time,
+# merging its architecture store with the per-image store it wrote at import;
+# New-HDTPxePayload's staged BCD was never read by anything in that boot. So the
+# payload has still never been network-booted, and the It that says so below is
+# still correct.
+#
+# What is proven here is New-HDTPxePayload's staging completeness against the
+# REAL ADK media tree and the REAL boot WIM 05-04 built: every file a TFTP/HTTP
+# stack needs is there and its bytes verify.
 #
 # THAT IS NOT THE SAME CLAIM AS "A MACHINE WILL PXE BOOT FROM THIS", and this
 # file will not make the larger one. The BCD staged here is the ADK media
