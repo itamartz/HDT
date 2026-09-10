@@ -2342,20 +2342,143 @@ possible nor necessary.** There is no LCU that produces a 28000-series
   Version now travels with a copy and with a move; a seeded **hash** deliberately
   does not, because that is how a test says "this copy landed corrupt".
 
-### ⚠ Still unproven on hardware
+### ⚠ IT WAS BOOTED, AND IT FAILED — see S20.4
 
-**Nothing has been booted from an image built this way.** S20.2's whole lesson is
-that every analyser on this host said the SVN-9.0 media was correct and it was
-not, and the same applies here: this is reasoned from versions read on a running
-machine, not from a VM that started. It is unproven until a **Generation 2 VM
-with Secure Boot ON boots the built ISO**, and until then nothing in the help,
-the tests or this document claims otherwise.
+This section used to end "nothing has been booted from an image built this way",
+and named the test that would settle it: a Generation 2 VM with Secure Boot ON
+booting the built ISO. **That test was run on 2026-09-10 and the media did not
+boot** — `0xc0430001` with Secure Boot on AND off, where an unswapped ADK control
+booted cleanly with Secure Boot on. **S20.4 is the result and it supersedes the
+cure described above.** The injection itself is byte-perfect; it is the fix that
+is wrong, not the implementation of it.
 
 The open question S20.2 raised and this does not answer: whether the ADK's own
 26100-era `EFI\Microsoft\Boot\BCD` is happy under a 28000-series boot manager.
-The failing run never got that far, and neither has anything since.
+The failing run never got that far, and neither have the three in S20.4.
 
 `-BootLoaderPath` **stays opt-in and is not defaulted on.**
+
+### S20.4 — the swap was boot-tested and it FAILED, both ways. S20.3's cure is disproven ⚠
+
+Date: 2026-09-10. S20.3 ended with "⚠ Still unproven on hardware" and named the
+one test that would settle it: **a Generation 2 VM with Secure Boot ON booting
+the built ISO.** That test has now been run, three times, and the answer is no.
+
+**The media built by `-BootLoaderPath` does not boot. Not with Secure Boot on,
+and — new since S20.2 — not with Secure Boot off either.**
+
+| Run | Media | Secure Boot | Result |
+|---|---|---|---|
+| 1 | swapped: boot managers 10.0.28000.342 **and** OS loader 10.0.26100.8655 | **On** | **FAIL — `0xc0430001`** |
+| 2 | the same ISO | **Off** | **FAIL — `0xc0430001`** |
+| 3 | **unswapped ADK control**, SVN 3.0 | **On** | **PASS — WinPE up, HDT engine running** |
+
+`HDT-SB-01` — Generation 2, **diskless**, 4 GB, 2 vCPU, one NIC on `HDT External`,
+`MicrosoftWindows` Secure Boot template, DVD first in the boot order — was
+created for this and removed after it. The Secure Boot setting was read back
+before and after every run.
+
+### What was built, and the three checks before it was booted
+
+Module 0.24.0, into a throwaway workspace at `C:\HDTLab\scratch\sb-proof\Share`,
+`-BootLoaderPath "%SystemRoot%\Boot\EFI"`, 190 seconds, seventeen steps green.
+ISO 556,161,024 bytes, WIM 500,021,022 bytes.
+
+Every pre-boot check passed, which is precisely the point:
+
+| Check | Value read |
+|---|---|
+| manifest `osLoader.version` | **10.0.26100.8655** — S20.3's target, up from 10.0.26100.1 |
+| ISO `bootmgr.efi`, `EFI\Boot\bootx64.efi` | **10.0.28000.342**, and SHA-256 **byte-identical** to this host's `Boot\EFI\bootmgr.efi` and `bootmgfw.efi` |
+| both ISO boot managers' SVN | **9.0** (`0x00090000`) — the ADK's are 3.0 |
+
+And afterwards, the shipped WIM was mounted read-only and read again: **all three
+OS loaders inside it are byte-identical to the serviced Windows they came from** —
+`Windows\System32\Boot\winload.efi`, `winload.exe`, and the second copy at
+`Windows\System32\winload.efi`, which a WinPE image does carry. **The injection
+worked perfectly and the media still does not boot.** That is the finding.
+
+> **A defect had to be fixed before it would build at all.** The first attempt
+> died at step 7 with `Access to the path '...\mount\Windows\System32\Boot\winload.efi'
+> is denied`: every file inside a Windows image is owned by TrustedInstaller, and
+> the OS-loader copy went in without taking ownership — the exact lesson step 13's
+> `winpe.jpg` copy had already learned 700 lines later in the same command. No
+> test caught it, because a hand-written fake filesystem has no ACLs.
+
+> **A trap for anyone re-checking this.** Read *in place on the mounted ISO*,
+> those same byte-identical loaders report `FileVersion` **10.0.26100.1085** —
+> the ADK's number — while an NTFS copy of the same bytes reports
+> **10.0.28000.342**. Same SHA-256, two answers. **A correct swap looks like it
+> never happened** unless the file is copied off the ISO before its version is
+> read. Verify by hash, not by the version a mounted ISO hands you.
+
+### The runs, on the clock
+
+- **Run 1, Secure Boot ON.** Power-on 19:37:45. The `0xc0430001` recovery screen
+  was already up at the first usable frame, t+21 s; the machine powered itself
+  off at about t+70 s. Screen: *"Recovery — Your PC/Device needs to be repaired.
+  An unexpected error has occurred. Error code: 0xc0430001"*, offering only
+  *"Press Esc for UEFI Firmware Settings"*.
+- **Run 2, Secure Boot OFF, the same ISO.** Power-on 19:41:48. **The same
+  `0xc0430001` screen**, up by t+7 s, off by t+15 s — this time also offering
+  *"Press Enter to try again"* and *"Press F8 for Startup Settings"*, which is
+  the boot manager's non-Secure-Boot presentation of the same refusal.
+- **Run 3, the control** — the same workspace built with **no `-BootLoaderPath`**,
+  Secure Boot **ON**. Power-on 19:48:44. WinPE up and the HDT engine running by
+  **t+18 s** (`powershell-yaml 0.4.12`, `Hephaestus 0.24.0`, 21 machine facts
+  gathered), and it stayed up for the full 180 s. It stopped where a throwaway
+  workspace should: no `deployRoot` was declared, so `Resolve-HDTDeployRoot`
+  refused an empty argument. That is this scratch workspace's doing, not a defect.
+
+### What this settles
+
+- **S20.3's cure is wrong.** "Take both files off ONE fully patched Windows" was
+  reasoned from versions read on a running machine, and it does not survive a
+  boot. The pair *was* taken off one machine, byte-for-byte, and measured inside
+  the shipped artifact. The media still refuses.
+- **And it is a REGRESSION against S20.2.** There, the Secure-Boot-**off** run
+  **passed**. Here it fails. The only thing that changed between those two builds
+  is the OS-loader replacement, so **replacing `winload.efi` is what turned an
+  ISO that booted in one configuration into one that boots in none.**
+- **So `0xc0430001` here is not gated on Secure Boot**, and S20.2's sentence —
+  "that is a rollback check, it is gated on Secure Boot, and that gate is exactly
+  why the identical ISO booted with Secure Boot off" — no longer describes what
+  this machine does. Whatever the boot manager is refusing, it refuses it with
+  the firmware's Secure Boot turned off.
+- **Hyper-V still cannot reproduce the problem the swap exists for.** The control
+  booted SVN-3.0 media with Secure Boot **on**, so this host's `MicrosoftWindows`
+  template does not enforce the 7.0 floor — S20.2 said so and it is re-measured
+  here. This platform can only ever show the damage the swap does, never the harm
+  it is meant to prevent.
+- **`-BootLoaderPath` produces non-booting media and must not be used.** It stays
+  opt-in, it stays off by default, and its help now says it was tested and failed
+  rather than that it is unproven.
+
+### Which path this is about, and which it is not
+
+**ISO and local boot only.** S27 network booted a client off `HDT-WDS-01` twice
+with Secure Boot on, clean both times, because over PXE the loader that
+*executes* is WDS's own `wdsmgfw.efi`/`bootmgfw.efi`, and the ADK loader inside
+the WIM is a RAMDISK payload that is never on the boot path (S27.7). **The SVN
+wall is ISO-only, which is exactly why this ISO test is the one that mattered** —
+and why nothing here touches the PXE result. A deployment over PXE is unaffected
+by every line above.
+
+### What is still not known
+
+- **Why.** Nothing here instrumented the boot manager. That the replacement
+  landed byte-perfect and the machine refuses it is measured; *which* check
+  refuses it is not, and the error code is now doing less explaining than its
+  name suggests.
+- **Whether the ADK's 26100-era `EFI\Microsoft\Boot\BCD` is happy under a
+  28000-series boot manager** — S20.2 asked it, S20.3 repeated it, and three more
+  runs have still not got far enough to answer it.
+- **Whether S20's premise is real on physical hardware.** Nothing in this lab
+  enforces the floor, so the feature cannot be validated here at all. That is a
+  reason to leave it opt-in, not a reason to trust it.
+
+`-BootLoaderPath` **stays opt-in and is not defaulted on**, and it is now known
+to be broken rather than merely unproven.
 
 ## S21 — `tzutil` is not in WinPE, and the boot image's zone must be set offline ✅
 
