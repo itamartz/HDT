@@ -5,11 +5,11 @@
 #
 #   * There is no WDS on this host. It is Windows 11 Pro; the WDS PowerShell
 #     module and the wdsutil.exe binary ship with a Windows SERVER role.
-#   * Standing one up is constrained by PROJECT.md's lab safety rules. Rule 3
-#     puts PXE/WDS testing on the isolated 'HDT Lab' switch only, because a PXE
-#     responder answers every machine on its segment - on a shared switch it
-#     would answer machines that are not part of the test, and anything else
-#     answering there would silently invalidate the run.
+#   * The WDS that does exist is on another machine. PROJECT.md rule 3 puts
+#     PXE/WDS on the 'HDT External' switch, the real 192.168.1.0/24 LAN, and the
+#     responder there is HDT-WDS-01 - a Server 2025 VM this build host cannot
+#     stand up a second copy of, on a segment a test cannot bring up or tear
+#     down.
 #
 # IT HAS SINCE BEEN MET ELSEWHERE, BY HAND, AND THAT DOES NOT CHANGE THIS FILE.
 # The lab built HDT-WDS-01 (Server 2025, standalone WDS) on 2026-09-02;

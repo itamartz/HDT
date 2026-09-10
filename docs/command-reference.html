@@ -7719,12 +7719,11 @@ Import-HDTBootImageToWds -Path &#x27;C:\HDTLab\Share\Boot\HDTPE_x64.wim&#x27; -W
 <pre class="block">  * this machine is Windows 11 Pro. The WDS PowerShell module and
     wdsutil.exe ship with a Windows SERVER role, so there is nothing
     here to adapt;
-  * standing one up is constrained by PROJECT.md&#x27;s lab safety rules.
-    Rule 3 confines PXE/WDS testing to the isolated &#x27;HDT Lab&#x27;
-    switch, because a PXE responder answers every machine on its
-    segment - on a shared switch it would answer machines that are
-    not ours, and anything else answering there would silently
-    invalidate the test.</pre>
+  * the WDS that does exist is on another machine. PROJECT.md rule 3
+    puts PXE/WDS on the &#x27;HDT External&#x27; switch, the real
+    192.168.1.0/24 LAN, and the responder there runs on HDT-WDS-01 -
+    a Server 2025 VM this build host cannot stand up a second copy
+    of, and a segment a test cannot bring up or tear down.</pre>
 <p>SO IT GETS NO CONTRACT ROW against the real implementation, and tests/contract carries no IWdsService file at all. The ONE thing this machine can prove about it is asserted in tests/unit/Import-HDTBootImageToWds.Tests.ps1, against this function rather than a simulation of it: on a host with no WDS module, the constructor refuses with a named HDTDependencyError. Everything else about the WDS path is asserted against the fake, and that is said here in a plain sentence rather than implied away.</p>
 <p>THE CONSTRUCTOR IS THE ONLY BRANCH, for the same reason Get-HDTAdkPath&#x27;s existence check is: an adapter that is not unit tested must stay branch-free, and a dependency gate that names what is missing is the exception every adapter here is allowed - because the alternative is &quot;The term &#x27;Get-WdsBootImage&#x27; is not recognized&quot;, which tells an administrator nothing about which role to install.</p>
 <p>Import-WdsBootImage is invoked with -SkipVerify:$false. Verification is the slow half of an import and it is the half that catches a truncated WIM before a fleet tries to boot it.</p></div></details>

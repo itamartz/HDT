@@ -223,11 +223,12 @@ their environment silently. This host also runs VMnet1/2/3/4/8, Tailscale,
 Ethernet and Wi-Fi; the free-looking ranges are not free.
 
 `HDT Lab` (internal, isolated) still exists and carries `172.30.30.1`, assigned
-before this rule. It is reserved for future PXE/WDS work, where an isolated
-segment is genuinely required: a PXE responder answers **every** machine on its
-segment, so it belongs on one where the only machines are the ones under test.
-**Do not use it for anything else, and do not add addresses to it, without
-asking.**
+before this rule. It has **no DHCP server and no VM attached to it**, so
+anything placed there gets no lease and cannot reach a share on the host
+(SPIKES S6) — which is also why it cannot host a PXE test: a client with no
+address never gets as far as asking. What it is still good for is a VM that has
+to be off the LAN entirely and needs neither. **Do not add addresses to it
+without asking.**
 
 ## ⚠ Hyper-V lab safety
 
@@ -245,20 +246,30 @@ This host runs the user's **live lab**. Damaging it is worse than failing a test
   - **`HDT External`** — the normal one. The VM gets DHCP from the real LAN on
     `192.168.1.0/24` and can reach the host on that subnet, which is what a
     deployment over SMB needs. Read the host's address; don't assume it.
-  - **`HDT Lab`** — the isolated internal one, reserved for PXE/WDS, where a
-    second responder cannot answer. A VM here gets **no lease and cannot reach a
+  - **`HDT Lab`** — the isolated internal one, `172.30.30.0/24`, with no DHCP
+    server and no VM attached. A VM here gets **no lease and cannot reach a
     share on the host** (SPIKES S6), so it is the wrong choice for anything that
-    needs the network.
+    needs the network — PXE included.
 
   `New-HDTLabVirtualMachine` refuses every other switch by name, and
   **`Default Switch` must stay refused** — it is Hyper-V's own shared NAT
   switch, `172.25.16.1/20` on this host, which is not the deployment subnet. A
   VM there cannot reach the share the way one on `HDT External` can, and it
   shares a segment with whatever else Hyper-V puts on it.
-- **PXE/WDS testing only on `HDT Lab`** — a PXE responder answers every machine
-  on its segment, so it goes on the isolated one, where the only machines are
-  the ones under test. On a shared switch it would answer machines that are not
-  ours, and anything else answering there would silently invalidate the test.
+- **PXE/WDS runs on `HDT External`**, the real `192.168.1.0/24` LAN. WDS has
+  been live there since 2026-09-02 on `HDT-WDS-01`, a standalone Server 2025 —
+  and a client took its bootloader off that wire on 2026-09-10, the first
+  network boot in this project (SPIKES S27). DHCP comes from the household
+  router at `192.168.1.1` and WDS answers PXE alongside it, with no DHCP
+  options 66/67 set anywhere and no prestaged clients. `HDT Lab` cannot host a
+  PXE test: no DHCP server there means no client ever gets far enough to ask.
+
+  The responder answers **every** machine on that subnet — answer clients yes,
+  known-only no, response delay 0, `NoPrompt` for known and new clients alike,
+  bound to all interfaces — and one that boots goes zero-touch, `rules.yaml`
+  setting `HDTSkipWizard: true` and `PNP-TEST` off the `192.168.1.1` gateway,
+  into a sequence that partitions disk 0 with `wipe: true` on any machine
+  carrying a disk of 60 GB or more.
 - Never run an unfiltered Hyper-V pipeline. Filter to `HDT-*` explicitly.
   Reading the other VMs to prove you left them alone is the one exception, and
   it must enumerate them rather than name them — see the note above.

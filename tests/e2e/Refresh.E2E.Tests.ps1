@@ -1175,10 +1175,11 @@ Describe 'it was started from the running OS, with no boot media' -Tag 'E2E' -Sk
         $script:dvdCount | Should -Be 0
     }
 
-    It 'was not on a switch where anything could have PXE-booted it' {
-        # 'HDT External' carries the real LAN and no PXE responder of ours;
-        # PROJECT.md reserves 'HDT Lab' for WDS work precisely so that a
-        # responder cannot answer a machine that did not ask.
+    It 'was on the LAN switch, with no removable media to boot from' {
+        # 'HDT External' is where PROJECT.md rule 3 puts PXE/WDS, so the lab's
+        # HDT-WDS-01 IS on this segment and answers with NoPrompt. What makes
+        # this a disk boot is the firmware boot order and the absent DVD
+        # asserted above, not the absence of a responder.
         [string] (Hyper-V\Get-VMNetworkAdapter -VMName $script:vmName -ErrorAction SilentlyContinue |
                 Select-Object -First 1).SwitchName | Should -BeExactly 'HDT External'
     }

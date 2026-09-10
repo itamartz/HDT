@@ -245,9 +245,10 @@ perspective); refusal to fall back to guest auth.
 
 ~~**and** a physical or virtual machine PXE-boots the same image from WDS.~~
 **MOVED TO v2 by the user on 2026-08-25.** v1 deploys from the ISO, which is
-proven; PXE needs an isolated `HDT-WDS01` that `PROJECT.md` rule 3 confines to
-the `HDT Lab` switch, and waiting on lab hardware is not a reason to
-hold v1. `Import-HDTBootImageToWds` and `New-HDTPxePayload` still ship — they
+proven; PXE needed a WDS server this lab did not yet have, and waiting on lab
+hardware is not a reason to hold v1. (It has one now - `HDT-WDS-01` on
+`HDT External` since 2026-09-02, and a client booted from it on 2026-09-10,
+SPIKES S27.) `Import-HDTBootImageToWds` and `New-HDTPxePayload` still ship — they
 are scheduled out, not cut, and nothing in v1 assumes they are absent.
 
 **The deferral's stated reason has since expired, and the clause itself is now
@@ -341,8 +342,9 @@ all.
   stopped at `Validate`. The rest of this
   paragraph describes why the suite still cannot repeat that run. This host is
   Windows 11 Pro; `Get-Module -ListAvailable WDS` and `Get-Command wdsutil.exe`
-  both return nothing, and `PROJECT.md` rule 3 confines a PXE responder to the
-  isolated `HDT Lab` switch. `Import-HDTBootImageToWds`'s replace-in-place
+  both return nothing, and the responder that answered that boot lives on
+  another machine - `HDT-WDS-01` on the `HDT External` LAN - which no test here
+  can bring up or tear down. `Import-HDTBootImageToWds`'s replace-in-place
   semantics — including "importing the same image twice leaves one image" — are
   asserted against `New-HDTFakeWdsService`. The one thing this machine can prove
   is proven against the real adapter: `New-HDTWdsService` refuses with a named
@@ -1466,11 +1468,10 @@ Ordered by likely value, all pending the open questions in DESIGN §14:
 - Reference image build pipeline (scheduled patch-and-capture).
 - Server OS roles and features.
 - **`JoinDomain` against a real domain controller.** The step ships fake-verified
-  only and always has been (M3, M6): there is no DC on this host, and the one
-  switch isolated enough to carry a PXE responder is also isolated enough to have
-  nothing to join. Proving it needs a domain controller VM on `HDT Lab` and a
-  machine deployed onto that segment, which is a lab build rather than a code
-  change — and it is the last v1 step type with no hardware evidence behind it.
+  only and always has been (M3, M6): there is no DC on this host, and `HDT Lab`,
+  the isolated switch, has no DHCP and nothing on it to join. Proving it needs a
+  domain controller VM and a machine deployed onto the same segment, which is a
+  lab build rather than a code change — and it is the last v1 step type with no hardware evidence behind it.
 - **A secret bag that survives a reboot** (DESIGN §4.5.2, named there and not
   built). `HDTAdminPassword` is recovered from the autologon LSA secret because
   it happens to be the same value; every other secret a full-OS step reads after

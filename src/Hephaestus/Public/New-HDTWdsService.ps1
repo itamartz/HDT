@@ -27,12 +27,11 @@
               * this machine is Windows 11 Pro. The WDS PowerShell module and
                 wdsutil.exe ship with a Windows SERVER role, so there is nothing
                 here to adapt;
-              * standing one up is constrained by PROJECT.md's lab safety rules.
-                Rule 3 confines PXE/WDS testing to the isolated 'HDT Lab'
-                switch, because a PXE responder answers every machine on its
-                segment - on a shared switch it would answer machines that are
-                not ours, and anything else answering there would silently
-                invalidate the test.
+              * the WDS that does exist is on another machine. PROJECT.md rule 3
+                puts PXE/WDS on the 'HDT External' switch, the real
+                192.168.1.0/24 LAN, and the responder there runs on HDT-WDS-01 -
+                a Server 2025 VM this build host cannot stand up a second copy
+                of, and a segment a test cannot bring up or tear down.
 
             SO IT GETS NO CONTRACT ROW against the real implementation, and
             tests/contract carries no IWdsService file at all. The ONE thing this

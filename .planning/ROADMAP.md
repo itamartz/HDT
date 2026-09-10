@@ -317,7 +317,7 @@ Generation 2 VM booted an ISO `Update-HDTBootImage` produced and deployed Window
 `endedWith "wpeutil shutdown"` (SPIKES S12). The **second** clause, PXE boot from
 WDS, **moved to v2 on 2026-08-25** — v1 ships the ISO. It was never met **at the
 time this phase closed**: this build host is Windows 11 Pro with no WDS, and
-PROJECT.md rule 3 confines a PXE responder to the isolated `HDT Lab` switch, so
+PROJECT.md rule 3 named no venue for a responder at all, so
 no WDS import had executed anywhere in this repository. **Both halves of that
 have since closed, outside the phase**: the import ran against the lab's
 `HDT-WDS-01` on 2026-09-07, and a client PXE booted from it on 2026-09-10,

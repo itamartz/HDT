@@ -317,8 +317,8 @@ alone.
    only because the assignment errored. This host also runs VMnet1/2/3/4/8,
    Tailscale, Ethernet and Wi-Fi — ranges that look free are not.
 
-   `HDT Lab` carries `172.30.30.1` from before this rule and is reserved for
-   future PXE/WDS work only. Do not extend it without asking.
+   `HDT Lab` carries `172.30.30.1` from before this rule. It has no DHCP server
+   and no VM attached to it. Do not extend it without asking.
 
    **Two switches, chosen by what the test needs.** Never `Default Switch` —
    it is Hyper-V's own shared NAT switch, `172.25.16.1/20` on this host, which
@@ -327,21 +327,36 @@ alone.
    | Switch | Use it for | Why |
    |---|---|---|
    | **`HDT External`** (Wi-Fi, 192.168.1.0/24) | **SMB deployment, share access, anything needing DHCP or the host** | The host is reachable on this subnet, but **its octet is this lab's own wiring — read it before building a boot image**, do not quote it here. DHCP comes from the real LAN, and SPIKES S6 proved a WinPE VM maps the host's `HDTShare` and applies a 4 GB WIM over it in 95 s |
-   | **`HDT Lab`** (internal, isolated) | **PXE and WDS work only** | A PXE responder answers every machine on its segment, so it belongs on one where the only machines are the ones under test |
+   | **`HDT Lab`** (internal, isolated, 172.30.30.0/24) | **A VM that has to be off the LAN entirely and needs neither a lease nor the host** | No DHCP server and no VM attached: anything here lands on APIPA and cannot reach the host share (SPIKES S6), which is also why it cannot host a PXE test |
 
    An earlier version of this rule sent *every* test VM to the isolated switch.
    That was over-constrained: it has no DHCP, so VMs land on APIPA and cannot
    reach the host share — which is why every deployment in phases 04 and 05 used
    `provider Local` from an attached content disk, and why HDT's primary model,
-   share-based deployment, went unproven end to end. Use `HDT External` unless
-   the test involves PXE.
-3. **PXE/WDS testing happens ONLY on the `HDT Lab` switch.** A PXE responder
-   answers every machine on its segment and cannot be told which ones are ours.
-   On `Default Switch` — Hyper-V's shared NAT segment, which anything on this
-   host may be placed on — it would answer machines that are not part of the
-   test, and anything else answering there would hand our VM someone else's
-   boot image and silently invalidate the run. The isolated switch prevents
-   both, and it is reserved for exactly this.
+   share-based deployment, went unproven end to end. Use `HDT External` — PXE
+   included, see rule 3.
+3. **PXE/WDS testing happens on the `HDT External` switch**, the real
+   `192.168.1.0/24` LAN. WDS has been live there since 2026-09-02 —
+   `HDT-WDS-01`, Server 2025 standalone, `C:\RemoteInstall`, its address a DHCP
+   lease like any other on this subnet —
+   and on 2026-09-10 a client took its bootloader off that wire and was reading
+   the share 28 seconds after power-on (SPIKES S27, the first network boot in
+   this project). DHCP comes from the household router at `192.168.1.1`; WDS
+   answers PXE alongside it, with no DHCP options 66/67 set anywhere and no
+   prestaged clients. That is a deliberate operator decision, and it works.
+
+   `HDT Lab` cannot host a PXE test: no DHCP server on that segment, so a
+   client there never gets an address and never gets as far as asking. Never
+   `Default Switch` either — Hyper-V's shared NAT segment, which anything on
+   this host may be placed on.
+
+   The responder answers **every** machine on `192.168.1.0/24`: answer clients
+   yes, answer only known clients no, response delay 0, `NoPrompt` for known
+   and new clients alike, bound to all interfaces. A machine that network-boots
+   goes zero-touch — `rules.yaml` sets `HDTSkipWizard: true` and `PNP-TEST` off
+   the `192.168.1.1` gateway — into a sequence that partitions disk 0 with
+   `wipe: true` on any machine carrying a disk of 60 GB or more. S27's client
+   stopped at step 2, `Validate`, only because it was deliberately diskless.
 4. **Memory budget: keep the HDT VMs this harness creates under 32 GB
    combined.** Host has 63.7 GB and the free figure moves with whatever else is
    running. Use 4 GB per test VM and shut them down when a test finishes.
