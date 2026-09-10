@@ -420,16 +420,30 @@ all.
 
   - **Implemented and measured:** `-BootLoaderPath` on `Update-HDTBootImage` and
     `New-HDTPxePayload`, both delivery paths, opt-in and **not defaulted on**.
+  - **The OS loader moves with the boot manager, since 2026-09-10 (SPIKES
+    S20.3).** `-BootLoaderPath '<X>\Boot\EFI'` now also copies
+    `<X>\System32\Boot\winload.efi` and `winload.exe` into the mounted
+    `boot.wim`, over the paths the image already has and creating none. Both
+    halves of the pair come off ONE fully patched Windows, so they are matched by
+    construction. `-OsLoaderPath` names the folder when the derivation does not
+    fit.
+  - **Servicing the image to the boot manager's *build* is neither possible nor
+    needed, and S20.2 was wrong to ask for it.** 28000 is the boot manager's own
+    servicing track and 26100 is the OS's: this build host runs boot manager
+    `10.0.28000.342` over OS loader `10.0.26100.8655` with Secure Boot **on**,
+    every day.
   - **Guarded, so it cannot silently ship non-booting media:**
-    `Assert-HDTBootLoaderServicingLevel` refuses a replacement boot manager whose
-    servicing level runs ahead of the image's own `winload.efi`, naming the
-    rollback check rather than the symptom. The version is recorded in the boot
-    image manifest as `osLoader` so the PXE path — which never mounts the WIM —
-    can apply the same check.
-  - **NOT a working Secure Boot fix, and M4 does not claim one.** The remaining
-    work is the **OS loader**: the WinPE image has to be *serviced* so its
-    `winload.efi` comes up to the boot manager's level, rather than two files
-    being copied over a media tree. See S20.2 for what that takes.
+    `Assert-HDTBootLoaderServicingLevel` compares **loader against loader on one
+    servicing track** — the image's `winload.efi` against the serviced Windows's
+    own — after the replacement, and names the rollback check rather than the
+    symptom. Its first rule compared BUILDS across the two tracks and was a false
+    refusal (S20.3). The post-replacement version is recorded in the boot image
+    manifest as `osLoader`, so the PXE path — which never mounts the WIM and
+    grows no injection of its own — can apply the same check.
+  - **STILL NOT PROVEN, and M4 does not claim it is.** Nothing has been booted
+    from an image built this way. It needs a **Generation 2 VM with Secure Boot
+    ON** starting the built ISO; every analyser on this host said the SVN-9.0
+    media was correct and it was not.
   - **The 7.0 floor is unproven on this platform.** The control run means
     Hyper-V's `MicrosoftWindows` Secure Boot template does not enforce it here.
     It is very likely still real on physical hardware with an updated DBX, so the

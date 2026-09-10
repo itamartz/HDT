@@ -2185,6 +2185,13 @@ another name, and no amount of copying loaders can satisfy it.
 
 ### What was built instead
 
+> **⚠ Superseded by S20.3 (2026-09-10).** The build comparison below was a
+> **false refusal** — it ordered two different servicing tracks, and would have
+> refused the very pair this build host boots with Secure Boot on. The rule is now
+> loader-against-loader on one track, and the OS loader is replaced rather than
+> merely checked. Read S20.3 before acting on anything in the rest of this
+> section.
+
 `Assert-HDTBootLoaderServicingLevel` — pure, unit-tested against fakes. It
 compares the **build number** of each replacement boot manager against the build
 number of the `winload.efi` in the image, and refuses a rollback with a message
@@ -2208,6 +2215,12 @@ claim to check one. An unreadable version (`0.0.0.0`, i.e. no version resource)
 is a refusal rather than a pass.
 
 ### The real fix, which is not built
+
+> **⚠ Superseded by S20.3 (2026-09-10).** The OS loader does have to move with
+> the boot manager — that part held — but steps 1 and 2 below are wrong: there is
+> **no LCU that produces a 28000-series `winload.efi`**, because 28000 is the boot
+> manager's own servicing track and not the OS's. Taking both files off ONE fully
+> patched Windows is the whole fix, and it is built. Step 4 stands, unmet.
 
 **The WinPE OS loader has to move with the boot manager.** In practice that means
 **servicing the boot image** rather than copying two files over a media tree:
@@ -2233,6 +2246,105 @@ never got that far.
 `-BootLoaderPath` **stays opt-in and is not defaulted on.**
 
 `HDT-SBOOT-01` is left powered off holding the failed state.
+
+### S20.3 — the guard's rule was a false refusal, and the cure is one folder, not an LCU ⚠
+
+Date: 2026-09-10. S20.2's guard compared the **build number** of the replacement
+boot manager against the build number of the boot image's `winload.efi` and
+refused when the loader's was lower. Read off this build host, with
+`Confirm-SecureBootUEFI` returning **True** and the machine sitting at a
+desktop:
+
+| File | Version | SVN |
+|---|---|---|
+| `%SystemRoot%\Boot\EFI\bootmgfw.efi` | **10.0.28000.342** | 9.0 |
+| `%SystemRoot%\Boot\EFI\bootmgr.efi` | **10.0.28000.342** | 9.0 |
+| `%SystemRoot%\System32\Boot\winload.efi` | **10.0.26100.8655** | *(none)* |
+| `%SystemRoot%\System32\Boot\winload.exe` | **10.0.26100.8655** | *(none)* |
+| `%SystemRoot%\System32\winload.efi` | **10.0.26100.8655** | *(none)* |
+| ADK WinPE `Media\bootmgr.efi`, `EFI\Boot\bootx64.efi` | 10.0.26100.1085 | 3.0 |
+| `C:\HDTLab\Share\Boot\HDTPE_x64.manifest.json`, `osLoader.version` | 10.0.26100.1 | — |
+
+**This machine boots a 28000-series boot manager over a 26100-series OS loader,
+with Secure Boot on, every day.** So a boot manager does **not** require an OS
+loader at its own build number, and S20.2's rule would have refused the exact
+configuration Windows itself ships. It was a **false refusal**.
+
+**28000 is the boot manager's own servicing track; 26100 is the OS's.** S20
+already recorded that as the *tell* for a post-revocation loader and then, one
+section later, used it as a comparison. Ordering two versions across those
+tracks means nothing.
+
+What actually separates the failing pair from the working one is the **OS
+loader's own servicing level**:
+
+| Pair | Boot manager | OS loader | Result |
+|---|---|---|---|
+| the built ISO, S20.2 | 10.0.28000.342 | 10.0.26100.**1** | FAIL `0xc0430001` |
+| this build host | 10.0.28000.342 | 10.0.26100.**8655** | boots, Secure Boot on |
+
+Re-confirmed while checking: **`winload.efi` and `winload.exe` carry no
+`BOOTMGRSECURITYVERSIONNUMBER` resource at all**, probed directly. S20.2 was
+right about that, and it stays right — what the boot manager judges the loader
+on is not an SVN.
+
+### And the cure is smaller than S20.2 thought
+
+S20.2 said the fix needed a cumulative update applied to the mounted `boot.wim`
+so its `winload.efi` "comes up to the boot manager's level". **That is neither
+possible nor necessary.** There is no LCU that produces a 28000-series
+`winload.efi`, because 28000 is not the OS's track. The whole fix is taking
+**both files off ONE fully patched Windows**.
+
+### What was built
+
+- `Get-HDTBootLoaderSource` gains **`-Target Image`**, which names `winload.efi`
+  and `winload.exe` for `Windows\System32\Boot\` inside the mount, plus
+  **`-OsLoaderPath`**. With `-OsLoaderPath` omitted it **derives** the folder
+  from `-BootLoaderPath`: `<X>\Boot\EFI` → `<X>\System32\Boot`, purely, with
+  `[IO.Path]::GetDirectoryName` and `Combine` and no filesystem call. One folder
+  named once means both halves of the pair come off one machine — they cannot be
+  mixed by accident.
+- `Update-HDTBootImage` gains **`-OsLoaderPath`** and, inside the mount, copies
+  those loaders in **only over paths the image already has** — probed with
+  `TestPath`, and a location the image lacks is skipped and logged as skipped,
+  never created. A WinPE carries `Windows\System32\Boot\winload.efi`; a
+  full-Windows layout also carries `winload.exe` beside it and a second
+  `winload.efi` under `System32`, and every one that is there is replaced.
+- The OS loader version is then **re-read** and that post-replacement value is
+  what goes into `Boot\<name>.manifest.json`. It has to be: `New-HDTPxePayload`
+  stages a TFTP tree it cannot mount, so the manifest is the only place the
+  shipped image's version exists on that side.
+- `Assert-HDTBootLoaderServicingLevel` now compares **loader against loader on
+  one track** — the image's `winload.efi` against the serviced Windows's own —
+  and runs **after** the replacement, so it judges the pair that ships. Two
+  versions whose build differs are refused as **unorderable and a caller
+  defect**, not reported to an administrator as a rollback.
+- `New-HDTPxePayload` grows **no injection** — it never mounts the WIM and a
+  second code path opening an image is not something DESIGN allows. It reads the
+  serviced Windows's `winload.efi` version through the pure `-Target Image` table
+  (a `TestPath` and a `GetVersion`) and holds the manifest's recorded version to
+  it.
+- The `HDTFakeFileSystem` **was wrong**: `CopyItem` copied content and dropped
+  the version resource, while the real `Copy-Item` copies the whole PE. Against
+  that double a correct injection read the OLD version back and looked broken.
+  Version now travels with a copy and with a move; a seeded **hash** deliberately
+  does not, because that is how a test says "this copy landed corrupt".
+
+### ⚠ Still unproven on hardware
+
+**Nothing has been booted from an image built this way.** S20.2's whole lesson is
+that every analyser on this host said the SVN-9.0 media was correct and it was
+not, and the same applies here: this is reasoned from versions read on a running
+machine, not from a VM that started. It is unproven until a **Generation 2 VM
+with Secure Boot ON boots the built ISO**, and until then nothing in the help,
+the tests or this document claims otherwise.
+
+The open question S20.2 raised and this does not answer: whether the ADK's own
+26100-era `EFI\Microsoft\Boot\BCD` is happy under a 28000-series boot manager.
+The failing run never got that far, and neither has anything since.
+
+`-BootLoaderPath` **stays opt-in and is not defaulted on.**
 
 ## S21 — `tzutil` is not in WinPE, and the boot image's zone must be set offline ✅
 
