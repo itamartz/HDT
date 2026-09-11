@@ -156,6 +156,85 @@
         return (& $fail ([string] $_.Exception.Message) '')
     }
 
+    # -- THE ESP MAY HAVE NO LETTER, AND ON A REFRESH IT USUALLY HAS NONE -----
+    #
+    # HDTSystemVolume IS PUBLISHED BY THE PARTITION STEP, AND A REFRESH HAS NO
+    # PARTITION STEP. On a bare-metal run DiskPartition lays out S/W/R and
+    # letters them; on a Refresh the partitions already exist and this WinPE
+    # assigned whatever letters it felt like - which for an EFI System Partition
+    # is normally none at all.
+    #
+    # AND "THE MACHINE HDT DEPLOYED ALREADY ANSWERS TO S:" IS NOT TRUE. A letter
+    # diskpart assigned inside one WinPE session does not survive into a WinPE
+    # booted later, so even a machine this toolkit deployed itself comes back
+    # without it. refresh.yaml's own comment asks for exactly this check -
+    # "give the ESP a letter in WinPE if it has none" - and until 2026-09-11
+    # nothing did it, so the first Refresh ever to reach step 12 died on
+    #   bcdboot C:\Windows /s S: /f UEFI
+    #   Failure when initializing library system volume.  (exit 87)
+    #
+    # FINDING IT IS NOT GUESSING, WHICH IS WHY RULE 6 IS SATISFIED. The ESP is
+    # identified by its GPT type, and the one that matters is on the SAME DISK
+    # as the Windows volume being made bootable. Exactly one qualifies or this
+    # refuses and says how many it saw - it will not pick between two.
+    # ONLY ON A REFRESH, AND IT NEVER INVENTS A NEW WAY TO FAIL.
+    #
+    # SCOPED TO REFRESH because that is the run with no partition step. A
+    # NEWCOMPUTER run has just laid out S/W/R and published the letters, so
+    # asking the disk anything would be a question already answered - and it
+    # would put an operation into the ordered list rule 5's benchmark pins,
+    # which is how this was first written and how it broke DEMO-M3.
+    #
+    # BEST EFFORT, NOT A NEW REFUSAL. If the ESP cannot be identified, this says
+    # so and carries on: bcdboot then fails exactly as it did before, with its
+    # own message. An earlier version returned Failed here and turned every
+    # context whose disk service models no partitions into a broken step, which
+    # is a worse bug than the one being fixed.
+    $isRefresh = (([string] $Context.Variable['HDTDeploymentType']).Trim().ToUpperInvariant() -eq 'REFRESH')
+
+    if ($isRefresh -and (-not $fileSystem.TestPath(('{0}:\' -f $systemVolume)))) {
+
+        $diskService = $null
+        if (@($Context.Service.PSObject.Properties.Name) -contains 'Disk') {
+            $diskService = $Context.Service.Disk
+        }
+
+        if ($null -ne $diskService) {
+            $partition = @($diskService.GetPartition())
+
+            $osRow = @($partition | Where-Object { [string] $_.DriveLetter -eq $osVolume })
+
+            $esp = @()
+            if ($osRow.Count -eq 1) {
+                $diskNumber = [int] $osRow[0].DiskNumber
+
+                $esp = @($partition | Where-Object {
+                        ([int] $_.DiskNumber -eq $diskNumber) -and
+                        ((([string] $_.Type) -eq 'System') -or
+                            ((([string] $_.GptType) -replace '[{}]', '') -eq 'c12a7328-f81f-11d2-ba4b-00a0c93ec93b'))
+                    })
+            }
+
+            if ($esp.Count -eq 1) {
+                Write-HDTLog -Context $Context.Log -Component 'ConfigureBoot' -Event 'volume.target' `
+                    -Message ("{0}: named no volume, so the EFI system partition on disk {1} (partition {2}) was given that letter - a Refresh has no partition step to have published one." -f
+                        $systemVolume, [int] $osRow[0].DiskNumber, [int] $esp[0].PartitionNumber) `
+                    -Data ([ordered] @{
+                        systemVolume    = $systemVolume
+                        diskNumber      = [int] $osRow[0].DiskNumber
+                        partitionNumber = [int] $esp[0].PartitionNumber
+                    })
+
+                $diskService.SetPartitionDriveLetter([int] $osRow[0].DiskNumber, [int] $esp[0].PartitionNumber, $systemVolume)
+            } else {
+                Write-HDTLog -Context $Context.Log -Component 'ConfigureBoot' -Event 'volume.target' -Severity Warning `
+                    -Message ("{0}: names no volume and {1} EFI system partition(s) could be identified for {2}:, so the boot files are being written to a letter that may not resolve. bcdboot will say so if it does not." -f
+                        $systemVolume, $esp.Count, $osVolume) `
+                    -Data ([ordered] @{ systemVolume = $systemVolume; candidate = $esp.Count })
+            }
+        }
+    }
+
     $osRoot = '{0}:\' -f $osVolume
     $systemRoot = '{0}:' -f $systemVolume
 

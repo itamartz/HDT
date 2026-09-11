@@ -368,3 +368,91 @@ Describe 'Get-HDTConfigureBootStepDescription' {
         Get-HDTConfigureBootStepDescription -Step $step | Should -Not -BeNullOrEmpty
     }
 }
+
+# THE ESP HAS NO LETTER ON A REFRESH, AND STEP 12 NEEDS ONE.
+#
+# HDTSystemVolume is published by the partition step. A Refresh has no partition
+# step - that is the whole point of it - so nothing letters the EFI system
+# partition, and a letter diskpart assigned inside an earlier WinPE session does
+# not survive into a WinPE booted later. On 2026-09-11 the first Refresh ever to
+# reach step 12 died on
+#   bcdboot C:\Windows /s S: /f UEFI
+#   Failure when initializing library system volume.  (exit 87)
+# refresh.yaml's own comment had asked for this check since M9 was written.
+Describe 'the system volume when nothing published a letter' {
+
+    BeforeEach {
+        $script:espDisk = New-HDTFakeDiskService -Partition @(
+            [pscustomobject] @{ DiskNumber = 0; PartitionNumber = 1; DriveLetter = ''; Type = 'System'
+                GptType = '{c12a7328-f81f-11d2-ba4b-00a0c93ec93b}'; SizeBytes = 272629760 }
+            [pscustomobject] @{ DiskNumber = 0; PartitionNumber = 2; DriveLetter = 'W'; Type = 'Basic'
+                GptType = '{ebd0a0a2-b9e5-4433-87c0-68b6b72699c7}'; SizeBytes = 84535148544 }
+        )
+
+        $script:newEspContext = {
+            param([object] $ImageService, [object] $DiskService)
+
+            $catalog = New-HDTServiceCatalog -FileSystem $script:fileSystem -Clock $script:clock `
+                -Image $ImageService -Disk $DiskService
+
+            $log = New-HDTLogContext -RunId 'run-0001' -Phase WinPE -LogPath 'X:\HDT\Logs' `
+                -FileSystem $script:fileSystem -Clock $script:clock -Level Debug
+
+            $live = [System.Collections.Specialized.OrderedDictionary]::new([System.StringComparer]::OrdinalIgnoreCase)
+            $live['HDTOSVolume'] = 'W'
+            $live['HDTSystemVolume'] = 'S'
+            $live['HDTIsUEFI'] = $true
+            # THE LETTER IS ONLY CHASED ON A REFRESH - a NEWCOMPUTER run has a
+            # partition step that already published one.
+            $live['HDTDeploymentType'] = 'REFRESH'
+
+            return (New-HDTExecutionContext -RunId 'run-0001' -Phase WinPE -WorkspaceRoot 'Z:\Deploy' `
+                    -Variable $live -Service $catalog -Log $log)
+        }
+    }
+
+    It 'gives the letter to the EFI system partition on the Windows volume''s own disk' {
+        $image = New-HDTFakeImageService
+        $context = & $script:newEspContext $image $script:espDisk
+
+        $null = Invoke-HDTConfigureBootStep -Step (& $script:newStep ([ordered] @{})) -Context $context
+
+        $assigned = @($script:espDisk.Operations | Where-Object { $_.Operation -eq 'SetPartitionDriveLetter' })
+
+        $assigned.Count | Should -Be 1
+        [int] $assigned[0].Arguments[0] | Should -Be 0 -Because 'the ESP that matters is on the same disk as Windows'
+        [int] $assigned[0].Arguments[1] | Should -Be 1
+        [string] $assigned[0].Arguments[2] | Should -BeExactly 'S'
+    }
+
+    It 'assigns nothing and says so when the disk carries two' {
+        $twoEsp = New-HDTFakeDiskService -Partition @(
+            [pscustomobject] @{ DiskNumber = 0; PartitionNumber = 1; DriveLetter = ''; Type = 'System'
+                GptType = '{c12a7328-f81f-11d2-ba4b-00a0c93ec93b}'; SizeBytes = 272629760 }
+            [pscustomobject] @{ DiskNumber = 0; PartitionNumber = 2; DriveLetter = ''; Type = 'System'
+                GptType = '{c12a7328-f81f-11d2-ba4b-00a0c93ec93b}'; SizeBytes = 272629760 }
+            [pscustomobject] @{ DiskNumber = 0; PartitionNumber = 3; DriveLetter = 'W'; Type = 'Basic'
+                GptType = '{ebd0a0a2-b9e5-4433-87c0-68b6b72699c7}'; SizeBytes = 84535148544 }
+        )
+
+        $context = & $script:newEspContext (New-HDTFakeImageService) $twoEsp
+
+        $result = Invoke-HDTConfigureBootStep -Step (& $script:newStep ([ordered] @{})) -Context $context
+
+        # IT PICKS NEITHER AND IT DOES NOT INVENT A FAILURE. Two ESPs on one
+        # disk is genuinely ambiguous, so no letter is assigned - but this
+        # resolution is an IMPROVEMENT on a Refresh, not a new gate, so the step
+        # carries on and bcdboot gives its own verdict on the letter as written.
+        # An earlier version returned Failed here and broke every context whose
+        # disk service models no partitions at all.
+        @($twoEsp.Operations | Where-Object { $_.Operation -eq 'SetPartitionDriveLetter' }) | Should -BeNullOrEmpty
+
+        $logText = ''
+        if ($script:fileSystem.File.ContainsKey('X:\HDT\Logs\HDT.jsonl')) {
+            $logText = [string] $script:fileSystem.File['X:\HDT\Logs\HDT.jsonl']
+        }
+
+        $logText | Should -BeLike '*EFI system partition*' -Because (
+            'an ambiguous disk has to be visible in the log, or the bcdboot failure that follows names no cause')
+    }
+}

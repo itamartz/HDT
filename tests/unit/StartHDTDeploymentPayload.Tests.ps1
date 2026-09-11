@@ -133,6 +133,27 @@ Describe 'Start-HDTDeployment.ps1' {
         $script:text | Should -BeLike "*ErrorActionPreference = 'Stop'*"
     }
 
+    Context 'the services it builds are the ones the steps ask for' {
+
+        It 'builds a BitLocker service and hands it to the catalog' {
+            # SuspendBitLocker AND EnableBitLocker BOTH ASK FOR IT BY NAME, and
+            # until 2026-09-10 this file built every other adapter and not that
+            # one. Against fakes nothing showed: every test of either step
+            # injects a fake BitLocker service, so the step was proven and the
+            # catalog that has to supply it in the field never was.
+            #
+            # ON THE FIRST REAL REFRESH IT FAILED AT STEP 3 OF 18 with
+            # "the SuspendBitLocker step needs the BitLocker service, but the
+            # run was started without one. Add it to New-HDTServiceCatalog." -
+            # a message that named its own fix and had never been seen because
+            # no full-OS leg had ever run this far.
+            $script:everyCommandName | Should -Contain 'New-HDTBitLockerService'
+
+            $script:codeOnly | Should -Match 'New-HDTServiceCatalog[\s\S]{0,800}?-BitLocker\s' -Because (
+                'building the adapter and not passing it leaves the catalog exactly as empty as before')
+        }
+    }
+
     Context 'it does no deployment work itself' {
 
         It 'names no fake' {
@@ -609,14 +630,31 @@ Describe 'Start-HDTDeployment.ps1' {
             $phaseArgument.Count |
                 Should -BeGreaterThan 3 -Because 'the log path, the log context, the machine facts, the run state and the execution context each take a -Phase'
 
-            $literal = @($phaseArgument | Where-Object {
-                    $_.Argument -isnot [System.Management.Automation.Language.VariableExpressionAst]
-                })
+            # THE ONE LEGITIMATE CROSSING, AND THE PAYLOAD NAMES IT ITSELF:
+            # "the document declared before the try is how the answer crosses
+            # that boundary". The TAIL cannot read $phase - it is assigned
+            # inside the try, and the sibling test below is the rule that says
+            # so - but the tail still has to say where a failed machine was
+            # left. $result['phase'] is the same derived value, put somewhere a
+            # run that died can still reach, so it counts as carrying it.
+            $carriesPhase = {
+                param($Row)
+
+                if ($Row.Argument -is [System.Management.Automation.Language.VariableExpressionAst]) { return $true }
+
+                return (($Row.Text -replace '\s', '') -eq "`$result['phase']")
+            }
+
+            $literal = @($phaseArgument | Where-Object { -not (& $carriesPhase $_) })
 
             $literal | Should -BeNullOrEmpty -Because ('every -Phase must carry the derived value, and these carry something else: {0}' -f
                 (@($literal | ForEach-Object { '{0} -Phase {1}' -f $_.Command, $_.Text }) -join ', '))
 
-            $distinct = @($phaseArgument | ForEach-Object { $_.Text } | Sort-Object -Unique)
+            # The crossing is the same value by another road, so it is not a
+            # second phase and does not count as one here.
+            $distinct = @($phaseArgument |
+                    Where-Object { $_.Argument -is [System.Management.Automation.Language.VariableExpressionAst] } |
+                    ForEach-Object { $_.Text } | Sort-Object -Unique)
 
             $distinct.Count | Should -Be 1 -Because ('one run has one start phase; these are different variables: {0}' -f ($distinct -join ', '))
         }

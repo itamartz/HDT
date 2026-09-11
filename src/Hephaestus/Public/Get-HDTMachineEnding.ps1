@@ -69,6 +69,10 @@ function Get-HDTMachineEnding {
         [string] $FailureScreenAction = '',
 
         [Parameter()]
+        [AllowEmptyString()]
+        [string] $Phase = 'WinPE',
+
+        [Parameter()]
         [switch] $LeftAtCommandPrompt
     )
 
@@ -97,8 +101,21 @@ function Get-HDTMachineEnding {
         }
     }
 
+    # THE PLACE IS NAMED BECAUSE A PERSON READS THIS. Holding the machine is
+    # right in either phase, but a Refresh fails in the FULL OS, and a log that
+    # tells a technician the machine is "left in WinPE" sends them looking for a
+    # boot environment that was never on the screen. Watched 2026-09-10 on
+    # HDT-M9-Refresh, which said exactly that while sitting at a Windows
+    # desktop.
+    # AND AN UNKNOWN PHASE CLAIMS NEITHER. A run that died before it derived
+    # its phase reaches this line with nothing, and the tail still has to write
+    # a reason - so it says where the machine is only when it knows.
+    $place = 'left running'
+    if ([string] $Phase -eq 'WinPE') { $place = 'left in WinPE' }
+    if ([string] $Phase -eq 'FullOS') { $place = 'left running in the full OS' }
+
     return [pscustomobject] @{
         EndMachine = $false
-        Reason     = 'left in WinPE so the failure can be read'
+        Reason     = ('{0} so the failure can be read' -f $place)
     }
 }

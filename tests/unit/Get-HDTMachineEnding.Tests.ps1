@@ -85,3 +85,35 @@ Describe 'Get-HDTMachineEnding' {
         }
     }
 }
+
+# THE REASON IS READ BY A PERSON, SO IT HAS TO BE TRUE ON THEIR MACHINE.
+#
+# On 2026-09-10 a Refresh failed in its FULL-OS leg and the log said "HDT is not
+# ending this machine: left in WinPE so the failure can be read" - on a machine
+# running Windows, which had never been in WinPE. The same run also announced
+# 'wpeutil shutdown' as the command it would have used and tried to write its
+# fallback RESULT.json to X:, a drive that does not exist outside WinPE.
+#
+# THE BEHAVIOUR IS RIGHT AND IS NOT CHANGED HERE. Holding a failed machine so a
+# technician can read the screen is the decision DESIGN made, and it is as
+# correct in the full OS as it is in WinPE. What was wrong was telling them they
+# were somewhere they were not, in the one log they are reading precisely
+# because something has gone wrong.
+Describe 'the reason a failed machine is held' {
+
+    It 'says WinPE when the run was in WinPE' {
+        $ending = Get-HDTMachineEnding -Status 'Failed' -Phase 'WinPE'
+
+        $ending.EndMachine | Should -BeFalse
+        $ending.Reason | Should -BeLike '*WinPE*'
+    }
+
+    It 'does not claim WinPE when the run was in the full OS' {
+        $ending = Get-HDTMachineEnding -Status 'Failed' -Phase 'FullOS'
+
+        $ending.EndMachine | Should -BeFalse
+        $ending.Reason | Should -Not -BeLike '*WinPE*' -Because (
+            'a Refresh fails in the full OS, and telling the technician it is in WinPE sends them looking for a machine that is not there')
+        $ending.Reason | Should -BeLike '*failure can be read*'
+    }
+}

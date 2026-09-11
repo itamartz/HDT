@@ -436,6 +436,21 @@ try {
     $imageService = New-HDTImageService
     $registry = New-HDTRegistryService
     $lsa = New-HDTLsaService
+
+    # THE ONE THE STEPS ASKED FOR AND THE CATALOG NEVER CARRIED. SuspendBitLocker
+    # and EnableBitLocker both call GetRequired('BitLocker'), and against fakes
+    # they always got one, because every test of either step injects one. The
+    # real catalog was built without it from M6 until 2026-09-10, when the first
+    # full-OS Refresh ever to run got as far as step 3 of 18 and stopped with
+    # "the SuspendBitLocker step needs the BitLocker service, but the run was
+    # started without one."
+    #
+    # BUILT ON EVERY LEG, INCLUDING WinPE. Constructing it costs nothing and
+    # touches no hardware - it is a branch-free adapter under rule 1's exception,
+    # so it reads the machine only when a step calls it - and a catalog whose
+    # contents depended on the phase would be a second place the phase is
+    # decided.
+    $bitLocker = New-HDTBitLockerService
     $environment = New-HDTEnvironmentProvider
     $cim = New-HDTCimProvider
     $processService = New-HDTProcessService
@@ -2273,7 +2288,7 @@ try {
     $catalog = New-HDTServiceCatalog -FileSystem $fileSystem -Clock $clock -Registry $registry `
         -Lsa $lsa -Process $processService -Power $power -ScriptInvoker $scriptInvoker -Cim $cim `
         -Environment $environment -Disk $diskService -Image $imageService -Content $content `
-        -Progress $display.DisplayHost
+        -BitLocker $bitLocker -Progress $display.DisplayHost
 
     # -LogLevel IS WHAT THE SECOND LEG WILL LOG AT. The share is not reachable
     # when Start-HDTResume.ps1 builds its context, so the level travels in the
@@ -2856,6 +2871,7 @@ if ($result.Contains('failureScreen')) {
 
 $machineEnding = Get-HDTMachineEnding -Status ([string] $result['status']) `
     -FailureScreenAction $failureScreenAction `
+    -Phase $result['phase'] `
     -LeftAtCommandPrompt:([bool] $result['leftAtCommandPrompt'])
 
 if (-not $machineEnding.EndMachine) {
