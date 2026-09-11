@@ -76,7 +76,88 @@ $ErrorActionPreference = 'Stop'
 # [IO.Path]::GetDirectoryName RATHER THAN Split-Path, because this routinely runs
 # from a UNC path and the provider-aware cmdlets resolve the drive.
 $shareRoot = [System.IO.Path]::GetDirectoryName($PSScriptRoot.TrimEnd('\', '/'))
-$env:PSModulePath = '{0};{1}' -f ([System.IO.Path]::Combine($shareRoot, 'Modules')), $env:PSModulePath
+
+# -- the modules, brought to a local disk before anything imports them --------
+#
+# .NET FRAMEWORK WILL NOT LOAD AN ASSEMBLY FROM A SHARE, and until 2026-09-10
+# this file asked it to. powershell-yaml's Invoke-LoadFile calls
+# [Reflection.Assembly]::LoadFile() on YamlDotNet.dll; handed a UNC path .NET
+# refuses it - "an attempt was made to load an assembly from a network location
+# which would have caused the assembly to be sandboxed in previous versions of
+# the .NET Framework ... please enable the loadFromRemoteSources switch" - and
+# that switch lives in a .config file on the machine being deployed, which is
+# not something a deployment tool may edit on somebody else's computer.
+#
+# IT COST M9 ITS EXIT CRITERION, AND IT FAILED SILENTLY. On the first real
+# machine ever to run this, the import died with 0x8000FFFF E_UNEXPECTED before
+# the engine existed to write a log: no Refresh started, no run folder appeared
+# on the share, and the machine sat in the installation it was meant to replace
+# with nothing on any volume to say why. The only record was the launcher's own
+# stderr in C:\HDT.
+#
+# SO IT DOES WHAT WinPE HAS ALWAYS DONE. X:\HDT\Modules is a local copy the boot
+# image carries, and that is the only reason every other leg imports cleanly;
+# this gives the full-OS entry point the same local copy rather than a second
+# mechanism. THE WHOLE FOLDER GOES ACROSS, not just the one module that happens
+# to carry a DLL today - a step module shipping an assembly tomorrow would hit
+# exactly this wall, and would hit it on somebody's production machine.
+#
+# THE SYSTEM DRIVE COMES FROM .NET AND NOT FROM $env:, because the environment
+# adapter lives in the module this copy exists to make importable. It is a PATH
+# and not a DECISION: the decision this file must not make for itself is the
+# phase, and that is still read through New-HDTEnvironmentProvider below.
+# <volume>\HDT is also the one folder CleanVolume keeps, so the staged copy
+# survives the leg that empties the disk.
+#
+# New-Item -Force ON A DIRECTORY is create-or-leave-alone, which is how this
+# stays branch-free - every branch belongs in Get-HDTRefreshLaunchPlan where a
+# fake can drive it.
+$moduleStage = [System.IO.Path]::Combine(
+    [System.IO.Path]::GetPathRoot([System.Environment]::SystemDirectory), 'HDT', 'Modules')
+
+New-Item -Path $moduleStage -ItemType Directory -Force | Out-Null
+
+# A LOCKED FILE HERE IS NOT A FAILURE, AND STOPPING ON ONE BREAKS THE RETRY.
+#
+# A full-OS run that FAILS does not end the process - the engine holds the
+# machine so the failure can be read - so the PowerShell that ran it stays alive
+# holding YamlDotNet.dll and PowerShellYamlSerializer.dll open. The
+# administrator's next move is to run this launcher again, and a -Force copy
+# onto a loaded assembly throws "the process cannot access the file ... because
+# it is being used by another process". That turns a readable deployment failure
+# into an unreadable one about file sharing.
+#
+# A FILE THAT IS LOCKED IS A FILE THAT ALREADY LOADED, which is the only
+# property this copy exists to produce - so skipping it loses nothing. What
+# would lose something is staging nothing at all, and that is not silent:
+# Get-HDTRefreshLaunchPlan tests for the payload under this exact folder and
+# refuses by name if it is not there.
+# robocopy AND NOT Copy-Item, BECAUSE A FILE THAT IS ALREADY RIGHT MUST NOT BE
+# REWRITTEN.
+#
+# The machine usually HAS this copy already - Copy-HDTResumeAgent stages the
+# same Modules\ tree from the boot image - so a -Force copy overwrites a
+# YamlDotNet.dll that is byte-for-byte what is wanted, and then imports it
+# microseconds later. That race is real: on 2026-09-10 the launcher died with
+# "Catastrophic failure (E_UNEXPECTED)" loading a LOCAL, correct, identical DLL,
+# and the identical launcher run again a minute later loaded it without
+# complaint. Nothing about the file was wrong; it had just been rewritten.
+#
+# robocopy SKIPS SAME SIZE AND SAME TIMESTAMP, so the common case copies
+# nothing at all and there is no rewrite to race. /E takes the tree,
+# /R:1 /W:1 stops it retrying a locked file for thirty seconds each, and the
+# rest silence a log nobody reads.
+#
+# ITS EXIT CODES ARE NOT PROCESS EXIT CODES. Anything under 8 is success -
+# 0 copied nothing, 1 copied something, 2 found extras, 3 both. 8 and above are
+# real failures, and they are NOT thrown here for the reason the locked-file
+# note above gives: Get-HDTRefreshLaunchPlan tests for the payload under this
+# folder and refuses by name if the staging genuinely did not happen.
+& "$env:SystemRoot\System32\robocopy.exe" `
+    ([System.IO.Path]::Combine($shareRoot, 'Modules')) $moduleStage `
+    '/E' '/R:1' '/W:1' '/NFL' '/NDL' '/NJH' '/NJS' '/NP' | Out-Null
+
+$env:PSModulePath = '{0};{1}' -f $moduleStage, $env:PSModulePath
 
 Import-Module -Name 'powershell-yaml' -Force -ErrorAction Stop
 Import-Module -Name 'Hephaestus' -Force -ErrorAction Stop
@@ -97,8 +178,13 @@ $isElevated = ([Security.Principal.WindowsPrincipal] $identity).IsInRole(
     [Security.Principal.WindowsBuiltInRole]::Administrator)
 
 # -- every decision, in one call ----------------------------------------------
+# -ModuleRoot IS THE STAGED COPY THIS FILE ALREADY IMPORTED FROM, and handing it
+# over is not optional. The plan's ModuleRoot is what the payload imports from,
+# so a plan left to name the share would put the assembly-over-UNC failure one
+# layer down - in Start-HDTDeployment.ps1, after this file had already printed
+# that it was a REFRESH and looked like it was working.
 $plan = Get-HDTRefreshLaunchPlan -ScriptRoot $PSScriptRoot -SystemDrive $systemDrive `
-    -IsElevated $isElevated -SequenceId $SequenceId
+    -IsElevated $isElevated -SequenceId $SequenceId -ModuleRoot $moduleStage
 
 Write-Information ("HDT Refresh: share '{0}' ({1}), phase {2}, deployment type {3}" -f
     $plan.Root, $plan.WorkspaceId, $plan.Phase, $plan.DeploymentType) -InformationAction Continue

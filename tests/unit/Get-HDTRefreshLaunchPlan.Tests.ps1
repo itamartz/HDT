@@ -65,6 +65,56 @@ BeforeAll {
 
 Describe 'Get-HDTRefreshLaunchPlan' {
 
+    Context 'where the engine is read from' {
+
+        # DESIGN 3 CALLS Modules\ "engine payload STAGED TO CLIENTS", and until
+        # 2026-09-10 the plan read it in place on the share instead. That works
+        # for every .ps1 in it and fails for the one .dll: powershell-yaml loads
+        # YamlDotNet through [Reflection.Assembly]::LoadFile(), and .NET
+        # Framework refuses an assembly on a UNC path unless loadFromRemoteSources
+        # is switched on in a .config on the machine being deployed.
+        #
+        # PROVEN ON HDT-M9-Refresh. The launcher now stages Modules\ to
+        # <system drive>\HDT\Modules before it imports anything - it has to, or
+        # it cannot read a YAML document to build this plan - and the plan has
+        # to agree with it, or the payload it hands over to imports from the
+        # share and dies on the same line one layer down. That is exactly what
+        # happened: "phase FullOS, deployment type REFRESH" printed, and then
+        # the payload threw on powershell-yaml.psm1:39.
+
+        It 'reads the engine off the share when nothing was staged' {
+            # EVERY EXISTING CALLER, UNCHANGED. WinPE stages its own copy into
+            # the boot image and passes none.
+            $plan = & $script:planFor (& $script:newShare)
+
+            $plan.ModuleRoot | Should -Be 'Q:\Share\Modules'
+        }
+
+        It 'reads the engine from the staged copy when the launcher names one' {
+            $fileSystem = & $script:newShare -Extra @{
+                ([System.IO.Path]::Combine('C:\HDT\Modules', 'Hephaestus', 'Payload', 'Start-HDTDeployment.ps1')) = '# the staged engine'
+            }
+
+            $plan = Get-HDTRefreshLaunchPlan -ScriptRoot ([System.IO.Path]::Combine('Q:\Share', 'Scripts')) `
+                -SystemDrive 'C:' -IsElevated $true -ModuleRoot 'C:\HDT\Modules' -FileSystem $fileSystem
+
+            $plan.ModuleRoot | Should -Be 'C:\HDT\Modules'
+            $plan.PayloadPath | Should -Be 'C:\HDT\Modules\Hephaestus\Payload\Start-HDTDeployment.ps1'
+            $plan.UiRoot | Should -Be 'C:\HDT\Modules\Hephaestus\UI'
+        }
+
+        It 'refuses by the staged path when the staging did not happen' {
+            # THE MESSAGE HAS TO NAME THE PATH THAT IS ACTUALLY EMPTY. A refusal
+            # naming the share would send an administrator to look at a folder
+            # that is present and correct.
+            $fileSystem = & $script:newShare
+
+            { Get-HDTRefreshLaunchPlan -ScriptRoot ([System.IO.Path]::Combine('Q:\Share', 'Scripts')) `
+                    -SystemDrive 'C:' -IsElevated $true -ModuleRoot 'C:\HDT\Modules' -FileSystem $fileSystem } |
+                Should -Throw -ExpectedMessage '*C:\HDT\Modules*'
+        }
+    }
+
     Context 'where the share is' {
 
         It 'is the folder the launcher was launched from, one level up' {

@@ -202,6 +202,68 @@ Describe 'the launcher a share is created with' {
                 'the launcher must carry no list of screens - the payload it runs is the one place they are named')
         }
 
+        It 'stages the modules on a local disk before importing them' {
+            # .NET FRAMEWORK WILL NOT LOAD AN ASSEMBLY FROM A SHARE, and this
+            # file is the only entry point that ever tried to.
+            #
+            # powershell-yaml's Invoke-LoadFile calls
+            # [Reflection.Assembly]::LoadFile() on YamlDotNet.dll. Given a UNC
+            # path .NET refuses it - "An attempt was made to load an assembly
+            # from a network location which would have caused the assembly to be
+            # sandboxed in previous versions of the .NET Framework ... please
+            # enable the loadFromRemoteSources switch" - and enabling that
+            # switch means editing a .config on somebody else's machine, which a
+            # deployment tool does not get to do.
+            #
+            # PROVEN ON HARDWARE 2026-09-10, and it is why M9's exit had never
+            # been reached: on HDT-M9-Refresh the launcher died on this line
+            # with 0x8000FFFF E_UNEXPECTED before writing a single log, so the
+            # Refresh never started and the machine sat in the OS it was meant
+            # to replace. The same DLL copied to a local folder loads.
+            #
+            # EVERY WinPE LEG ALREADY WORKS THIS WAY - X:\HDT\Modules is a local
+            # copy the boot image carries - so this puts the full-OS entry point
+            # on the footing the rest of the engine has always had, rather than
+            # inventing one. The whole Modules folder goes across, not just the
+            # module that happens to carry a DLL today.
+            $text = [System.IO.File]::ReadAllText($script:launcherPath)
+            $code = ($text -split "`n" | Where-Object { $_ -notmatch '^\s*#' }) -join "`n"
+
+            $code | Should -Not -Match 'PSModulePath\s*=[^\r\n]*\$shareRoot' -Because (
+                'pointing PSModulePath at the share is what made Import-Module load YamlDotNet.dll over UNC')
+
+            # THE STAGE HAS TO BE WRITTEN AND THE SHARE HAS TO BE ITS SOURCE.
+            # Which tool does it is not this test's business - it was Copy-Item
+            # and is now robocopy, because a -Force copy rewrites a DLL that was
+            # already correct and the import can lose the race with it.
+            $code | Should -Match 'robocopy[\s\S]{0,200}?\$moduleStage' -Because (
+                'the modules have to be brought to a local disk before anything imports them')
+
+            $code | Should -Match "Combine\(\`$shareRoot, 'Modules'\)" -Because (
+                'the share is where they come from')
+        }
+
+        It 'hands the staged copy to the plan, so the payload imports from it too' {
+            # THE PLAN'S ModuleRoot IS WHAT THE PAYLOAD IMPORTS FROM. Staging
+            # locally and then letting the plan name the share moves the failure
+            # one layer down instead of fixing it - which is what happened on
+            # 2026-09-10: this file printed "phase FullOS, deployment type
+            # REFRESH" and Start-HDTDeployment.ps1 then threw on
+            # powershell-yaml.psm1:39, from the share.
+            $text = [System.IO.File]::ReadAllText($script:launcherPath)
+            $code = ($text -split "`n" | Where-Object { $_ -notmatch '^\s*#' }) -join "`n"
+
+            $code | Should -Match 'Get-HDTRefreshLaunchPlan[\s\S]{0,300}?-ModuleRoot\s+\$moduleStage'
+        }
+
+        It 'imports from the staged copy and not from the share' {
+            $text = [System.IO.File]::ReadAllText($script:launcherPath)
+            $code = ($text -split "`n" | Where-Object { $_ -notmatch '^\s*#' }) -join "`n"
+
+            $code | Should -Match 'PSModulePath\s*=[^\r\n]*\$moduleStage' -Because (
+                'the staged copy is the one the imports must resolve against')
+        }
+
         It 'reads the environment through the adapter, never through $env:' {
             # CLAUDE.md RULE 5. The system drive is what makes this run a REFRESH;
             # read through New-HDTEnvironmentProvider it can be faked, read

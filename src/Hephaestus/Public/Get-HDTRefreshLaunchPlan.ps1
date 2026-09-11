@@ -85,6 +85,14 @@
             legal and ordinary: the sequence then comes from the wizard or the
             rules.
 
+        .PARAMETER ModuleRoot
+            Where the engine was staged, when the caller staged it. The full-OS
+            launcher copies the share's Modules\ to a local disk before it
+            imports anything - .NET Framework will not load YamlDotNet from a
+            UNC path - and passes the copy here so the payload imports from the
+            same place the launcher did. Empty, the default, means the share's
+            own Modules\, which is every caller that stages nothing.
+
         .PARAMETER FileSystem
             An IFileSystem. Defaults to the real one; a test passes
             New-HDTFakeFileSystem.
@@ -147,6 +155,10 @@
         [Parameter()]
         [AllowEmptyString()]
         [string] $SequenceId = '',
+
+        [Parameter()]
+        [AllowEmptyString()]
+        [string] $ModuleRoot = '',
 
         [Parameter()]
         [ValidateNotNull()]
@@ -228,11 +240,44 @@
 
     # -- 4. the engine it hands over to --------------------------------------
     #
-    # OFF THE SHARE, BECAUSE THE MACHINE HAS NOTHING ON IT. A machine being
+    # FROM THE SHARE, BECAUSE THE MACHINE HAS NOTHING ON IT. A machine being
     # refreshed is somebody's working laptop; HDT is not installed on it and must
     # not have to be. DESIGN 3's layout already names Modules\ "engine payload
     # staged to clients", and this is the client.
-    $moduleRoot = [System.IO.Path]::Combine($root, 'Modules')
+    #
+    # STAGED TO IT, THOUGH - THE DESIGN'S OWN WORD, AND IT HAD BEEN READ IN
+    # PLACE. Every file in Modules\ is a .ps1 that runs perfectly well over UNC
+    # except one: powershell-yaml loads YamlDotNet through
+    # [Reflection.Assembly]::LoadFile(), and .NET Framework refuses to load an
+    # assembly from a network location unless loadFromRemoteSources is enabled
+    # in a .config file on the machine being deployed - which is not a thing a
+    # deployment tool may edit on somebody else's computer.
+    #
+    # SO THE LAUNCHER STAGES Modules\ LOCALLY AND NAMES THE COPY HERE. It has no
+    # choice about the staging: it cannot read a YAML document to build this
+    # plan until powershell-yaml has imported. The plan has to agree with it,
+    # because the ModuleRoot in this plan is what the payload imports from - and
+    # a plan that named the share would put the same failure one layer down,
+    # which is exactly where it was found on 2026-09-10: the launcher printed
+    # "phase FullOS, deployment type REFRESH" and then Start-HDTDeployment.ps1
+    # threw on powershell-yaml.psm1:39.
+    #
+    # EMPTY MEANS THE SHARE, which is every caller that stages nothing - WinPE
+    # carries its own copy at X:\HDT\Modules inside the boot image and reaches
+    # this function by a different road entirely.
+    # AND THE DEFAULT IS APPLIED TO THE PARAMETER ITSELF, NOT TO A LOCAL BESIDE
+    # IT. PowerShell variable names are case-insensitive, so $moduleRoot and the
+    # $ModuleRoot parameter are ONE variable: computing the share path into
+    # '$moduleRoot' first silently overwrites whatever the launcher passed, and
+    # the staged copy is lost with no error anywhere. That is not hypothetical -
+    # it is how this was written the first time, and the plan went on reporting
+    # the share while the tests for it failed with the two paths looking
+    # identical in the diff.
+    if ([string]::IsNullOrWhiteSpace($ModuleRoot)) {
+        $ModuleRoot = [System.IO.Path]::Combine($root, 'Modules')
+    }
+
+    $moduleRoot = $ModuleRoot
     $payloadPath = [System.IO.Path]::Combine($moduleRoot, 'Hephaestus', 'Payload', 'Start-HDTDeployment.ps1')
 
     if (-not $FileSystem.TestPath($payloadPath)) {
