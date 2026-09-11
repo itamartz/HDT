@@ -245,9 +245,24 @@ BeforeAll {
     $script:templatePath = Join-Path -Path $script:repoRoot -ChildPath 'src/Hephaestus/Templates/refresh.yaml'
     $script:artifactRoot = 'C:\HDTLab\scratch\e2e-refresh'
 
-    if (-not (Test-Path -LiteralPath $script:artifactRoot -PathType Container)) {
-        New-Item -Path $script:artifactRoot -ItemType Directory -Force | Out-Null
+    # EMPTIED FIRST, BECAUSE YESTERDAY'S EVIDENCE READS EXACTLY LIKE TODAY'S.
+    #
+    # These files are named by what they are - RESULT-01.json, state-01.json,
+    # LAYOUT-BEFORE.json - not by which run wrote them, so a run that captures
+    # nothing leaves the previous run's file sitting there looking current. On
+    # 2026-09-11 this directory held a RESULT-01.json from 22:12 and a
+    # state-01.json from 18:53 while a run at 02:34 was being diagnosed from
+    # them. That is the same stale-artifact fault the watch itself had twice,
+    # one level out.
+    #
+    # SAFE TO EMPTY: this is the suite's own directory under C:\HDTLab\scratch,
+    # created by this file and removed by it, and every artifact in it is
+    # reproduced by the run that is about to start.
+    if (Test-Path -LiteralPath $script:artifactRoot -PathType Container) {
+        Remove-Item -LiteralPath $script:artifactRoot -Recurse -Force -ErrorAction SilentlyContinue
     }
+
+    New-Item -Path $script:artifactRoot -ItemType Directory -Force | Out-Null
 
     # -- THE PROTECTED SET, RECORDED BEFORE ANYTHING STARTS ----------------
     #
