@@ -437,7 +437,7 @@ Describe 'the system volume when nothing published a letter' {
 
         $context = & $script:newEspContext (New-HDTFakeImageService) $twoEsp
 
-        $result = Invoke-HDTConfigureBootStep -Step (& $script:newStep ([ordered] @{})) -Context $context
+        $null = Invoke-HDTConfigureBootStep -Step (& $script:newStep ([ordered] @{})) -Context $context
 
         # IT PICKS NEITHER AND IT DOES NOT INVENT A FAILURE. Two ESPs on one
         # disk is genuinely ambiguous, so no letter is assigned - but this
