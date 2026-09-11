@@ -35,7 +35,7 @@ $script:HDTRepositoryRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot
 Import-Module -Name (Join-Path -Path $script:HDTRepositoryRoot -ChildPath 'tests/helpers/HDTTestTools/HDTTestTools.psd1') -Force -ErrorAction Stop
 $script:HDTYamlMissing = -not (Test-HDTModuleAvailable -Name 'powershell-yaml')
 
-Describe 'CI-Lab workflow' {
+Describe 'Lab workflow' {
 
     BeforeAll {
         $script:repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
@@ -95,13 +95,19 @@ Describe 'CI-Lab workflow' {
         $script:workflow | Should -Not -BeNullOrEmpty
     }
 
-    It 'is named so a workflow_run trigger can find it' -Skip:$script:HDTYamlMissing {
-        # badges.yml fires on `workflow_run: workflows: [CI-Lab]`, and that key
-        # matches the `name:` in this file - not the filename. Rename this and
-        # the badges silently stop updating, with no failing run anywhere to
+    It 'is named, and nothing now depends on what the name is' -Skip:$script:HDTYamlMissing {
+        # THIS USED TO PIN THE EXACT STRING, and for a good reason: badges.yml
+        # fired on `workflow_run: workflows: [CI-Lab]`, and that key matches the
+        # `name:` in this file rather than the filename - so a rename would have
+        # stopped the badges updating silently, with no failing run anywhere to
         # say so, because a workflow_run naming a workflow that does not exist
         # simply never fires.
-        [string] $script:workflow['name'] | Should -BeExactly 'CI-Lab'
+        #
+        # THE BADGES ARE A JOB IN THIS FILE NOW, so there is no workflow_run to
+        # match and no coupling left to protect. What is still worth asserting
+        # is that the workflow HAS a name - an unnamed one shows in the Actions
+        # tab as its path, which is what the README badge links away from.
+        [string] $script:workflow['name'] | Should -Not -BeNullOrEmpty
     }
 
     It 'runs the gate on the lab runner, by label' -Skip:$script:HDTYamlMissing {

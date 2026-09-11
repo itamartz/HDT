@@ -1,4 +1,4 @@
-name: CI
+name: Gate
 
 # DESIGN 12.2.5: unit + contract + PSScriptAnalyzer on every push, Windows
 # runner, a red suite blocks merge.
