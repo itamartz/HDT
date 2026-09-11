@@ -177,6 +177,64 @@ function New-HDTFileSystem {
         [void] [System.IO.Directory]::CreateDirectory($this.NormalizePath($Path))
     }
 
+    # THE RECURSIVE DELETE, WRITTEN OUT BECAUSE THE FRAMEWORK'S ONE FOLLOWS
+    # JUNCTIONS. See RemoveItem below for the machine and the day that proved it.
+    # It is one level of directory at a time: files here, then each child, then
+    # this directory - and a child that is a reparse point is unlinked rather
+    # than descended into.
+    $service | Add-Member -MemberType ScriptMethod -Name IsReparsePoint -Value {
+        param([string] $Full)
+
+        if (-not [System.IO.Directory]::Exists($Full)) { return $false }
+
+        $attribute = [System.IO.File]::GetAttributes($Full)
+
+        return (($attribute -band [System.IO.FileAttributes]::ReparsePoint) -eq [System.IO.FileAttributes]::ReparsePoint)
+    }
+
+    $service | Add-Member -MemberType ScriptMethod -Name RemoveTree -Value {
+        param([string] $Full)
+
+        # THE DOOR, NOT THE ROOM. $false is deliberate and is the whole fix:
+        # it unlinks the junction and never touches what it points at.
+        if ($this.IsReparsePoint($Full)) {
+            [System.IO.Directory]::Delete($Full, $false)
+            return
+        }
+
+        # GetFiles WITHOUT AllDirectories is this directory only, which is what
+        # makes the walk ours rather than the framework's.
+        foreach ($item in [System.IO.Directory]::GetFiles($Full)) {
+            [System.IO.File]::SetAttributes($item, [System.IO.FileAttributes]::Normal)
+            [System.IO.File]::Delete($item)
+        }
+
+        foreach ($child in [System.IO.Directory]::GetDirectories($Full)) {
+            $this.RemoveTree($child)
+        }
+
+        # A FOLDER HAS ATTRIBUTES TOO, AND Directory.Delete REFUSES ON THEM.
+        #
+        # The files above have had ReadOnly cleared since the ADK's autorun.inf
+        # forced it; the FOLDER never did. A directory marked ReadOnly or System
+        # throws UnauthorizedAccessException from Directory.Delete - "Access to
+        # the path ... is denied", the SAME SENTENCE a permissions refusal
+        # produces, and that collision cost four runs on 2026-09-10 taking
+        # ownership of C:\Program Files and granting Administrators Modify over
+        # it. takeown and icacls succeeded every single time. Nothing was ever
+        # wrong with the ACL: C:\Program Files\Internet Explorer\images carries
+        # the System bit, as plenty of Windows folders do, and that alone
+        # stopped a wipe-and-load at "the volume is only half cleaned".
+        #
+        # THE Directory BIT STAYS. Assigning Normal to a directory is not
+        # meaningful - what is wanted is ReadOnly, System and Hidden gone and
+        # the thing still a directory, which is exactly what this says.
+        $info = New-Object -TypeName System.IO.DirectoryInfo -ArgumentList $Full
+        $info.Attributes = [System.IO.FileAttributes]::Directory
+
+        [System.IO.Directory]::Delete($Full, $false)
+    }
+
     $service | Add-Member -MemberType ScriptMethod -Name RemoveItem -Value {
         param([string] $Path, [bool] $Recurse)
 
@@ -214,10 +272,34 @@ function New-HDTFileSystem {
         # ONLY WHEN RECURSING. A non-recursive delete of a populated directory
         # must still throw, so there is nothing to clear and walking the tree
         # would be work done to reach an exception.
+        #
+        # AND IT WALKS THE TREE ITSELF, BECAUSE .NET's WALK GOES THROUGH DOORS.
+        # This was [System.IO.Directory]::GetFiles($full, '*', AllDirectories)
+        # followed by Directory::Delete($full, $true), and both follow reparse
+        # points. Two things went wrong on the first real Refresh, 2026-09-10:
+        #
+        #   IT NEVER FINISHED. C:\Documents and Settings is a junction to
+        #   C:\Users, and under it AppData\Local\Application Data is a junction
+        #   to its own parent. AllDirectories walked the loop until the path ran
+        #   past MAX_PATH and threw "Could not find a part of the path
+        #   'C:\Documents and Settings\Administrator\AppData\Local\Application
+        #   Data\Application Data\...\IconCache.db'". CleanVolume reported
+        #   "the volume is only half cleaned", which is the worst outcome a
+        #   wipe-and-load has: the old installation is neither kept nor gone.
+        #
+        #   AND IT REACHED OUTSIDE THE TREE, which is the half nobody saw. A
+        #   junction pointing off the volume is followed just as happily, so
+        #   deleting a directory that merely CONTAINS one would clear attributes
+        #   on, and then delete, files somewhere else entirely. On a volume being
+        #   wiped that is invisible. Anywhere else it is data loss.
+        #
+        # A REPARSE POINT IS A DOOR, AND THE DOOR IS WHAT GETS DELETED - never
+        # the room behind it. Directory::Delete(link, $false) removes the
+        # junction and leaves its target alone, which is what rd and Remove-Item
+        # do and what anybody deleting a tree means.
         if ($Recurse) {
-            foreach ($item in [System.IO.Directory]::GetFiles($full, '*', [System.IO.SearchOption]::AllDirectories)) {
-                [System.IO.File]::SetAttributes($item, [System.IO.FileAttributes]::Normal)
-            }
+            $this.RemoveTree($full)
+            return
         }
 
         # Directory.Delete throws IOException for a populated directory when
@@ -284,12 +366,25 @@ function New-HDTFileSystem {
 
         $full = $this.NormalizePath($Path)
 
-        # A FILE THAT IS NOT THERE STAYS AN EXCEPTION, and it is stated here
-        # rather than left to the tools: takeown reports a missing file on
+        # SOMETHING THAT IS NOT THERE STAYS AN EXCEPTION, and it is stated here
+        # rather than left to the tools: takeown reports a missing target on
         # stderr with an exit code, and "ERROR: The system cannot find the file"
         # is a worse answer than the type every other method on this service
         # throws for the same mistake.
-        if (-not (Test-Path -LiteralPath $full -PathType Leaf)) {
+        #
+        # A FOLDER COUNTS. This read -PathType Leaf, which is FILES ONLY, so
+        # every directory reached it and threw - and CleanVolume's whole reason
+        # for calling this is a directory: C:\Program Files, owned by
+        # TrustedInstaller. On 2026-09-10 that produced "Could not find
+        # 'C:\Program Files' to take ownership of." about a folder the delete
+        # had just walked into, which reads as a missing path and was a wrong
+        # question.
+        #
+        # THAT IS THE THIRD PLACE THIS ONE ASSUMPTION HID: the takeown call
+        # itself was file-only, the fake accepted only files, and so did this
+        # guard. Rule 8's point exactly - a thing is not added until every
+        # surface that must know about it does.
+        if (-not (Test-Path -LiteralPath $full)) {
             throw [System.IO.FileNotFoundException]::new(
                 "Could not find '$full' to take ownership of.", $full)
         }
@@ -315,10 +410,48 @@ function New-HDTFileSystem {
         # ever consulted (SPIKES S13.5). Local to this method scope.
         $ErrorActionPreference = 'Continue'
 
-        $takeOutput = @(& "$env:SystemRoot\System32\takeown.exe" '/F' $full 2>&1)
+        # A DIRECTORY IS TAKEN WHOLE. /R walks it and /D Y answers the prompt
+        # takeown asks when it cannot read a folder's current ACL - without that
+        # answer the tool blocks for ever on a machine nobody is standing at.
+        #
+        # THIS WAS FILE-ONLY UNTIL 2026-09-10, AND CleanVolume PAID FOR IT. A
+        # Refresh empties a deployed Windows, and C:\Program Files and its
+        # children are owned by TrustedInstaller - Administrators are not granted
+        # delete on them. Taking the top folder alone changes nothing about the
+        # children, and icacls /grant then fails SILENTLY on each of them,
+        # because /C means "carry on past errors" and the exit code stays 0. The
+        # delete that follows then refuses on the first one it reaches:
+        #
+        #   Access to the path 'C:\Program Files\Internet Explorer\images' is denied.
+        #   step 'Clean the OS volume': C:\Program Files could not be deleted
+        #   from C:\, so the volume is only half cleaned.
+        #
+        # A FILE GETS NO /R, because takeown rejects it there - and a caller
+        # asking for one file wants exactly one file.
+        $takeArgument = [System.Collections.ArrayList]::new()
+        [void] $takeArgument.AddRange(@('/F', $full))
 
-        # Exit-code check, with the tool's own sentence attached. The only
-        # branches in this method are this and the existence guard above.
+        $isDirectory = [System.IO.Directory]::Exists($full)
+        if ($isDirectory) { [void] $takeArgument.AddRange(@('/R', '/D', 'Y')) }
+
+        $takeOutput = @(& "$env:SystemRoot\System32\takeown.exe" @takeArgument 2>&1)
+
+        # IT SAYS WHAT THE TOOL SAID, AND THAT IS THE POINT OF THIS LINE.
+        #
+        # This used to swallow a non-zero exit for a directory as "best effort",
+        # on the reasoning that a Windows installation always has a few items
+        # takeown cannot claim and the delete afterwards is the real test. That
+        # reasoning is fine right up until the delete FAILS - and then the log
+        # says "Access to the path 'C:\Program Files\Internet Explorer\images'
+        # is denied", with nothing at all about the repair that was supposed to
+        # prevent it. Three runs on 2026-09-10 died that way, and each one left
+        # the question "did takeown work?" unanswerable.
+        #
+        # SO A FAILED TAKE IS AN ERROR THAT CARRIES ITS OWN EVIDENCE. The
+        # caller's catch has somewhere to put it, and CLAUDE.md asks for the
+        # command, its exit code and what that code means rather than a
+        # flattened sentence. A repair that half worked and a delete that then
+        # refused are two different faults and want two different fixes.
         if ($LASTEXITCODE -ne 0) {
             throw [System.InvalidOperationException]::new(
                 ("takeown.exe exited {0} for '{1}'{2}{3}" -f $LASTEXITCODE, $full,

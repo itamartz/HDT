@@ -283,7 +283,7 @@ function Invoke-HDTCleanVolumeStep {
         # tree is what makes the second attempt land. S-1-5-32-544 rather than a
         # name, because icacls resolves names against the machine's locale.
         Write-HDTLog -Context $Context.Log -Component $component -Event volume.retry -Severity Warning `
-            -Message ("{0} refused to be deleted ({1}: {2}). Granting Administrators Modify over it and trying once more - a denying ACL is the commonest reason a delete refuses on a volume some other deployment built." -f
+            -Message ("{0} refused to be deleted ({1}: {2}). Taking ownership of it and everything under it, granting Administrators Modify, and trying once more - a denying ACL is the commonest reason a delete refuses on a volume some other deployment built, and on a deployed Windows the owner is TrustedInstaller from Program Files down, so the take has to come first or the grant has nothing to write on." -f
                 $path, $first.Exception.GetType().FullName, [string] $first.Exception.Message) `
             -Data ([ordered] @{
                 path      = [string] $path
@@ -292,6 +292,13 @@ function Invoke-HDTCleanVolumeStep {
             })
 
         try {
+            # THE TAKE BEFORE THE GRANT. icacls cannot rewrite an ACL on
+            # something this account does not own, and it runs with /C so it
+            # carries on past every refusal and still exits 0 - a grant that
+            # changed nothing and reported success. A deployed Windows is owned
+            # by TrustedInstaller from C:\Program Files down, so without this
+            # the retry was the same delete a second time.
+            $fileSystem.TakeOwnership([string] $path)
             $fileSystem.GrantAccess([string] $path, '*S-1-5-32-544', 'Modify')
             $fileSystem.RemoveItem([string] $path, $true)
         } catch {

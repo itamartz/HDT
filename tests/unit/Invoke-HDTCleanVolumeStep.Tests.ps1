@@ -429,7 +429,20 @@ Describe 'Invoke-HDTCleanVolumeStep' {
                     Where-Object { [string] $_.Arguments[0] -eq 'C:\Windows' } |
                     ForEach-Object { [string] $_.Operation })
 
-            $onWindows | Should -Be @('RemoveItem', 'GrantAccess', 'RemoveItem')
+            # OWNERSHIP FIRST, THEN THE GRANT, AND THAT ORDER IS THE WHOLE FIX.
+            #
+            # icacls /grant cannot change an ACL on something the caller does not
+            # own, and it is called with /C - "carry on past errors" - so it
+            # fails on each TrustedInstaller-owned child and still exits 0. The
+            # grant looked like it worked and changed nothing.
+            #
+            # WATCHED ON THE FIRST REAL REFRESH, 2026-09-10: the retry granted
+            # Administrators Modify over C:\Program Files, deleted nothing, and
+            # the step reported "Access to the path 'C:\Program Files\Internet
+            # Explorer\images' is denied ... the volume is only half cleaned".
+            # A Windows installation is owned by TrustedInstaller from the root
+            # down, so the take has to come first and has to be recursive.
+            $onWindows | Should -Be @('RemoveItem', 'TakeOwnership', 'GrantAccess', 'RemoveItem')
             $fs.TestPath('C:\Windows') | Should -BeFalse
         }
 
