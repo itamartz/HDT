@@ -154,8 +154,35 @@ steps:
       # is what makes that possible. It is also the protector the criterion is
       # about: a TPM protector is the one that measures the boot path, so it is
       # the one an armed ramdisk boot entry can send into recovery.
+      # retry, AND IT IS ON AN ACTION RATHER THAN AN ASSERTION.
+      #
+      # A vTPM IS BRAND NEW ON EVERY RUN AND WINDOWS OWNS IT ON ITS OWN TIME.
+      # The harness stamps a fresh virtual TPM onto a fresh VM, so the module
+      # arrives un-owned; Windows auto-provisions it during first boot, and this
+      # step runs seconds after that boot. Get there first and BitLocker says:
+      #
+      #   0x80310018: You must initialize the Trusted Platform Module (TPM)
+      #   before you can use BitLocker Drive Encryption.
+      #
+      # Watched on 2026-09-10. Earlier runs of this same file passed only
+      # because Windows happened to finish provisioning first - the same shape
+      # of race as the encryption method, and just as intermittent.
+      #
+      # "DO IT UNTIL IT TAKES" IS WHAT A RETRY MEANS ON AN ACTION, which is why
+      # AD-JOIN's Join Domain step has one and its VERIFICATION step
+      # deliberately does not. Three attempts a minute apart cost two minutes on
+      # a genuine failure and save a fifteen-minute seed on a flake.
+      #
+      # THE PRODUCT QUESTION IS SEPARATE AND STILL OPEN: EnableBitLocker does
+      # not wait for a TPM to be ready, and MDT's ZTIBde checks Win32_Tpm before
+      # it asks for a protector. This retry makes the FIXTURE reliable; it does
+      # not make the step patient.
       - name: Enable BitLocker
         type: EnableBitLocker
+        retry:
+          count: 3
+          delaySeconds: 60
+          backoff: fixed
         scope: usedSpaceOnly
         method: XtsAes256
         protector: tpm

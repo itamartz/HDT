@@ -293,7 +293,22 @@ BeforeAll {
         $answer = [ordered] @{ Read = $false; Disk = $null; Partition = @() }
 
         try {
-            Mount-DiskImage -ImagePath $VhdPath -StorageType VHDX -Access ReadOnly | Out-Null
+            # -NoDriveLetter, AND IT IS THE HOST'S PEACE AND QUIET.
+            #
+            # Mounting the guest's VHDX puts ITS volumes on the developer's own
+            # machine, and Windows greets a new fixed data drive by offering to
+            # BitLocker it. On 2026-09-10 that put a dialog on the user's desktop
+            # in the middle of a run - "BitLocker could not be enabled. The data
+            # drive specified is not set to automatically unlock on the current
+            # computer ... D: was not encrypted." Harmless, because the mount is
+            # ReadOnly and the attempt failed, and completely unacceptable as a
+            # thing a test suite does to somebody's session.
+            #
+            # NOTHING HERE WANTS A LETTER ANYWAY. Get-Partition reads offsets,
+            # sizes and GUIDs off the disk number; a path is only needed by the
+            # OTHER mount below, the one that opens files inside the deployed
+            # Windows.
+            Mount-DiskImage -ImagePath $VhdPath -StorageType VHDX -Access ReadOnly -NoDriveLetter | Out-Null
             $number = [int] (Get-DiskImage -ImagePath $VhdPath).Number
 
             $disk = Get-Disk -Number $number -ErrorAction Stop
@@ -404,8 +419,31 @@ BeforeAll {
     # IT ALSO KEEPS EVERY DISTINCT RESULT.json IT SEES, because Logs\RESULT.json
     # is one file that all three legs overwrite and the one the administrator
     # started is the FIRST.
+    # $Since IS WHAT MAKES ANY OF THIS AN OBSERVATION RATHER THAN A COINCIDENCE.
+    #
+    # THE SEED DEPLOYMENT IS THIS FILE'S OWN, IT USES THIS COMPUTER NAME, AND IT
+    # RAN IN WinPE. So by the time the launcher is armed the share already holds
+    # a folder full of records whose phase is WinPE - written by the setup, not
+    # by the run under test. Reading the newest folder and looking for a WinPE
+    # record therefore answered "yes" on the first iteration, in ZERO seconds,
+    # every time.
+    #
+    # THAT IS EXACTLY THE FALSE PASS 09-VERIFICATION WARNED ABOUT. On
+    # 2026-09-10 this watch reported "WinPE after 0s (176 WinPE records)" for a
+    # machine that had never left the full OS - the launcher had died on a
+    # module import before the engine started - and the three assertions
+    # downstream all went green on the seed's evidence. A recovery prompt would
+    # have passed identically, which is the one outcome this file exists to
+    # catch.
+    #
+    # SO NOTHING THAT EXISTED BEFORE THE ARM COUNTS. Not a folder, not a
+    # RESULT.json. Logs\RESULT.json is a single file every leg of every run
+    # overwrites, and the one on this share was ten days old and belonged to a
+    # different machine running a different sequence - it was being captured as
+    # this run's first result.
     $script:watchForWinPe = {
-        param([string] $Name, [string] $LogRoot, [string] $ComputerName, [int] $Minute, [string] $ArtifactRoot)
+        param([string] $Name, [string] $LogRoot, [string] $ComputerName, [int] $Minute, [string] $ArtifactRoot,
+            [datetime] $Since)
 
         $deadline = (Get-Date).AddMinutes($Minute)
         $resultPath = Join-Path -Path $LogRoot -ChildPath 'RESULT.json'
@@ -426,7 +464,15 @@ BeforeAll {
         while ((Get-Date) -lt $deadline) {
 
             # -- RESULT.json, every version of it --------------------------
+            # WRITTEN SINCE THE ARM, OR IT IS SOMEBODY ELSE'S. See $Since above:
+            # this is one file, shared by every run this share has ever hosted.
+            $resultIsOurs = $false
             if (Test-Path -LiteralPath $resultPath -PathType Leaf) {
+                try { $resultIsOurs = ((Get-Item -LiteralPath $resultPath).LastWriteTimeUtc -gt $Since) }
+                catch { $resultIsOurs = $false }
+            }
+
+            if ($resultIsOurs) {
                 $text = ''
                 try { $text = [System.IO.File]::ReadAllText($resultPath) } catch { $text = '' }
 
@@ -443,7 +489,24 @@ BeforeAll {
             # Copy-HDTLog writes Logs\<ComputerName>-<RunId>\. Newest wins: the
             # share may hold folders from earlier runs of this same file, and
             # the one being written now is the one whose LastWriteTime moves.
-            $folder = @(Get-ChildItem -LiteralPath $LogRoot -Directory -Filter ('{0}-*' -f $ComputerName) -ErrorAction SilentlyContinue |
+            # BOTH LAYOUTS, AND ONLY FOLDERS CREATED SINCE THE ARM.
+            #
+            # The engine logs LIVE to Logs\<name>\run-<id>\ and copies the same
+            # run back to Logs\<name>-<id>\ when the leg ENDS. This watched only
+            # the copy-back, which is the one that does not exist yet while the
+            # leg it is waiting for is running - so the only folder it could
+            # ever find was the seed's, finished minutes earlier. The live one
+            # is where a WinPE record appears WHILE WinPE is up, which is the
+            # signal this function is named for.
+            $candidate = @(Get-ChildItem -LiteralPath $LogRoot -Directory -Filter ('{0}-*' -f $ComputerName) -ErrorAction SilentlyContinue)
+
+            $liveRoot = Join-Path -Path $LogRoot -ChildPath $ComputerName
+            if (Test-Path -LiteralPath $liveRoot -PathType Container) {
+                $candidate += @(Get-ChildItem -LiteralPath $liveRoot -Directory -Filter 'run-*' -ErrorAction SilentlyContinue)
+            }
+
+            $folder = @($candidate |
+                    Where-Object { $_.CreationTimeUtc -gt $Since } |
                     Sort-Object LastWriteTime -Descending)
 
             if ($folder.Count -ge 1) {
@@ -749,6 +812,65 @@ $Extra
         Start-Sleep -Seconds 150
         Save-HDTLabVmScreen -Name $script:vmName -Path (Join-Path -Path $script:artifactRoot -ChildPath 'refresh-01-seed-winpe.png') | Out-Null
 
+        # -- THE DISC COMES OUT NOW, NOT AFTER THE SEED ----------------------
+        #
+        # BITLOCKER REFUSES A TPM PROTECTOR WHILE BOOTABLE MEDIA IS PRESENT:
+        #
+        #   BitLocker Drive Encryption detected bootable media (CD or DVD) in
+        #   the computer. Remove the media and restart the computer before
+        #   configuring BitLocker. (HRESULT: 0x80310030)
+        #
+        # Watched on 2026-09-10. The seed's own EnableBitLocker runs in its
+        # FULL-OS leg, and the ISO it booted from was still in the drive - so
+        # the step added a recovery password protector to C:, failed on the Tpm
+        # one, and left the machine unencrypted. Removing the drive AFTER the
+        # seed finished, which is where that code still lives, is far too late:
+        # the step it has to be gone for has already run.
+        #
+        # EJECTING NOW IS SAFE BECAUSE WinPE IS ALREADY IN RAM. The machine
+        # booted the ISO 150 seconds ago, boot.wim is on X:, the engine and
+        # powershell-yaml are baked into it, and every file the sequence reads
+        # after this comes off the share over SMB. Nothing reads the disc again.
+        #
+        # THE DRIVE AND NOT JUST THE DISC, AND IT COMES OUT NOW.
+        #
+        # Ejecting the media was enough for BitLocker but left the drive itself,
+        # and removing THAT later - once the seed had powered off - failed with
+        # "InvalidParameter, VirtualizationException", so the Refresh started
+        # with a DVD drive still attached and the "no removable media at all"
+        # criterion failed on a technicality (2026-09-10, "DVD drives attached
+        # for the Refresh: 1").
+        #
+        # A GENERATION 2 VM TAKES SCSI HOT-REMOVE, so the whole drive can go
+        # while the machine is up - and WinPE has been in RAM since it booted,
+        # with every file it still needs coming off the share, so there is
+        # nothing left for the drive to serve.
+        # HOT-REMOVE FIRST, EJECT IF HYPER-V WILL NOT. Taking the drive out
+        # satisfies both the BitLocker precondition and the "no removable media
+        # at all" criterion in one go, and a Generation 2 VM normally allows it
+        # while running. NORMALLY: on 2026-09-11 one run in four had Hyper-V
+        # answer "unable to find a virtual machine with name HDT-M9-Refresh" to
+        # this very call, on a machine that plainly existed - and that killed the
+        # whole twenty-minute suite at the setup stage.
+        #
+        # EJECTING THE DISC IS ENOUGH FOR THE PART THAT MATTERS HERE. BitLocker
+        # objects to bootable MEDIA, not to an empty drive, so the fallback still
+        # lets the seed encrypt; the drive itself is removed again after the seed
+        # powers off, where the criterion is asserted.
+        foreach ($drive in @(Hyper-V\Get-VMDvdDrive -VMName $script:vmName -ErrorAction SilentlyContinue)) {
+            try {
+                Hyper-V\Remove-VMDvdDrive -VMDvdDrive $drive -ErrorAction Stop
+            } catch {
+                Write-Warning ("could not hot-remove the DVD drive ({0}); ejecting the disc instead, which is all BitLocker needs" -f
+                    $_.Exception.Message)
+
+                Hyper-V\Set-VMDvdDrive -VMDvdDrive $drive -Path $null -ErrorAction SilentlyContinue
+            }
+        }
+
+        Write-Information ("the seed's disc was taken out while WinPE was up, so BitLocker will accept a TPM protector " +
+            "in the full-OS leg (0x80310030 otherwise)") -InformationAction Continue
+
         $script:seededCleanly = Wait-HDTLabVmState -Name $script:vmName -State 'Off' -TimeoutMinute 90
 
         $seedStopwatch.Stop()
@@ -913,6 +1035,13 @@ $Extra
             Write-Information ("launching the shipped launcher from '{0}' as '{1}'" -f
                 $deployRoot, $shareCredential.UserName) -InformationAction Continue
 
+            # THE LINE BETWEEN THE SETUP'S EVIDENCE AND THE RUN'S, taken before
+            # anything is started so nothing the seed left can fall on this side
+            # of it. Everything the watch will accept has to be newer than this.
+            # A second of slack costs nothing and a clock that ticks between two
+            # statements is not a thing worth losing a two-hour run to.
+            $script:armMoment = [datetime]::UtcNow.AddSeconds(-1)
+
             try {
                 Invoke-Command -VMName $script:vmName -Credential $guestCredential -ArgumentList @(
                     $deployRoot, [string] $shareCredential.UserName, [string] $shareCredential.Password, $script:sequenceId
@@ -963,7 +1092,8 @@ $Extra
             $refreshStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
 
             $script:watch = & $script:watchForWinPe $script:vmName `
-                (Join-Path -Path $script:shareRoot -ChildPath 'Logs') $script:computerName 30 $script:artifactRoot
+                (Join-Path -Path $script:shareRoot -ChildPath 'Logs') $script:computerName 30 $script:artifactRoot `
+                $script:armMoment
 
             Write-Information ("the watch after the arm returned '{0}' after {1}s ({2} WinPE records)" -f
                 $script:watch['Outcome'], $script:watch['Seconds'], $script:watch['WinPeCount']) -InformationAction Continue
@@ -991,8 +1121,40 @@ $Extra
             # -- the evidence, off the share ----------------------------------
             $logRoot = Join-Path -Path $script:shareRoot -ChildPath 'Logs'
 
-            $runFolder = @(Get-ChildItem -LiteralPath $logRoot -Directory -Filter ('{0}-*' -f $script:computerName) -ErrorAction SilentlyContinue |
-                    Sort-Object LastWriteTime -Descending)
+            # THE COPY-BACK IS NOT FINISHED WHEN THE MACHINE SAYS IT IS.
+            #
+            # Copy-HDTLog writes the run's folder to the share and the machine
+            # then powers off, and the host sees 'Off' the moment the VM stops -
+            # which can be before the last file has landed over SMB. Read then
+            # and state.json is simply absent: on 2026-09-11 a run whose own log
+            # showed leg 3 reporting REFRESH was scored "kept 0 state.json
+            # versions", and SEVEN assertions failed about behaviour the machine
+            # had plainly performed. The evidence existed; the harness had
+            # looked a second early.
+            #
+            # SO IT WAITS FOR THE FILE, BRIEFLY AND BOUNDED. A minute is far
+            # longer than an SMB copy of a few hundred kilobytes needs, and a
+            # run that never produces one fails the assertions that care rather
+            # than hanging here.
+            $runFolder = @()
+            $evidenceDeadline = (Get-Date).AddSeconds(60)
+
+            while ((Get-Date) -lt $evidenceDeadline) {
+                $runFolder = @(Get-ChildItem -LiteralPath $logRoot -Directory -Filter ('{0}-*' -f $script:computerName) -ErrorAction SilentlyContinue |
+                        Where-Object { $_.CreationTimeUtc -gt $script:armMoment } |
+                        Sort-Object LastWriteTime -Descending)
+
+                if ($runFolder.Count -ge 1 -and
+                    (Test-Path -LiteralPath (Join-Path -Path $runFolder[0].FullName -ChildPath 'state.json') -PathType Leaf)) {
+
+                    break
+                }
+
+                Start-Sleep -Seconds 2
+            }
+
+            Write-Information ("evidence folder: {0}" -f $(if ($runFolder.Count -ge 1) { $runFolder[0].Name } else { '(none)' })) `
+                -InformationAction Continue
 
             if ($runFolder.Count -ge 1) {
                 $jsonlPath = Join-Path -Path $runFolder[0].FullName -ChildPath 'HDT.jsonl'
