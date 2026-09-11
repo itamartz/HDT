@@ -57,7 +57,12 @@
     return [string[]] @(
         ('- name: {0}' -f $Name)
         '  type: EnableBitLocker'
-        "  drive: '%HDTOSVolume%'"
+        '  # NO drive:, DELIBERATELY. The step takes the system drive, which on'
+        '  # a FullOS leg is the volume Windows is running from. This template'
+        '  # used to write %HDTOSVolume% here, and that is the letter the'
+        '  # PARTITION step gave the volume in WinPE - W: - which stops being'
+        '  # true the moment the machine boots. Name a drive here only to'
+        '  # encrypt something other than the running installation.'
         '  scope: usedSpaceOnly'
         '  method: XtsAes256'
         '  protector: tpm'

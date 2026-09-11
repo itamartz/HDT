@@ -221,6 +221,36 @@
 
     $drive = & $read 'drive' ''
 
+    # THE SYSTEM DRIVE FIRST, BECAUSE HDTOSVolume IS A WinPE LETTER.
+    #
+    # The partition step publishes HDTOSVolume, and it runs in WinPE where the
+    # Windows volume is mounted at W:. The moment the machine boots, that same
+    # volume is C: - and this step is a State Restore step (DESIGN 10.3; both
+    # shipped templates put it in a runIn: FullOS group), so it always ran after
+    # the letter had moved. On the first real run, 2026-09-10, it asked the
+    # machine about W: and got "W: does not have an associated BitLocker
+    # volume", failed, and left a machine nobody had encrypted. That is why M9's
+    # BitLocker exit criterion had no evidence behind it.
+    #
+    # MDT'S ORDER, AND HDT BUILDS MDT'S (ZTIBde.wsf:176-181): a drive the step
+    # names wins, and otherwise the target is the system drive.
+    #
+    # EXCEPT IN WinPE, WHERE THE SYSTEM DRIVE IS THE RAM DISK. MDT tests for
+    # exactly this - `If (oEnv("SystemDrive") = "X:")` at ZTIBde.wsf:118 - and
+    # takes its own path there. Encrypting X: would be nonsense, so in WinPE
+    # HDTOSVolume is still the right answer and is still what is used.
+    #
+    # THE ENVIRONMENT MAY BE ABSENT, and then this changes nothing. The real
+    # catalog always carries one; a test that predates this fallback does not,
+    # and falls through to HDTOSVolume exactly as it always did.
+    if ([string]::IsNullOrWhiteSpace($drive) -and ([string] $Context.Phase -ne 'WinPE')) {
+        $environment = $Context.Service.Environment
+
+        if ($null -ne $environment) {
+            $drive = [string] $environment.GetVariable('SystemDrive')
+        }
+    }
+
     if ([string]::IsNullOrWhiteSpace($drive)) {
         $drive = [string] $Context.Variable['HDTOSVolume']
     }
@@ -339,13 +369,89 @@
 
     $usedSpaceOnly = ($scope -eq 'usedSpaceOnly')
 
+    # -- THE METHOD IS ONLY HDT'S TO CHOOSE WHILE THE VOLUME IS UNTOUCHED -----
+    #
+    # WINDOWS STARTS ENCRYPTING BY ITSELF. Windows 11 turns on automatic device
+    # encryption during OOBE on hardware that qualifies, so a machine deployed
+    # an hour ago is routinely part way through a pass this sequence never asked
+    # for - XTS-AES 128, because that is the default, whatever the step says.
+    #
+    # AND THE METHOD CANNOT BE CHANGED HALF WAY. manage-bde refuses
+    # -EncryptionMethod on a converting volume with "The parameter is incorrect"
+    # (0x80070057), so asking for one is not a stricter version of this step: it
+    # is a step that fails and leaves the machine with no protector at all.
+    #
+    # SO IT SAYS SO, LOUDLY, AND TURNS PROTECTION ON. A volume encrypted with
+    # XTS-AES 128 and protected by a TPM is enormously better than a volume
+    # encrypted to nobody's benefit with protection off, which is what refusing
+    # here would leave behind. The warning names both methods so an
+    # administrator reading the log a week later can see that the sequence asked
+    # for one thing and the machine had already committed to another - and can
+    # go and turn off automatic device encryption in the answer file if that
+    # matters to them.
+    $methodToUse = $method
+    $currentStatus = ''
+    if ($null -ne $volume) { $currentStatus = [string] $volume.VolumeStatus }
+
+    if ($currentStatus -ne 'FullyDecrypted') {
+        $methodToUse = ''
+
+        $methodMessage = ("{0} is already {1}, so its encryption method was fixed before this step ran and cannot be changed. " -f $drive, $currentStatus) +
+            ("The sequence asked for {0}; the volume keeps whatever it started with. " -f $method) +
+            'Windows 11 automatic device encryption is the usual reason. Protection is still turned on.'
+
+        Write-HDTLog -Context $Context.Log -Severity Warning -Event 'native.exec' -Component 'EnableBitLocker' `
+            -Message $methodMessage -Data $data
+    }
+
     Write-HDTLog -Context $Context.Log -Event 'native.exec' -Component 'EnableBitLocker' `
         -Message ('encrypting {0} with {1} ({2})' -f $drive, $method, $scope) -Data $data
 
+    # THE METHOD IS THE FIRST THING TO GIVE UP, AND ONLY THE METHOD.
+    #
+    # WINDOWS CAN START ENCRYPTING BETWEEN THE READ ABOVE AND THIS CALL. The
+    # volume said FullyDecrypted a moment ago, automatic device encryption began
+    # on its own, and manage-bde now refuses to be told a method:
+    # "An error occurred (code 0x80070057): The parameter is incorrect".
+    #
+    # IT IS A RACE, AND IT BEHAVED LIKE ONE. Two identical runs an hour apart on
+    # this lab: 2026-09-10 21:51 won it and encrypted to XtsAes256; 22:32 lost it
+    # and failed the step, leaving a machine with a recovery password protector
+    # and no encryption at all. A step that fails intermittently because Windows
+    # got there first is not one anybody can deploy with.
+    #
+    # SO A REFUSED METHOD IS RETRIED WITHOUT ONE. Encryption with the method the
+    # volume already has beats no encryption, every time - and the condition is
+    # "a method was asked for and refused" rather than "is it converting now?",
+    # because re-reading the volume is the same race again and because every
+    # other reason manage-bde might reject a method deserves the same fallback.
+    # A second refusal fails the step, carrying the tool's own sentence.
+    $enableError = $null
+
     try {
-        $bitlocker.Enable($drive, $method, $usedSpaceOnly)
+        $bitlocker.Enable($drive, $methodToUse, $usedSpaceOnly)
     } catch {
-        return (& $fail ("encryption of {0} could not be started: {1}" -f $drive, [string] $_.Exception.Message) $data)
+        $enableError = $_
+    }
+
+    if (($null -ne $enableError) -and (-not [string]::IsNullOrWhiteSpace($methodToUse))) {
+        Write-HDTLog -Context $Context.Log -Severity Warning -Event 'native.exec' -Component 'EnableBitLocker' `
+            -Message (("{0} refused to be encrypted with {1} ({2}). " -f $drive, $methodToUse, [string] $enableError.Exception.Message) +
+                'Trying again without a method, which lets the volume keep whatever it has already started with - ' +
+                'Windows 11 automatic device encryption is the usual reason it has started anything.') -Data $data
+
+        $enableError = $null
+        $methodToUse = ''
+
+        try {
+            $bitlocker.Enable($drive, $methodToUse, $usedSpaceOnly)
+        } catch {
+            $enableError = $_
+        }
+    }
+
+    if ($null -ne $enableError) {
+        return (& $fail ("encryption of {0} could not be started: {1}" -f $drive, [string] $enableError.Exception.Message) $data)
     }
 
     if (-not $wait) {
@@ -376,7 +482,33 @@
         }
 
         if ([string] $volume.VolumeStatus -eq 'FullyEncrypted') {
-            $message = '{0} is fully encrypted ({1}, {2}).' -f $drive, $method, $scope
+
+            # WHAT THE VOLUME HAS, NOT WHAT THE STEP ASKED FOR.
+            #
+            # This line read '... ({1}, {2})' -f $method, $scope - the REQUEST -
+            # and so it announced "C: is fully encrypted (XtsAes256,
+            # usedSpaceOnly)" about a volume carrying XTS-AES 128, because
+            # Windows had begun the conversion first and the cipher was fixed
+            # before this step got a word in. Watched on 2026-09-10.
+            #
+            # A LOG THAT REPORTS THE ASK AS THE OUTCOME IS WORSE THAN A QUIET
+            # ONE. Somebody auditing a fleet for XTS-AES 256 would have read
+            # that line and believed it. The method now comes off the volume,
+            # and where it differs from the request the line says both.
+            $actualMethod = $method
+            if ($volume.PSObject.Properties.Name -contains 'EncryptionMethod' -and
+                (-not [string]::IsNullOrWhiteSpace([string] $volume.EncryptionMethod))) {
+
+                $actualMethod = [string] $volume.EncryptionMethod
+            }
+
+            $message = '{0} is fully encrypted ({1}, {2}).' -f $drive, $actualMethod, $scope
+
+            if ($actualMethod -ne $method) {
+                $message = ('{0} is fully encrypted with {1}, NOT the {2} this sequence asked for ({3}). ' -f
+                    $drive, $actualMethod, $method, $scope) +
+                    'The volume was already being encrypted when the step ran, so the cipher was not HDT''s to choose.'
+            }
 
             Write-HDTLog -Context $Context.Log -Message $message -Event 'native.exec' `
                 -Component 'EnableBitLocker' -Data $data
@@ -410,12 +542,23 @@
         # encryption writes were indistinguishable from eighty real ones - and
         # nudges the display afterwards. The fields below are what this step
         # actually knows; the shape of the record is not its to invent.
+        # THE NUMBER THAT MOVES GOES IN THE LINE. Ten identical "10 minute(s) so
+        # far" lines tell an administrator watching a machine they cannot touch
+        # nothing at all; "95.7%" tells them whether to wait or to go and look.
+        # The percentage is read straight off the volume - it always was
+        # available and the adapter used to drop it.
+        $percent = 0
+        if ($volume.PSObject.Properties.Name -contains 'EncryptionPercentage') {
+            $percent = [double] $volume.EncryptionPercentage
+        }
+
         Write-HDTStepLiveness -Context $Context -Component 'EnableBitLocker' `
-            -Message ('{0} is still encrypting ({1}), {2:0} minute(s) so far.' -f
-                $drive, [string] $volume.VolumeStatus, $elapsedMinute) `
+            -Message ('{0} is still encrypting ({1}), {2:0.0}% done after {3:0} minute(s).' -f
+                $drive, [string] $volume.VolumeStatus, $percent, $elapsedMinute) `
             -Data ([ordered] @{
                 drive         = $drive
                 volumeStatus  = [string] $volume.VolumeStatus
+                percentage    = [double] $percent
                 elapsedMinute = [int] $elapsedMinute
             })
 

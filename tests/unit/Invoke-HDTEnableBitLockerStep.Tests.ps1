@@ -38,14 +38,24 @@ BeforeAll {
     }
 
     $script:newContext = {
-        param($BitLocker, [System.Collections.IDictionary] $Variable, [string] $Level = 'Info')
+        param($BitLocker, [System.Collections.IDictionary] $Variable, [string] $Level = 'Info',
+            [string] $SystemDrive = '', [string] $Phase = 'FullOS')
 
         $script:fileSystem = New-HDTFakeFileSystem
         $script:clock = New-HDTFakeClock -UtcNow ([datetime]::new(2026, 8, 16, 9, 0, 0, [System.DateTimeKind]::Utc))
 
-        $catalog = New-HDTServiceCatalog -FileSystem $script:fileSystem -Clock $script:clock -BitLocker $BitLocker
+        # THE ENVIRONMENT IS OPTIONAL HERE AND ALWAYS PRESENT IN THE FIELD.
+        # Passing none is how every test written before the system-drive
+        # fallback existed goes on exercising the HDTOSVolume path unchanged.
+        $environment = $null
+        if ($SystemDrive.Length -gt 0) {
+            $environment = New-HDTFakeEnvironmentProvider -Variable @{ SystemDrive = $SystemDrive }
+        }
 
-        $log = New-HDTLogContext -RunId 'run-0001' -Phase FullOS -LogPath 'C:\HDT\Logs' `
+        $catalog = New-HDTServiceCatalog -FileSystem $script:fileSystem -Clock $script:clock -BitLocker $BitLocker `
+            -Environment $environment
+
+        $log = New-HDTLogContext -RunId 'run-0001' -Phase $Phase -LogPath 'C:\HDT\Logs' `
             -FileSystem $script:fileSystem -Clock $script:clock -Level $Level
 
         $bag = [System.Collections.Specialized.OrderedDictionary]::new([System.StringComparer]::OrdinalIgnoreCase)
@@ -53,7 +63,7 @@ BeforeAll {
             foreach ($key in @($Variable.Keys)) { $bag[[string] $key] = $Variable[$key] }
         }
 
-        $context = New-HDTExecutionContext -RunId 'run-0001' -Phase FullOS -WorkspaceRoot 'C:\Deploy' `
+        $context = New-HDTExecutionContext -RunId 'run-0001' -Phase $Phase -WorkspaceRoot 'C:\Deploy' `
             -Variable $bag -Service $catalog -Log $log
         $context.SetStep(1, 'Enable BitLocker', 'EnableBitLocker', 'C:\HDT\Logs\Steps\001-BitLocker.log')
 
@@ -399,5 +409,227 @@ Describe 'Invoke-HDTEnableBitLockerStep' {
             $result.Status | Should -BeExactly 'Failed'
             $result.Message | Should -BeLike '*encrypt*'
         }
+    }
+}
+
+# WHICH VOLUME A STEP THAT NAMES NONE ENCRYPTS - AND IT WAS THE WRONG ONE.
+#
+# HDTOSVolume is the letter the PARTITION step gave the Windows volume, and the
+# partition step runs in WinPE, where the volume is mounted at W:. The moment
+# the machine boots, that same volume is C:. EnableBitLocker is a State Restore
+# step - DESIGN 10.3, and both shipped templates put it in a runIn: FullOS group
+# - so it always ran after the letter had changed underneath it.
+#
+# ON THE FIRST REAL RUN, 2026-09-10, the seed deployment's step 9 said:
+#
+#   the BitLocker state of W: could not be read: "W: does not have an
+#   associated BitLocker volume."
+#   step 9 'Enable BitLocker' failed
+#
+# and left a machine nobody had encrypted - which is why M9's BitLocker exit
+# criterion had no evidence behind it, and why the Refresh that followed found
+# "C: is not protected by BitLocker" and suspended nothing. The 88% encryption
+# on that disk was Windows 11's own automatic device encryption, with no key
+# protector at all; HDT had contributed nothing.
+#
+# MDT ANSWERS THIS EXACTLY, AND HDT BUILDS MDT'S (ZTIBde.wsf:176-181): an
+# explicitly named drive wins, and otherwise the target is sSystemDrive. Its
+# WinPE path is a separate branch chosen by testing oEnv("SystemDrive") = "X:"
+# (line 118), which is the same discriminator used here - in WinPE the system
+# drive is the RAM disk and encrypting it would be nonsense, so there and only
+# there HDTOSVolume is still the right answer.
+Describe 'the volume a step that names no drive encrypts' {
+
+    BeforeEach {
+        $script:bothVolume = New-HDTFakeBitLockerService -Volume @{
+            'C:' = @{ VolumeStatus = 'FullyDecrypted'; ProtectionStatus = 'Off' }
+            'W:' = @{ VolumeStatus = 'FullyDecrypted'; ProtectionStatus = 'Off' }
+        }
+    }
+
+    It 'is the system drive in the full OS, not the letter WinPE used' {
+        $context = & $script:newContext $script:bothVolume ([ordered] @{ HDTOSVolume = 'W:' }) 'Info' 'C:' 'FullOS'
+        $step = & $script:newStep 'Enable BitLocker' ([ordered] @{})
+
+        $null = Invoke-HDTEnableBitLockerStep -Step $step -Context $context
+
+        @($script:bothVolume.Operations | Where-Object { $_.Operation -eq 'Enable' })[0].Arguments[0] |
+            Should -BeExactly 'C:' -Because 'the volume HDTOSVolume named in WinPE is C: once the machine has booted'
+    }
+
+    It 'is HDTOSVolume in WinPE, where the system drive is the RAM disk' {
+        $context = & $script:newContext $script:bothVolume ([ordered] @{ HDTOSVolume = 'W:' }) 'Info' 'X:' 'WinPE'
+        $step = & $script:newStep 'Enable BitLocker' ([ordered] @{})
+
+        $null = Invoke-HDTEnableBitLockerStep -Step $step -Context $context
+
+        @($script:bothVolume.Operations | Where-Object { $_.Operation -eq 'Enable' })[0].Arguments[0] |
+            Should -BeExactly 'W:' -Because 'X: is WinPE itself and encrypting it would be nonsense'
+    }
+
+    It 'lets a drive the step names win over both' {
+        $context = & $script:newContext $script:bothVolume ([ordered] @{ HDTOSVolume = 'W:' }) 'Info' 'C:' 'FullOS'
+        $step = & $script:newStep 'Enable BitLocker' ([ordered] @{ drive = 'W:' })
+
+        $null = Invoke-HDTEnableBitLockerStep -Step $step -Context $context
+
+        @($script:bothVolume.Operations | Where-Object { $_.Operation -eq 'Enable' })[0].Arguments[0] |
+            Should -BeExactly 'W:' -Because 'an author who named a drive meant it'
+    }
+}
+
+# THE METHOD IS ONLY OURS TO CHOOSE WHILE THE VOLUME IS UNTOUCHED.
+#
+# Windows 11 starts automatic device encryption during OOBE, so a machine
+# deployed minutes ago is routinely already converting - and manage-bde refuses
+# -EncryptionMethod on a converting volume with "The parameter is incorrect"
+# (0x80070057). Proven on HDT-M9-REF01 on 2026-09-10, which was 87.6% through an
+# XTS-AES 128 pass nobody asked for while this step was asking for XTS-AES 256.
+#
+# ASKING ANYWAY IS NOT THE STRICTER CHOICE. It is the choice that fails the step
+# and leaves the machine with no protection at all, which is strictly worse than
+# a volume encrypted with the method Windows picked and a TPM protector on it.
+Describe 'a volume Windows had already started encrypting' {
+
+    BeforeEach {
+        $script:converting = New-HDTFakeBitLockerService -Volume @{
+            'C:' = @{ VolumeStatus = 'EncryptionInProgress'; ProtectionStatus = 'Off' }
+        }
+    }
+
+    It 'asks for no encryption method, so manage-bde is not handed one it will refuse' {
+        $context = & $script:newContext $script:converting ([ordered] @{ HDTOSVolume = 'W:' }) 'Info' 'C:' 'FullOS'
+        $step = & $script:newStep 'Enable BitLocker' ([ordered] @{ method = 'XtsAes256'; escrow = 'none' })
+
+        $null = Invoke-HDTEnableBitLockerStep -Step $step -Context $context
+
+        $enable = @($script:converting.Operations | Where-Object { $_.Operation -eq 'Enable' })
+
+        $enable.Count | Should -Be 1
+        [string] $enable[0].Arguments[1] | Should -BeExactly '' -Because (
+            'the method was fixed when Windows began the conversion and cannot be changed half way')
+    }
+
+    It 'warns, naming the method the sequence asked for' {
+        $context = & $script:newContext $script:converting ([ordered] @{ HDTOSVolume = 'W:' }) 'Info' 'C:' 'FullOS'
+        $step = & $script:newStep 'Enable BitLocker' ([ordered] @{ method = 'XtsAes256'; escrow = 'none' })
+
+        $null = Invoke-HDTEnableBitLockerStep -Step $step -Context $context
+
+        $text = (& $script:jsonlText $script:fileSystem)
+
+        $text | Should -BeLike '*Warning*'
+        $text | Should -BeLike '*XtsAes256*' -Because 'an administrator has to be able to see that the ask and the machine disagreed'
+    }
+
+    It 'still turns protection on rather than refusing' {
+        $context = & $script:newContext $script:converting ([ordered] @{ HDTOSVolume = 'W:' }) 'Info' 'C:' 'FullOS'
+        $step = & $script:newStep 'Enable BitLocker' ([ordered] @{ method = 'XtsAes256'; escrow = 'none' })
+
+        $result = Invoke-HDTEnableBitLockerStep -Step $step -Context $context
+
+        $result.Status | Should -BeExactly 'Completed'
+    }
+}
+
+# WINDOWS CAN START ENCRYPTING BETWEEN THE READ AND THE CALL.
+#
+# The step reads the volume, sees FullyDecrypted, and asks for XtsAes256 - and
+# by the time manage-bde runs a second later, Windows 11's automatic device
+# encryption has begun a pass of its own, so the method can no longer be chosen
+# and the call is refused with 0x80070057 "The parameter is incorrect".
+#
+# IT IS A RACE AND IT SHOWED AS ONE. Two identical runs an hour apart on the same
+# lab: 2026-09-10 21:51 won it and encrypted to XtsAes256; 22:32 lost it and
+# failed the step, leaving the machine with a recovery password protector and no
+# encryption. A step that fails intermittently on somebody's rollout because
+# Windows got there first is not a step, so the refusal is recovered from.
+Describe 'Windows winning the race to start encryption' {
+
+    It 'retries without the method when the first attempt is refused' {
+        # Enable refuses every time here, which is enough to pin the RETRY and
+        # the argument it carries. The fake models no state change, so the
+        # condition is deliberately not "is it converting now?" - it is "a
+        # method was asked for and refused", which also covers every other
+        # reason manage-bde may reject one.
+        $bitlocker = New-HDTFakeBitLockerService `
+            -Volume @{ 'C:' = @{ VolumeStatus = 'FullyDecrypted'; ProtectionStatus = 'Off' } } `
+            -Failure @{ Enable = 'manage-bde -on C: failed with exit code -2147024809: The parameter is incorrect.' }
+
+        $context = & $script:newContext $bitlocker ([ordered] @{ HDTOSVolume = 'W:' }) 'Info' 'C:' 'FullOS'
+        $step = & $script:newStep 'Enable BitLocker' ([ordered] @{ method = 'XtsAes256'; escrow = 'none' })
+
+        $result = Invoke-HDTEnableBitLockerStep -Step $step -Context $context
+
+        $enable = @($bitlocker.Operations | Where-Object { $_.Operation -eq 'Enable' })
+
+        $enable.Count | Should -Be 2 -Because 'the refusal is recovered from by dropping the method'
+        [string] $enable[0].Arguments[1] | Should -BeExactly 'XtsAes256'
+        [string] $enable[1].Arguments[1] | Should -BeExactly ''
+
+        # Both refused here, so the step still fails - and says so with the
+        # tool's own sentence rather than inventing one.
+        $result.Status | Should -BeExactly 'Failed'
+        $result.Message | Should -BeLike '*parameter is incorrect*'
+    }
+
+    It 'does not retry when the step named no method' {
+        $bitlocker = New-HDTFakeBitLockerService `
+            -Volume @{ 'C:' = @{ VolumeStatus = 'EncryptionInProgress'; ProtectionStatus = 'Off' } } `
+            -Failure @{ Enable = 'something else went wrong' }
+
+        $context = & $script:newContext $bitlocker ([ordered] @{ HDTOSVolume = 'W:' }) 'Info' 'C:' 'FullOS'
+        $step = & $script:newStep 'Enable BitLocker' ([ordered] @{ method = 'XtsAes256'; escrow = 'none' })
+
+        $null = Invoke-HDTEnableBitLockerStep -Step $step -Context $context
+
+        # The volume was already converting, so the method was dropped BEFORE
+        # the first call - there is nothing left to drop and no second attempt.
+        @($bitlocker.Operations | Where-Object { $_.Operation -eq 'Enable' }).Count | Should -Be 1
+    }
+}
+
+# THE LOG SAYS WHAT THE VOLUME HAS, NOT WHAT THE STEP ASKED FOR.
+#
+# The completion line was built from $method - the REQUEST - so on 2026-09-10 it
+# announced "C: is fully encrypted (XtsAes256, usedSpaceOnly)" about a volume
+# carrying XTS-AES 128, because Windows had begun the conversion before the step
+# ran and the cipher was fixed by then.
+#
+# THAT IS WORSE THAN NO LINE AT ALL. Somebody auditing a fleet for XTS-AES 256
+# would have read it and believed it.
+Describe 'what the completion line reports' {
+
+    It 'names the method the volume actually carries' {
+        $bitlocker = New-HDTFakeBitLockerService -Volume @{
+            'C:' = @{ VolumeStatus = 'FullyEncrypted'; ProtectionStatus = 'Off'; EncryptionMethod = 'XtsAes128' }
+        }
+
+        $context = & $script:newContext $bitlocker ([ordered] @{ HDTOSVolume = 'W:' }) 'Info' 'C:' 'FullOS'
+        $step = & $script:newStep 'Enable BitLocker' ([ordered] @{
+                drive = 'C:'; method = 'XtsAes256'; escrow = 'none'; wait = $true
+            })
+
+        $result = Invoke-HDTEnableBitLockerStep -Step $step -Context $context
+
+        $result.Message | Should -BeLike '*XtsAes128*'
+        $result.Message | Should -BeLike '*NOT the XtsAes256*' -Because (
+            'a difference between the ask and the outcome is the whole reason to read this line')
+    }
+
+    It 'says it plainly when the volume got what was asked for' {
+        $bitlocker = New-HDTFakeBitLockerService -Volume @{
+            'C:' = @{ VolumeStatus = 'FullyEncrypted'; ProtectionStatus = 'Off'; EncryptionMethod = 'XtsAes256' }
+        }
+
+        $context = & $script:newContext $bitlocker ([ordered] @{ HDTOSVolume = 'W:' }) 'Info' 'C:' 'FullOS'
+        $step = & $script:newStep 'Enable BitLocker' ([ordered] @{
+                drive = 'C:'; method = 'XtsAes256'; escrow = 'none'; wait = $true
+            })
+
+        $result = Invoke-HDTEnableBitLockerStep -Step $step -Context $context
+
+        $result.Message | Should -BeLike '*fully encrypted (XtsAes256*'
+        $result.Message | Should -Not -BeLike '*NOT the*'
     }
 }

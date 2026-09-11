@@ -101,9 +101,26 @@
 
         $volume = Get-BitLockerVolume -MountPoint $Drive
 
+        # THE PERCENTAGE AND THE METHOD COME BACK TOO, AND THEY USED NOT TO.
+        #
+        # Get-BitLockerVolume hands both over for nothing and this projection
+        # dropped them, so the one thing a step could say while it waited was
+        # how many minutes it had been waiting: "C: is still encrypting
+        # (EncryptionInProgress), 10 minute(s) so far", ten times over. An
+        # administrator watching a machine they cannot touch wants the number
+        # that is MOVING - 95.7% is the difference between "nearly done" and
+        # "stuck" - and CLAUDE.md's logging rule asks for the value, not just
+        # the fact that there was one.
+        #
+        # THE METHOD MATTERS FOR THE SAME REASON. A volume Windows started
+        # encrypting keeps the cipher Windows chose, so a sequence that asked
+        # for XtsAes256 can finish as XTS-AES 128 - and the only honest way to
+        # say so in the log is to read what the volume actually has.
         return [pscustomobject] @{
-            VolumeStatus     = [string] $volume.VolumeStatus
-            ProtectionStatus = [string] $volume.ProtectionStatus
+            VolumeStatus         = [string] $volume.VolumeStatus
+            ProtectionStatus     = [string] $volume.ProtectionStatus
+            EncryptionPercentage = [double] $volume.EncryptionPercentage
+            EncryptionMethod     = [string] $volume.EncryptionMethod
             KeyProtector     = [object[]] @($volume.KeyProtector | ForEach-Object {
                     [pscustomobject] @{
                         KeyProtectorId   = [string] $_.KeyProtectorId
@@ -163,14 +180,86 @@
 
         $this.Record('Enable', @($Drive, $Method, $UsedSpaceOnly))
 
-        $parameter = @{
-            MountPoint       = $Drive
-            EncryptionMethod = $Method
-            SkipHardwareTest = $true
+        # manage-bde AND NOT Enable-BitLocker, AND THE REASON IS THE CMDLET'S OWN
+        # PARAMETER SETS.
+        #
+        # Enable-BitLocker HAS NO "JUST START ENCRYPTING" FORM. Every one of its
+        # nine sets requires a protector switch - TpmProtector,
+        # PasswordProtector, RecoveryPasswordProtector and so on - so a call
+        # carrying MountPoint, EncryptionMethod, SkipHardwareTest and
+        # UsedSpaceOnly binds to nothing at all and fails with "Parameter set
+        # cannot be resolved using the specified named parameters."
+        #
+        # THAT IS WHAT THIS METHOD USED TO DO, AND IT COULD NEVER HAVE WORKED ON
+        # ANY MACHINE. It was never unit tested - rule 1 exempts a branch-free
+        # adapter - and no full-OS leg had ever reached it, so it sat here from
+        # M6 until the first real Refresh ran it on 2026-09-10.
+        #
+        # THE PROTECTORS ALREADY EXIST BY THE TIME THIS IS CALLED, which is the
+        # whole shape of DESIGN 10.3: the step adds the recovery password
+        # protector FIRST so it can be escrowed BEFORE any data is encrypted,
+        # then adds the real protector, then starts encryption. What starts
+        # encryption on a volume whose protectors are already in place is
+        # manage-bde -on, and that is precisely what MDT does at the same point
+        # for the same reason (ZTIBde.wsf:139, "manage-bde.exe -on <drive>
+        # -used").
+        #
+        # THE MAP IS DATA, NOT A BRANCH. manage-bde spells the methods in lower
+        # case with an underscore; the module spells them in Pascal case. An
+        # adapter translating a name into the exact argument a native tool takes
+        # is the job CLAUDE.md gives adapters.
+        $native = @{
+            'Aes128'    = 'aes128'
+            'Aes256'    = 'aes256'
+            'XtsAes128' = 'xts_aes128'
+            'XtsAes256' = 'xts_aes256'
         }
-        if ($UsedSpaceOnly) { $parameter['UsedSpaceOnly'] = $true }
 
-        Enable-BitLocker @parameter | Out-Null
+        # AN EMPTY METHOD MEANS "WHATEVER THE VOLUME IS ALREADY USING", AND IT
+        # IS NOT A CONVENIENCE.
+        #
+        # manage-bde REFUSES -EncryptionMethod ON A VOLUME THAT IS ALREADY
+        # CONVERTING - "ERROR: An error occurred (code 0x80070057): The
+        # parameter is incorrect" - because the method is chosen when encryption
+        # starts and cannot be changed half way through. Windows 11 starts
+        # automatic device encryption itself during OOBE, so by the time a
+        # State Restore step runs, a freshly deployed machine is routinely part
+        # way through an XTS-AES 128 pass that nobody asked for. Proven on the
+        # machine on 2026-09-10: with -em it failed, without it the same call
+        # answered "BitLocker protection will be on when encryption completes".
+        #
+        # THE STEP DECIDES, NOT THIS METHOD. It has already read the volume, so
+        # it knows whether the method is still HDT's to choose, and it says so
+        # in the log when it is not. An adapter branching on volume state would
+        # be making that decision somewhere no test can reach it.
+        # SPIKES S13.5: under 5.1 the 2>&1 below wraps every stderr line in an
+        # ErrorRecord, and the ErrorActionPreference of Stop that engine code
+        # sets makes the FIRST one terminating - so manage-bde printing a
+        # warning would kill this call before its exit code is ever read, and
+        # the message an administrator got would be the warning rather than the
+        # refusal. Local to this method scope, exactly as GrantAccess and
+        # TakeOwnership do it on the file system adapter.
+        $ErrorActionPreference = 'Continue'
+
+        $argument = [System.Collections.ArrayList]::new()
+        [void] $argument.AddRange(@('-on', $Drive, '-SkipHardwareTest'))
+
+        if (-not [string]::IsNullOrWhiteSpace($Method)) {
+            [void] $argument.AddRange(@('-EncryptionMethod', [string] $native[$Method]))
+        }
+
+        if ($UsedSpaceOnly) { [void] $argument.Add('-UsedSpaceOnly') }
+
+        $output = & "$env:SystemRoot\System32\manage-bde.exe" @argument 2>&1
+        $code = $LASTEXITCODE
+
+        # THE TOOL'S OWN WORDS, because they are the ones worth reading. 0x80310030
+        # ("remove the bootable media") is a sentence a technician can act on and
+        # "manage-bde failed" is not.
+        if ($code -ne 0) {
+            throw ("manage-bde -on {0} failed with exit code {1}: {2}" -f
+                $Drive, $code, ((@($output) | ForEach-Object { [string] $_ }) -join ' '))
+        }
     }
 
     # A SUSPEND, AND NEVER A DECRYPT. DESIGN 3.2: a Refresh arms a one-shot

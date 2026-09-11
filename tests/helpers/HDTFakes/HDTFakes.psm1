@@ -509,13 +509,20 @@ class HDTFakeFileSystem {
     # them would be inventing a Windows security model to test against; what a
     # caller has to prove is that it ASKS before it writes over a file inside a
     # mounted image, and the journal is where that is proved.
+    # A DIRECTORY COUNTS, AND THE FAKE USED TO SAY IT DID NOT. This accepted
+    # only files and threw FileNotFoundException on a folder, while takeown.exe
+    # takes either - and takes a whole tree with /R, which is the case
+    # CleanVolume needs on a deployed Windows owned by TrustedInstaller. The
+    # fake was wrong, not the caller: CLAUDE.md rule 8 lists this exact shape
+    # (the fake MoveItem that moved files and not directories) as a surface that
+    # ships half a feature.
     [void] TakeOwnership([string] $Path) {
         $this.Record('TakeOwnership', @($Path))
 
         $full = $this.Normalize($Path)
 
-        if (-not $this.File.ContainsKey($full)) {
-            throw [System.IO.FileNotFoundException]::new("Could not find file '$full'.")
+        if (-not ($this.File.ContainsKey($full) -or $this.Directory.ContainsKey($full))) {
+            throw [System.IO.FileNotFoundException]::new("Could not find '$full'.")
         }
     }
 
@@ -2365,10 +2372,26 @@ class HDTFakeBitLockerService {
         $protection = 'Off'
         if ($State.ContainsKey('ProtectionStatus')) { $protection = [string] $State['ProtectionStatus'] }
 
+        # THE TWO THE ADAPTER GREW ON 2026-09-10, seeded here so a test can say
+        # what the volume ACTUALLY carries - which is the whole point of them:
+        # a step that reports the method it asked for will call a XTS-AES 128
+        # disk XTS-AES 256, and a wait that cannot see a percentage can only
+        # report the same elapsed minute over and over.
+        #
+        # DEFAULTED, so every seed written before they existed still works and
+        # still reads as "nothing to say about this".
+        $percentage = 0.0
+        if ($State.ContainsKey('EncryptionPercentage')) { $percentage = [double] $State['EncryptionPercentage'] }
+
+        $method = ''
+        if ($State.ContainsKey('EncryptionMethod')) { $method = [string] $State['EncryptionMethod'] }
+
         $this.Volume[$this.Normalize($Drive)] = [pscustomobject] @{
-            VolumeStatus     = $status
-            ProtectionStatus = $protection
-            KeyProtector     = [System.Collections.ArrayList]::new()
+            VolumeStatus         = $status
+            ProtectionStatus     = $protection
+            EncryptionPercentage = $percentage
+            EncryptionMethod     = $method
+            KeyProtector         = [System.Collections.ArrayList]::new()
         }
     }
 
@@ -2404,10 +2427,22 @@ class HDTFakeBitLockerService {
 
         $row = $this.Require($Drive)
 
+        # THE SAME FIVE FIELDS THE REAL ADAPTER PROJECTS. It grew
+        # EncryptionPercentage and EncryptionMethod on 2026-09-10 - a step that
+        # can only say "still encrypting, 10 minute(s) so far" ten times is
+        # useless to somebody watching a machine they cannot touch, and a step
+        # that reports the METHOD IT ASKED FOR as the method the volume has will
+        # tell a fleet audit that a disk is XTS-AES 256 when it is 128.
+        #
+        # A FAKE THAT PROJECTS LESS THAN THE ADAPTER IS THE BUG RULE 8 NAMES.
+        # Leaving these out here would let a step pass every test while reading
+        # a property that is always absent.
         return [pscustomobject] @{
-            VolumeStatus     = [string] $row.VolumeStatus
-            ProtectionStatus = [string] $row.ProtectionStatus
-            KeyProtector     = [object[]] @($row.KeyProtector)
+            VolumeStatus         = [string] $row.VolumeStatus
+            ProtectionStatus     = [string] $row.ProtectionStatus
+            EncryptionPercentage = [double] $row.EncryptionPercentage
+            EncryptionMethod     = [string] $row.EncryptionMethod
+            KeyProtector         = [object[]] @($row.KeyProtector)
         }
     }
 
@@ -2454,7 +2489,15 @@ class HDTFakeBitLockerService {
         $row = $this.Require($Drive)
 
         $row.ProtectionStatus = 'On'
-        $row.VolumeStatus = 'EncryptionInProgress'
+
+        # A VOLUME THAT IS ALREADY ENCRYPTED STAYS ENCRYPTED. This set
+        # EncryptionInProgress unconditionally, so turning protection on for a
+        # disk that had finished converting reported it as mid-conversion - a
+        # state the real thing never goes back to, and one that made the
+        # step's "fully encrypted" branch unreachable from any test.
+        if ([string] $row.VolumeStatus -ne 'FullyEncrypted') {
+            $row.VolumeStatus = 'EncryptionInProgress'
+        }
     }
 
     # THE SUSPEND A REFRESH ARMS ITS BOOT ENTRY BEHIND. MDT's
