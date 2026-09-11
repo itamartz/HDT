@@ -248,7 +248,7 @@ Describe 'the lab gate in front of a release' {
         # source of truth, and one of the two would be the one still passing
         # after somebody fixed the other.
         $script:labJob | Should -Not -BeNullOrEmpty
-        [string] $script:labJob['uses'] | Should -BeExactly './.github/workflows/e2e.yml'
+        [string] $script:labJob['uses'] | Should -BeExactly './.github/workflows/lab.yml'
     }
 
     It 'cannot skip the lab on the way to the Gallery' -Skip:$script:yamlMissing {
@@ -398,7 +398,7 @@ Describe 'the order a release runs in' {
         # green after somebody fixed the release's. It also means the release
         # runs the IDENTICAL gate the branch does - Windows PowerShell 5.1,
         # 7 for the seven schema contracts that skip whole under 5.1.
-        [string] $script:graph['ci']['uses'] | Should -BeExactly './.github/workflows/ci.yml'
+        [string] $script:graph['ci']['uses'] | Should -BeExactly './.github/workflows/gate.yml'
     }
 
     It 'cannot skip CI or the lab on the way to the Gallery' -Skip:$script:yamlMissing {

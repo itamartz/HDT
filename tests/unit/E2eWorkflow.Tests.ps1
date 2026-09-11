@@ -150,7 +150,16 @@ Describe 'E2E workflow' {
         # set-wide case below exists.
         $script:workflowText | Should -Match '(?m)^\s{2}workflow_dispatch:'
         $script:workflowText | Should -Match '(?m)^\s{2}workflow_call:'
-        $script:workflowText | Should -Not -Match '(?m)^\s{2}push:'
+
+        # THE FILE ANSWERS A PUSH; THE SUITE MUST NOT. It shares a file with the
+        # lab gate now, and that gate is what a push to main is for - so "never
+        # from a push" moved onto the job. Its `if:` admits a tag, which is the
+        # release path asking for it deliberately, and nothing else.
+        $e2eJob = $script:workflow['jobs']['e2e']
+        $e2eJob | Should -Not -BeNullOrEmpty
+
+        [string] $e2eJob['if'] | Should -Match 'workflow_dispatch|refs/tags/' -Because (
+            'a branch push must never start hours of deployment on the lab machine')
     }
 
     It 'never starts itself, on a schedule or otherwise' {
@@ -170,8 +179,22 @@ Describe 'E2E workflow' {
         # THE LAB STARTS WHEN THE OWNER STARTS IT, AND AT NO OTHER TIME. That
         # is the whole policy, and a `schedule:` key is the one way to break it
         # without breaking any other case in this file.
-        $script:workflowText | Should -Not -Match '(?m)^\s{2}schedule:'
-        $script:workflowText | Should -Not -Match '(?m)^\s*-\s*cron:'
+        # THE FILE CARRIES A schedule: FOR COVERAGE, WHICH IS HOSTED. What must
+        # never be on a clock is anything that reaches the lab machine, so the
+        # rule is stated against the self-hosted jobs rather than the file.
+        foreach ($name in @($script:workflow['jobs'].Keys)) {
+            $job = $script:workflow['jobs'][$name]
+            if (-not ($job -is [System.Collections.IDictionary])) { continue }
+            if (-not ((@($job['runs-on']) -join ' ') -match 'self-hosted')) { continue }
+
+            [string] $job['if'] | Should -Not -Match 'schedule' -Because (
+                "job '$name' runs on GHRUNNER01 and a cron would start it with nobody present")
+        }
+        # A cron IS present in this file, for coverage - which runs on hosted
+        # hardware. What must never answer a clock is anything that reaches
+        # GHRUNNER01, and that is asserted job by job just above.
+        $script:workflowText | Should -Match '(?m)^\s*-\s*cron:' -Because (
+            'coverage is the scheduled job sharing this file; if it goes, this test is measuring nothing')
     }
 
     It 'reaches the runner only behind a job that checks who started the run' -Skip:$script:HDTYamlMissing {
@@ -307,7 +330,46 @@ Describe 'Self-hosted runners on a public repository' {
             # A writable GITHUB_TOKEN on a machine somebody owns is the thing
             # that turns a compromised job into a compromised repository.
             $text | Should -Match '(?m)^permissions:'
-            $text | Should -Not -Match '(?m)^\s+contents:\s*write'
+
+            # PER JOB, NOT PER FILE, AND THE DIFFERENCE IS DELIBERATE.
+            #
+            # This read the whole file for `contents: write`, which was exact
+            # while one file meant one privilege level - a workflow either was
+            # the self-hosted one or was the badge publisher. Now lab.yml is
+            # both: self-hosted jobs that gate, and one HOSTED job that pushes
+            # the badges branch.
+            #
+            # WHAT PROTECTS THE MACHINE IS THE TOKEN THE SELF-HOSTED JOB GETS,
+            # and GitHub scopes GITHUB_TOKEN per job - a job-level permissions
+            # block overrides the workflow default for that job alone. So the
+            # property is stated where it is true: the workflow default must
+            # not be write, and no self-hosted job may raise it.
+            #
+            # THE RESIDUAL RISK IS UNCHANGED BY THE MERGE. A compromised lab
+            # runner can poison the `badges` artifact and the publisher will
+            # push it - but it could do that when the publisher was a separate
+            # workflow downloading that same artifact, so nothing was traded
+            # away here. What it still cannot do is hold the token.
+            $document = $null
+            if (Test-HDTModuleAvailable -Name 'powershell-yaml') { $document = ConvertFrom-Yaml $text }
+
+            if ($document) {
+                if ($document.Contains('permissions')) {
+                    [string] $document['permissions']['contents'] | Should -Not -Be 'write' -Because (
+                        'the workflow default reaches every job that states none, self-hosted ones included')
+                }
+
+                foreach ($name in @($document['jobs'].Keys)) {
+                    $job = $document['jobs'][$name]
+                    if (-not ($job -is [System.Collections.IDictionary])) { continue }
+                    if (-not ((@($job['runs-on']) -join ' ') -match 'self-hosted')) { continue }
+
+                    if ($job.Contains('permissions')) {
+                        [string] $job['permissions']['contents'] | Should -Not -Be 'write' -Because (
+                            "job '$name' runs on a machine somebody owns and would hold a writable token")
+                    }
+                }
+            }
         } else {
             $selfHosted | Should -BeFalse
         }
@@ -426,7 +488,23 @@ Describe 'Self-hosted runners on a public repository' {
             # well as in the file's own suite, over the whole set, because the
             # workflow that puts a self-hosted job on a timer will be the next
             # one somebody adds.
-            $text | Should -Not -Match '(?m)^\s{2}schedule:'
+            # NOT "the file has no schedule" - "no self-hosted job answers one".
+            # A file may legitimately carry a cron for a hosted job; what it may
+            # not do is let a clock start hours of deployment on somebody's
+            # machine with nobody present.
+            $document = $null
+            if (Test-HDTModuleAvailable -Name 'powershell-yaml') { $document = ConvertFrom-Yaml $text }
+
+            if ($document) {
+                foreach ($name in @($document['jobs'].Keys)) {
+                    $job = $document['jobs'][$name]
+                    if (-not ($job -is [System.Collections.IDictionary])) { continue }
+                    if (-not ((@($job['runs-on']) -join ' ') -match 'self-hosted')) { continue }
+
+                    [string] $job['if'] | Should -Not -Match 'schedule' -Because (
+                        "job '$name' would start on a clock, on a machine somebody owns")
+                }
+            }
         } else {
             $selfHosted | Should -BeFalse
         }
