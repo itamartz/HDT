@@ -1,8 +1,8 @@
 # Hephaestus Deployment Toolkit (HDT)
 
-[![CI-Lab](https://github.com/itamartz/HDT/actions/workflows/ci-lab.yml/badge.svg?branch=main)](https://github.com/itamartz/HDT/actions/workflows/ci-lab.yml)
-[![tests](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fitamartz%2FHDT%2Fbadges%2Ftests.json&cacheSeconds=1800)](https://github.com/itamartz/HDT/actions/workflows/ci-lab.yml)
-[![coverage](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fitamartz%2FHDT%2Fbadges%2Fcoverage.json&cacheSeconds=1800)](https://github.com/itamartz/HDT/actions/workflows/coverage.yml)
+[![Lab](https://github.com/itamartz/HDT/actions/workflows/lab.yml/badge.svg?branch=main)](https://github.com/itamartz/HDT/actions/workflows/lab.yml)
+[![tests](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fitamartz%2FHDT%2Fbadges%2Ftests.json&cacheSeconds=1800)](https://github.com/itamartz/HDT/actions/workflows/lab.yml)
+[![coverage](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fitamartz%2FHDT%2Fbadges%2Fcoverage.json&cacheSeconds=1800)](https://github.com/itamartz/HDT/actions/workflows/gate.yml)
 [![powershell gallery](https://img.shields.io/powershellgallery/v/Hephaestus)](https://www.powershellgallery.com/packages/Hephaestus)
 
 A replacement for the Microsoft Deployment Toolkit, which has been in maintenance
@@ -257,7 +257,7 @@ turn the real suite red. See `tests/helpers/README.md` section 9.
 
 ## Continuous integration
 
-`.github/workflows/ci.yml` runs one job on `windows-latest` under
+`.github/workflows/gate.yml` runs one job on `windows-latest` under
 `shell: powershell`, which *is* Windows PowerShell 5.1 — the only edition HDT
 supports, for the reason above. Module versions are pinned, and it runs
 `./build.ps1 -Task ci`, the same entry point developers use; CI never grows its

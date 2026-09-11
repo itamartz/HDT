@@ -220,7 +220,7 @@ jobs:
   ci:
     name: gate
     needs: preflight
-    uses: ./.github/workflows/ci.yml
+    uses: ./.github/workflows/gate.yml
     permissions:
       contents: read
 
@@ -253,7 +253,7 @@ jobs:
   lab:
     name: end-to-end
     needs: ci
-    uses: ./.github/workflows/e2e.yml
+    uses: ./.github/workflows/lab.yml
     permissions:
       contents: read
     with:

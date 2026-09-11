@@ -43,7 +43,7 @@ Describe 'CI workflow (DESIGN 12.2.5)' {
         $script:repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
         Import-Module -Name (Join-Path -Path $script:repoRoot -ChildPath 'tests/helpers/HDTTestTools/HDTTestTools.psd1') -Force -ErrorAction Stop
 
-        $script:workflowPath = Join-Path -Path $script:repoRoot -ChildPath '.github/workflows/ci.yml'
+        $script:workflowPath = Join-Path -Path $script:repoRoot -ChildPath '.github/workflows/gate.yml'
 
         $script:workflowText = ''
         if (Test-Path -Path $script:workflowPath -PathType Leaf) {
@@ -61,7 +61,7 @@ Describe 'CI workflow (DESIGN 12.2.5)' {
         }
     }
 
-    It 'exists at .github/workflows/ci.yml' {
+    It 'exists at .github/workflows/gate.yml' {
         Test-Path -Path $script:workflowPath -PathType Leaf | Should -BeTrue
     }
 
@@ -373,18 +373,18 @@ Describe 'CI workflow (DESIGN 12.2.5)' {
 
         # THE FACT THE BADGE FOLLOWS FROM, read rather than assumed: ci-lab.yml
         # runs on a push to main and this file does not.
-        $labPath = [IO.Path]::Combine($script:repoRoot, '.github', 'workflows', 'ci-lab.yml')
+        $labPath = [IO.Path]::Combine($script:repoRoot, '.github', 'workflows', 'lab.yml')
         $labText = [IO.File]::ReadAllText($labPath)
 
-        $labText | Should -Match '(?m)^\s{2}push:' -Because 'ci-lab.yml is what validates a push to main; without that trigger nothing does'
-        $script:workflowText | Should -Not -Match '(?m)^\s{2}push:' -Because 'main is ci-lab.yml''s, and running both is the same suite twice for one commit'
+        $labText | Should -Match '(?m)^\s{2}push:' -Because 'lab.yml is what validates a push to main; without that trigger nothing does'
+        $script:workflowText | Should -Not -Match '(?m)^\s{2}push:' -Because 'main is lab.yml''s, and running both is the same suite twice for one commit'
 
-        $statusBadge | Should -Not -Contain 'ci.yml' -Because (
-            'ci.yml no longer runs on a push to main, so its badge would report whatever pull request or ' +
+        $statusBadge | Should -Not -Contain 'gate.yml' -Because (
+            'gate.yml does not run on a push to main, so its badge would report whatever pull request or ' +
             'weekly schedule last happened to fire rather than the state of the branch')
 
-        $statusBadge | Should -Contain 'ci-lab.yml' -Because (
-            'the README has to show the gate main actually goes through, and that is CI-Lab on GHRUNNER01')
+        $statusBadge | Should -Contain 'lab.yml' -Because (
+            'the README has to show the gate main actually goes through, and that is the lab gate on GHRUNNER01')
     }
 }
 
@@ -396,7 +396,7 @@ Describe 'Coverage workflow' {
 
     BeforeAll {
         $script:coverageRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
-        $script:coveragePath = Join-Path -Path $script:coverageRoot -ChildPath '.github/workflows/coverage.yml'
+        $script:coveragePath = Join-Path -Path $script:coverageRoot -ChildPath '.github/workflows/lab.yml'
 
         $script:coverageText = ''
         if (Test-Path -Path $script:coveragePath -PathType Leaf) {
@@ -409,15 +409,19 @@ Describe 'Coverage workflow' {
         }
     }
 
-    It 'exists at .github/workflows/coverage.yml' {
+    It 'exists at .github/workflows/lab.yml' {
         Test-Path -Path $script:coveragePath -PathType Leaf | Should -BeTrue
     }
 
     It 'runs on a schedule and on demand, never on a push' {
         # Raw text, deliberately: ConvertFrom-Yaml maps the 'on' key to $true.
+        # THE FILE ANSWERS PUSHES; THIS JOB MUST NOT. coverage.yml expressed
+        # "never on a push" by having no push trigger. It now shares a file
+        # with the lab gate, which needs one - so the property moved onto the
+        # job, where an `if:` is safe: lab.yml carries no pull_request, so
+        # nothing here is editable by a fork.
         $script:coverageText | Should -Match '(?m)^\s+schedule:'
-        $script:coverageText | Should -Match '(?m)^\s+workflow_dispatch:'
-        $script:coverageText | Should -Not -Match '(?m)^\s+push:'
+        [string] $script:coverageJob['if'] | Should -Match "schedule"
     }
 
     It 'asks the build for coverage' {

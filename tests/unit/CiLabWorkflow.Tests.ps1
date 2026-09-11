@@ -41,7 +41,7 @@ Describe 'CI-Lab workflow' {
         $script:repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
         Import-Module -Name (Join-Path -Path $script:repoRoot -ChildPath 'tests/helpers/HDTTestTools/HDTTestTools.psd1') -Force -ErrorAction Stop
 
-        $script:workflowPath = Join-Path -Path $script:repoRoot -ChildPath '.github/workflows/ci-lab.yml'
+        $script:workflowPath = Join-Path -Path $script:repoRoot -ChildPath '.github/workflows/lab.yml'
 
         $script:workflowText = ''
         if (Test-Path -Path $script:workflowPath -PathType Leaf) {
@@ -85,7 +85,7 @@ Describe 'CI-Lab workflow' {
         }
     }
 
-    It 'exists at .github/workflows/ci-lab.yml' {
+    It 'exists at .github/workflows/lab.yml' {
         Test-Path -Path $script:workflowPath -PathType Leaf | Should -BeTrue
     }
 
@@ -113,15 +113,20 @@ Describe 'CI-Lab workflow' {
         # same machine, and the labels are what keep the two apart: the gate
         # must not queue behind a six-hour deployment run, and a deployment run
         # must not queue behind the gate.
-        @($script:selfHostedJob).Count | Should -Be 1
+        # BY NAME, NOT BY INDEX. This file now holds two self-hosted jobs - the
+        # gate and the end-to-end suite - and the labels are exactly what keeps
+        # them on different runner instances, so picking [0] would assert the
+        # gate's labels against whichever job the parser happened to see first.
+        $gate = @($script:selfHostedJob | Where-Object { $_.Name -eq 'lab' })
+        $gate.Count | Should -Be 1 -Because 'the gate is the job labelled hdt-ci'
 
-        $labels = @($script:selfHostedJob[0].Job['runs-on'])
+        $labels = @($gate[0].Job['runs-on'])
         $labels | Should -Contain 'self-hosted'
         $labels | Should -Contain 'windows'
         $labels | Should -Contain 'hdt-ci'
     }
 
-    It 'keeps the self-hosted side to a single job' -Skip:$script:HDTYamlMissing {
+    It 'never runs one self-hosted job after another' -Skip:$script:HDTYamlMissing {
         # TWO CONSECUTIVE SELF-HOSTED JOBS LEAVE A WINDOW WITH NO
         # Runner.Worker.exe IN THE GUEST, and MS-A2's hourly checkpoint revert
         # skips only while that process exists (PROJECT.md, "GHRUNNER01"). A
@@ -129,24 +134,58 @@ Describe 'CI-Lab workflow' {
         # second one was about to use, and what it looks like from here is a
         # checkout that vanished mid-run.
         #
-        # So: one job on the lab machine. The owner guard is a job too, and it
-        # is HOSTED - which is the whole reason it can be a separate job at all.
-        @($script:selfHostedJob).Count | Should -Be 1 -Because (
-            'a second self-hosted job opens a gap between workers, and the hourly checkpoint revert can land in it')
+        # THE DANGER IS THE SEQUENCE, NOT THE COUNT. This asserted a single
+        # self-hosted job, which is how the property expressed itself while the
+        # gate and the end-to-end suite lived in separate files. In one file
+        # there are two - so what has to be stated is that they are never
+        # CHAINED: no self-hosted job may wait on another, because the wait is
+        # the gap.
+        #
+        # Running side by side is safe and is what a workflow_dispatch does: a
+        # worker stays alive throughout, so the revert never sees its opening.
+        # The triggers keep them apart otherwise - a push runs the gate, a tag
+        # runs the suite, because publish.yml has already gated on hosted
+        # hardware by then.
+        $selfHosted = @($script:selfHostedJob | ForEach-Object { $_.Name })
+
+        $selfHosted.Count | Should -BeGreaterThan 0 -Because 'finding none would pass this by measuring nothing'
+
+        $chained = @($selfHosted | Where-Object {
+                $job = $script:workflow['jobs'][$_]
+                $needs = @()
+                if ($job.Contains('needs')) { $needs = @($job['needs']) }
+
+                @($needs | Where-Object { $selfHosted -contains $_ }).Count -gt 0
+            })
+
+        $chained | Should -BeNullOrEmpty -Because (
+            'these wait on another self-hosted job, so a checkpoint revert can land in the gap: {0}' -f
+                ($chained -join ', '))
     }
 
     It 'runs every step under Windows PowerShell 5.1' -Skip:$script:HDTYamlMissing {
         # The engine runs in WinPE, which has no pwsh. `shell: powershell` on
         # Windows IS 5.1.
-        $script:selfHostedJob[0].Job['defaults']['run']['shell'] | Should -BeExactly 'powershell'
+        foreach ($entry in @($script:selfHostedJob)) {
+            $entry.Job['defaults']['run']['shell'] | Should -BeExactly 'powershell' -Because (
+                "job '$($entry.Name)' runs on the lab machine and the engine's floor is Windows PowerShell 5.1")
+        }
     }
 
     It 'invokes ./build.ps1 with the ci task' {
         # THE SAME ENTRY POINT DEVELOPERS RUN (DESIGN 12.2.5). CI never grows
         # its own private build logic, and this file exists to run the gate on
         # different hardware, not to run a different gate.
+        # THE GATE JOB RUNS -Task ci. The end-to-end job in this same file runs
+        # -Task e2e, which is its whole purpose - so the exclusion that used to
+        # police a file with one job is now stated per job.
         $script:workflowText | Should -Match '\./build\.ps1\s+-Task\s+ci'
-        $script:workflowText | Should -Not -Match '-Task\s+e2e'
+
+        $gate = @($script:selfHostedJob | Where-Object { $_.Name -eq 'lab' })
+        $gateRun = (@($gate[0].Job['steps'] | ForEach-Object { [string] $_['run'] }) -join "`n")
+
+        $gateRun | Should -Match '\./build\.ps1\s+-Task\s+ci'
+        $gateRun | Should -Not -Match '-Task\s+e2e'
     }
 
     It 'proves its dependencies the way the other lab workflow does' -Skip:$script:HDTYamlMissing {
@@ -166,7 +205,7 @@ Describe 'CI-Lab workflow' {
         $mine.Count | Should -Be 1
 
         $e2e = ConvertFrom-Yaml (Get-Content -LiteralPath (
-                Join-Path -Path $script:repoRoot -ChildPath '.github/workflows/e2e.yml') -Raw)
+                Join-Path -Path $script:repoRoot -ChildPath '.github/workflows/lab.yml') -Raw)
 
         $theirs = @($e2e['jobs']['e2e']['steps'] | Where-Object {
                 $_ -is [System.Collections.IDictionary] -and [string] $_['name'] -eq 'Check the build dependencies'
@@ -212,8 +251,20 @@ Describe 'CI-Lab workflow' {
         # The suite is ~10 minutes on a developer machine and ~20 on a hosted
         # runner. GitHub's default is 360, and six hours of a machine there is
         # exactly one of is six hours nothing else can be tested on.
-        $script:selfHostedJob[0].Job['timeout-minutes'] | Should -BeGreaterThan 20
-        $script:selfHostedJob[0].Job['timeout-minutes'] | Should -BeLessThan 120
+        # THE GATE'S DEADLINE IS A NUMBER; the end-to-end job's is whatever the
+        # caller passed, so it reads as an expression here and its bounds are
+        # asserted where that input is declared.
+        $gate = @($script:selfHostedJob | Where-Object { $_.Name -eq 'lab' })
+
+        $gate[0].Job['timeout-minutes'] | Should -BeGreaterThan 20
+        $gate[0].Job['timeout-minutes'] | Should -BeLessThan 120
+
+        # EVERY self-hosted job still has to have one - a job with no deadline
+        # holds the machine until GitHub's six-hour ceiling.
+        foreach ($entry in @($script:selfHostedJob)) {
+            [string] $entry.Job['timeout-minutes'] | Should -Not -BeNullOrEmpty -Because (
+                "job '$($entry.Name)' would run to the platform ceiling")
+        }
     }
 
     It 'asks whether the lab is worth starting before any of it reaches the lab machine' -Skip:$script:HDTYamlMissing {
@@ -231,10 +282,14 @@ Describe 'CI-Lab workflow' {
         [string] @($script:decisionJob['runs-on']) | Should -Not -Match 'self-hosted' -Because (
             'a check that runs on the machine it is deciding about has already spent the thing it was saving')
 
-        # STILL EXACTLY ONE SELF-HOSTED JOB. The decision is a second HOSTED
-        # job, so the case above - about the hourly checkpoint revert landing
-        # in the gap between two workers - is not weakened by it.
-        @($script:selfHostedJob).Count | Should -Be 1
+        # THE DECISION IS A HOSTED JOB, so it adds nothing to the lab machine -
+        # which is what the case above, about the hourly checkpoint revert
+        # landing in the gap between two workers, is actually about. Asserted
+        # as "no self-hosted job waits on another" by the test of that name
+        # rather than as a count here, now that the end-to-end suite shares
+        # this file.
+        @($script:selfHostedJob | Where-Object { $_.Name -eq 'changes' }) | Should -BeNullOrEmpty -Because (
+            'the decision must never be made on the machine it is deciding about')
     }
 
     It 'makes that decision behind the owner guard, not in front of it' -Skip:$script:HDTYamlMissing {
@@ -378,7 +433,9 @@ Describe 'CI-Lab workflow' {
         # somebody owns is what turns a compromised job into a compromised
         # repository. So it uploads the numbers and badges.yml, on GitHub's own
         # hardware, does the write.
-        $upload = @($script:selfHostedJob[0].Job['steps'] | Where-Object {
+        $gate = @($script:selfHostedJob | Where-Object { $_.Name -eq 'lab' })
+
+        $upload = @($gate[0].Job['steps'] | Where-Object {
                 $_ -is [System.Collections.IDictionary] -and
                 $_.Contains('uses') -and ([string] $_['uses']) -like 'actions/upload-artifact*'
             })
@@ -396,7 +453,7 @@ Describe 'Badges workflow' {
 
     BeforeAll {
         $script:badgeRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
-        $script:badgePath = Join-Path -Path $script:badgeRoot -ChildPath '.github/workflows/badges.yml'
+        $script:badgePath = Join-Path -Path $script:badgeRoot -ChildPath '.github/workflows/lab.yml'
 
         $script:badgeText = ''
         if (Test-Path -Path $script:badgePath -PathType Leaf) {
@@ -409,7 +466,7 @@ Describe 'Badges workflow' {
         }
     }
 
-    It 'exists at .github/workflows/badges.yml' {
+    It 'exists at .github/workflows/lab.yml' {
         Test-Path -Path $script:badgePath -PathType Leaf | Should -BeTrue
     }
 
@@ -418,51 +475,78 @@ Describe 'Badges workflow' {
         $script:badgeWorkflow | Should -Not -BeNullOrEmpty
     }
 
-    It 'fires on the gate finishing, and on nothing a fork can pull' {
-        # workflow_run RUNS THE DEFAULT BRANCH'S COPY OF THIS FILE, whatever the
-        # producing run was. That is the property that makes it safe to hold a
-        # writable token here: a pull request cannot edit the file that does the
-        # write, the way it could if this were a job inside a fork-triggered
-        # workflow.
-        $script:badgeText | Should -Match '(?m)^\s{2}workflow_run:'
-        $script:badgeText | Should -Match 'CI-Lab'
-        $script:badgeText | Should -Not -Match '(?m)^\s{2}pull_request:'
-        $script:badgeText | Should -Not -Match '(?m)^\s{2}pull_request_target:'
+    # ======================================================================
+    # THE BADGES ARE A JOB NOW, AND EVERY PROPERTY BELOW MOVED WITH THEM.
+    #
+    # badges.yml fired on `workflow_run` so GitHub would run the DEFAULT
+    # BRANCH's copy - the only way to hold contents: write in a world where the
+    # file might be fork-editable. In a file with NO fork-reachable trigger that
+    # indirection buys nothing, so the job sits beside the run that produced the
+    # numbers and reads them from it directly.
+    #
+    # WHAT DID NOT MOVE IS THE RULE: the write is on this job and on no other,
+    # and this job does not run on the lab machine.
+    # ======================================================================
+    It 'is a job, and only it may write' -Skip:$script:HDTYamlMissing {
+        $badgeJob = $script:badgeWorkflow['jobs']['badges']
+        $badgeJob | Should -Not -BeNullOrEmpty
+
+        [string] $badgeJob['permissions']['contents'] | Should -BeExactly 'write'
+
+        # Every OTHER job must not - most of all the self-hosted ones. A
+        # writable token on a machine somebody owns is what turns a compromised
+        # job into a compromised repository.
+        foreach ($name in @($script:badgeWorkflow['jobs'].Keys | Where-Object { $_ -ne 'badges' })) {
+            $other = $script:badgeWorkflow['jobs'][$name]
+
+            if ($other.Contains('permissions')) {
+                [string] $other['permissions']['contents'] | Should -Not -Be 'write' -Because (
+                    "job '$name' would hold a writable token")
+            }
+        }
+
+        [string] $script:badgeWorkflow['permissions']['contents'] | Should -BeExactly 'read' -Because (
+            'the workflow default has to be read, or a job that states nothing inherits a write'
+        )
     }
 
-    It 'runs on GitHub hardware, not on the lab machine' {
-        # The write lives here BECAUSE it cannot live there.
-        $script:badgeText | Should -Not -Match '(?m)^\s*runs-on:.*self-hosted'
+    It 'runs on GitHub hardware, not on the lab machine' -Skip:$script:HDTYamlMissing {
+        $badgeJob = $script:badgeWorkflow['jobs']['badges']
+
+        ([string] ($badgeJob['runs-on'] -join ' ')) | Should -Not -Match 'self-hosted'
     }
 
     It 'takes the numbers from the run that produced them' -Skip:$script:HDTYamlMissing {
-        # NOT FROM A FRESH BUILD OF ITS OWN. A badge that says what a second,
-        # later build found is a badge for a commit nobody asked about, and it
-        # would be measured on a different machine from the one whose result is
-        # being reported.
-        $script:badgeText | Should -Match 'actions/download-artifact'
-        $script:badgeText | Should -Match 'github\.event\.workflow_run\.id'
+        # SAME RUN, so no run-id and no actions: read - that was only needed
+        # while the job lived in another workflow.
+        $badgeJob = $script:badgeWorkflow['jobs']['badges']
+
+        $download = @($badgeJob['steps'] | Where-Object {
+                $_ -is [System.Collections.IDictionary] -and
+                $_.Contains('uses') -and ([string] $_['uses']) -like 'actions/download-artifact*'
+            })
+
+        $download.Count | Should -Be 1
+        [string] $download[0]['with']['name'] | Should -BeExactly 'badges'
     }
 
-    It 'publishes only what main produced' {
-        # A hand-started CI-Lab run on a branch still produces badges. The
-        # branch's numbers are not what the README is reporting.
-        $script:badgeText | Should -Match "head_branch == 'main'"
+    It 'publishes only what main produced' -Skip:$script:HDTYamlMissing {
+        $badgeJob = $script:badgeWorkflow['jobs']['badges']
+
+        [string] $badgeJob['if'] | Should -Match "refs/heads/main"
     }
 
-    It 'asks for the write, and for reading the producing run, and nothing else' -Skip:$script:HDTYamlMissing {
-        # contents: write for the branch; actions: read because
-        # download-artifact reaching into ANOTHER run needs it. Anything beyond
-        # those two is a scope this file has no use for.
-        $permission = $script:badgeWorkflow['permissions']
-        $permission | Should -Not -BeNullOrEmpty
-        [string] $permission['contents'] | Should -BeExactly 'write'
-        [string] $permission['actions'] | Should -BeExactly 'read'
-        (@($permission.Keys) | Sort-Object) -join ',' | Should -BeExactly 'actions,contents'
+    It 'carries no fork-reachable trigger, which is what lets it hold the write' -Skip:$script:HDTYamlMissing {
+        # THE WHOLE REASON THIS IS SAFE IN A SHARED FILE. badges.yml used
+        # workflow_run to be certain a pull request could not rewrite it; here
+        # the same certainty comes from the file having no pull_request trigger
+        # at all - and that is asserted over the SET in E2eWorkflow.Tests.ps1
+        # as well, so it is judged even if this file is deleted.
+        @($script:badgeWorkflow['on'].Keys) | Should -Not -Contain 'pull_request'
+        @($script:badgeWorkflow['on'].Keys) | Should -Not -Contain 'pull_request_target'
     }
 }
 
-# ---------------------------------------------------------------------------
 
 Describe 'The badges branch has one writer at a time' {
 
@@ -529,7 +613,12 @@ Describe 'The badges branch has one writer at a time' {
         # badges.yml after a CI-Lab run, and coverage.yml nightly. If this drops
         # to one the rule below is asserting nothing, which is the shape of
         # failure the whole file is written against.
-        @($script:badgeWriter).Count | Should -BeGreaterOrEqual 2
+        # ONE, AND THAT IS THE POINT OF THE CONSOLIDATION. There used to be two
+        # verbatim copies of this push - ci.yml's and coverage.yml's - which is
+        # why this asked for two and why the concurrency group below had to be
+        # asserted over a set. There is one publisher now; the sweep still runs
+        # over every workflow so a second one added later is judged by it.
+        @($script:badgeWriter).Count | Should -BeGreaterOrEqual 1
     }
 
     It 'gives every badge publisher the same concurrency group' -Skip:$script:HDTYamlMissing {
