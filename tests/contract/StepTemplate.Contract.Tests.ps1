@@ -85,7 +85,16 @@ Describe 'Step template contract' {
             $line = @(& $current.TemplateCommand.Name)
             $yaml = ($line -join "`n")
 
-            if ($yaml -notmatch '%HDT') { continue }
+            # THE PRECONDITION IS ABOUT VALUES, SO IT READS VALUES. A comment
+            # naming a variable is prose about it, and prose does not survive a
+            # parse because comments never do - so scanning the raw text made
+            # this fire on a template whose only mention of a token was an
+            # explanation of why it no longer carries one. That is a false
+            # refusal, and it cost the EnableBitLocker template its comment
+            # before it cost this line its bug.
+            $body = (@($line | Where-Object { $_ -notmatch '^\s*#' }) -join "`n")
+
+            if ($body -notmatch '%HDT') { continue }
 
             $document = ConvertFrom-Yaml -Yaml $yaml -Ordered
             $step = @($document)[0]

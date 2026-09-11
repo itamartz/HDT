@@ -26,6 +26,25 @@ function Get-HDTValidateCheckDefinition {
             'List' is a comma-separated line, because a variable list is short
             and typing one is faster than any grid.
 
+            NOUN IS WHAT THE STEP TREE SAYS, and it lives here rather than in
+            Get-HDTValidateStepDescription for the same reason the key does: so
+            the set can be asked for instead of written down twice. That
+            function walks this table and renders each DECLARED check as
+            '<value> <Unit> <Noun>' where there is a unit and '<Noun> <value>'
+            where there is not - '2048 MB memory', 'TPM 2.0' - and a 'Switch'
+            as the Noun alone, only when it is on. So a check added here shows
+            up in the tree with no second edit.
+
+            IT IS HERE BECAUSE THE DESCRIPTION HAD DRIFTED FIVE CHECKS BEHIND.
+            It hand-enumerated minRamMB, minDiskGB, requireUefi and
+            requireVariable, so minTpmVersion, diskNumber, imageVersion,
+            imageSizeMB and allowOtherPartition were declarable, enforced by
+            the step, and invisible in the tree - and refresh.yaml declares
+            three of them, so the shipped Refresh sequence described itself
+            without one word about the downgrade, free-space and
+            partition-match refusals that are the reason it has a Validate step
+            at all. A 'List' needs no Noun: its entries are named one by one.
+
             SCOPE IS WHICH DEPLOYMENT TYPE THE CHECK BELONGS TO, and it is here
             for the same reason the key is: so that the set can be asked for
             rather than written down twice. 'Any' is every run. 'REFRESH' is a
@@ -77,6 +96,7 @@ function Get-HDTValidateCheckDefinition {
             Order = 1
             Key   = 'minRamMB'
             Label = 'Ensure minimum memory'
+            Noun  = 'memory'
             Kind  = 'Number'
             Unit  = 'MB'
             Scope = 'Any'
@@ -87,6 +107,7 @@ function Get-HDTValidateCheckDefinition {
             Order = 2
             Key   = 'minDiskGB'
             Label = 'Ensure minimum disk size'
+            Noun  = 'disk'
             Kind  = 'Number'
             Unit  = 'GB'
             Scope = 'NEWCOMPUTER'
@@ -97,6 +118,7 @@ function Get-HDTValidateCheckDefinition {
             Order = 3
             Key   = 'requireUefi'
             Label = 'Ensure the machine booted UEFI'
+            Noun  = 'UEFI firmware'
             Kind  = 'Switch'
             Unit  = ''
             Scope = 'Any'
@@ -107,6 +129,7 @@ function Get-HDTValidateCheckDefinition {
             Order = 4
             Key   = 'minTpmVersion'
             Label = 'Ensure a TPM of at least'
+            Noun  = 'TPM'
             Kind  = 'Number'
             Unit  = ''
             Scope = 'Any'
@@ -117,6 +140,7 @@ function Get-HDTValidateCheckDefinition {
             Order = 5
             Key   = 'diskNumber'
             Label = 'Check this disk in particular'
+            Noun  = 'target disk'
             Kind  = 'Number'
             Unit  = ''
             Scope = 'NEWCOMPUTER'
@@ -127,6 +151,7 @@ function Get-HDTValidateCheckDefinition {
             Order = 7
             Key   = 'requireVariable'
             Label = 'Ensure these variables were gathered'
+            Noun  = ''
             Kind  = 'List'
             Unit  = ''
             Scope = 'Any'
@@ -143,6 +168,7 @@ function Get-HDTValidateCheckDefinition {
             Order = 8
             Key   = 'imageVersion'
             Label = 'Refuse a Refresh onto an older Windows'
+            Noun  = 'Windows'
             Kind  = 'Number'
             Unit  = ''
             Scope = 'REFRESH'
@@ -153,6 +179,7 @@ function Get-HDTValidateCheckDefinition {
             Order = 9
             Key   = 'imageSizeMB'
             Label = 'Size of the image being applied'
+            Noun  = 'image'
             Kind  = 'Number'
             Unit  = 'MB'
             Scope = 'REFRESH'
@@ -163,6 +190,7 @@ function Get-HDTValidateCheckDefinition {
             Order = 10
             Key   = 'allowOtherPartition'
             Label = 'Allow a Refresh onto another volume'
+            Noun  = 'any volume'
             Kind  = 'Switch'
             Unit  = ''
             Scope = 'REFRESH'
