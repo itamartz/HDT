@@ -34,7 +34,7 @@ Describe 'E2E workflow' {
         $script:repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
         Import-Module -Name (Join-Path -Path $script:repoRoot -ChildPath 'tests/helpers/HDTTestTools/HDTTestTools.psd1') -Force -ErrorAction Stop
 
-        $script:workflowPath = Join-Path -Path $script:repoRoot -ChildPath '.github/workflows/e2e.yml'
+        $script:workflowPath = Join-Path -Path $script:repoRoot -ChildPath '.github/workflows/lab.yml'
 
         $script:workflowText = ''
         if (Test-Path -Path $script:workflowPath -PathType Leaf) {
@@ -52,7 +52,7 @@ Describe 'E2E workflow' {
         }
     }
 
-    It 'exists at .github/workflows/e2e.yml' {
+    It 'exists at .github/workflows/lab.yml' {
         Test-Path -Path $script:workflowPath -PathType Leaf | Should -BeTrue
     }
 
@@ -320,7 +320,7 @@ Describe 'Self-hosted runners on a public repository' {
         # self-hosted `runs-on` behind a pull_request. A reusable workflow is
         # reached from somewhere else: e2e.yml stays clean, and ci.yml - which
         # does trigger on pull_request, because it must - grows one
-        # `uses: ./.github/workflows/e2e.yml` and a fork's pull request runs on
+        # `uses: ./.github/workflows/lab.yml` and a fork's pull request runs on
         # GHRUNNER01. Nothing else here would notice.
         #
         # A called workflow runs on the CALLER's event, so the caller's
@@ -394,9 +394,9 @@ Describe 'Self-hosted runners on a public repository' {
         $called = @([regex]::Matches($body, '(?m)^\s*uses:\s*(?<ref>\./\.github/workflows/\S+\.ya?ml)') |
                 ForEach-Object { $_.Groups['ref'].Value })
 
-        $called | Should -Contain './.github/workflows/e2e.yml'
+        $called | Should -Contain './.github/workflows/lab.yml'
 
-        $e2e = Get-Content -LiteralPath (Join-Path -Path $root -ChildPath '.github/workflows/e2e.yml') -Raw
+        $e2e = Get-Content -LiteralPath (Join-Path -Path $root -ChildPath '.github/workflows/lab.yml') -Raw
         $e2e -match '(?m)^\s*runs-on:.*\bself-hosted\b' | Should -BeTrue
     }
 

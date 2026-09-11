@@ -541,3 +541,204 @@ jobs:
           $summary += ('- ran on **{0}**' -f $env:COMPUTERNAME)
 
           [System.IO.File]::AppendAllText($env:GITHUB_STEP_SUMMARY, ($summary -join "`n") + "`n")
+
+  e2e:
+    name: hyper-v
+    needs: [ guard, changes ]
+
+    # DISPATCH OR A RELEASE, NEVER A PUSH TO main. The suite builds virtual
+    # machines and takes 41 minutes; on every push it would not be a gate, it
+    # would be the reason nobody reads the gate. A tag arrives here as a push
+    # whose ref is refs/tags/*, which is how the release path asks for it -
+    # see the workflow_call note in the trigger block.
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/')
+    runs-on: [self-hosted, windows, hyperv-nested]
+
+    # It deploys Windows to VMs from a WinPE image it builds first. Six hours is
+    # not a target, it is the point past which something has hung - and it is
+    # what a run somebody started by hand gets, where nobody is waiting on a
+    # release.
+    #
+    # A RELEASE PASSES A SHORTER ONE. `timeout-minutes` is not a key GitHub
+    # allows on a job that calls a reusable workflow, so the caller cannot set
+    # this from outside; it hands in a number and this job applies it.
+    #
+    # THE `|| 360` IS NOT DECORATION. An input declared under workflow_call
+    # gets its default only when the workflow is CALLED. On a
+    # workflow_dispatch, `inputs.timeoutMinutes` is null, and a bare
+    # `timeout-minutes: ${{ inputs.timeoutMinutes || 360 }}` is then an empty value
+    # and an invalid workflow file - a run with zero jobs, not an error.
+    #
+    # AND IT DOES NOT BOUND THE WAIT FOR A RUNNER. timeout-minutes starts when
+    # the job starts. GHRUNNER01 is a VM on another host and is not always up;
+    # a job with nowhere to run sits queued, and GitHub cancels it after 24
+    # hours. That is the outer bound on a release whose lab is switched off:
+    # slow, but it fails rather than publishing unproven.
+    timeout-minutes: ${{ inputs.timeoutMinutes || 360 }}
+
+    defaults:
+      run:
+        shell: powershell
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # NOT INSTALLED HERE, VERIFIED HERE. ci.yml installs its dependencies on a
+      # fresh hosted runner every time; this machine is built once and reverted
+      # to a checkpoint between jobs, so an Install-Module on every run would be
+      # a network round trip to prove something that cannot have changed. What
+      # can go wrong is the checkpoint being older than the pins, and that is
+      # what this reports - by name and version, before anything long starts.
+      - name: Check the build dependencies
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          $wanted = @{
+              'Pester'           = '5.7.1'
+              'PSScriptAnalyzer' = '1.25.0'
+              'powershell-yaml'  = '0.4.12'
+          }
+
+          $missing = @()
+          foreach ($name in $wanted.Keys | Sort-Object) {
+              $found = Get-Module -Name $name -ListAvailable |
+                  Where-Object { [string] $_.Version -eq $wanted[$name] }
+
+              if ($found) { "{0} {1}: present" -f $name, $wanted[$name] }
+              else {
+                  $have = (Get-Module -Name $name -ListAvailable | ForEach-Object { [string] $_.Version }) -join ', '
+                  $missing += ("{0} {1} is not installed on this runner (found: {2}). Install-Module {0} -RequiredVersion {1} -Scope AllUsers -Force, then retake the 'clean' checkpoint - otherwise the next revert loses it." -f
+                      $name, $wanted[$name], $(if ($have) { $have } else { 'nothing' }))
+              }
+          }
+
+          if ($missing) { throw ($missing -join "`n") }
+
+          "$($PSVersionTable.PSEdition) $($PSVersionTable.PSVersion) on $env:COMPUTERNAME"
+
+      # THE TASK REFUSES AN UNELEVATED SESSION, and says so plainly, so this is
+      # only here to fail on the right sentence rather than forty minutes into a
+      # build. The runner service account has to be a local administrator.
+      - name: Check elevation and Hyper-V
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          $elevated = ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole(
+              [Security.Principal.WindowsBuiltInRole]::Administrator)
+          if (-not $elevated) {
+              throw 'the runner service is not running elevated. tests/e2e creates virtual machines and mounts VHDXs; ./build.ps1 -Task e2e refuses without it.'
+          }
+
+          if (-not (Get-Module -Name 'Hyper-V' -ListAvailable)) {
+              throw 'the Hyper-V PowerShell module is not present on this runner. Enable-WindowsOptionalFeature -Online -FeatureName Microsoft-Hyper-V-Management-PowerShell.'
+          }
+
+          Get-VMHost | Select-Object VirtualMachinePath, VirtualHardDiskPath | Format-List
+          "elevated, Hyper-V present"
+
+      - name: End-to-end
+        run: ./build.ps1 -Task e2e
+
+      # continue-on-error on this and the diagnostics below, for the reason
+      # ci.yml's upload step spells out: a 403 from GitHub's artifact storage is
+      # not a verdict on the code. It matters more here - the screenshots are
+      # the only record of why a VM did not come up, so the upload failing must
+      # not also erase which assertion failed.
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        continue-on-error: true
+        with:
+          name: pester-e2e
+          path: out/testResults/*.xml
+
+      # THE SCREENSHOTS AND DEPLOYMENT LOGS, WHICH ARE THE ONLY RECORD OF WHY A
+      # VM DID NOT COME UP. A failed e2e assertion says a machine never reported
+      # its heartbeat; the picture of the screen and the share's own log say
+      # what it was doing instead. They are worth more than the .xml here.
+      - name: Upload deployment diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        continue-on-error: true
+        with:
+          name: e2e-diagnostics
+          path: |
+            C:/HDTLab/scratch/**/*.png
+            C:/HDTLab/scratch/**/*.log
+          if-no-files-found: ignore
+
+      - name: Summarise the run
+        if: always()
+        run: |
+          $summary = @('## HDT end-to-end', '')
+
+          $results = Get-ChildItem -Path 'out/testResults' -Filter 'pester-e2e-*.xml' -ErrorAction SilentlyContinue
+          foreach ($file in $results) {
+              [xml] $xml = Get-Content -LiteralPath $file.FullName -Raw
+              $run = $xml.'test-results'
+              if ($run) {
+                  $summary += ('- **{0}**: {1} total, {2} failed, {3} not run' -f
+                      $file.Name, $run.total, $run.failures, $run.'not-run')
+              }
+          }
+
+          if ($results.Count -eq 0) { $summary += '- no result file was produced; the suite did not get as far as writing one.' }
+
+          [System.IO.File]::AppendAllText($env:GITHUB_STEP_SUMMARY, ($summary -join "`n") + "`n")
+
+  # ==========================================================================
+  # THE BADGES, WHICH WERE badges.yml AND NEEDED workflow_run TO BE SAFE THERE.
+  #
+  # A badge job holds contents: write, and the danger has never been the token
+  # itself - it is a writable token in a file a pull request can EDIT. badges.yml
+  # solved that with `workflow_run`, which GitHub always runs from the DEFAULT
+  # BRANCH's copy, so nothing a fork wrote decided what it did.
+  #
+  # THAT INDIRECTION IS UNNECESSARY IN A FILE WITH NO FORK-REACHABLE TRIGGER.
+  # This file answers push:[main], workflow_dispatch and workflow_call, and a
+  # fork can start none of them. So the job can sit beside the run that
+  # produced the numbers and read them from the same run - no download from
+  # another run id, no actions: read.
+  #
+  # THE WRITE IS ON THIS JOB AND NOWHERE ELSE. The workflow grants
+  # contents: read; this one job raises it, and it runs on ubuntu-latest. The
+  # self-hosted jobs above never hold it, which is the rule that has not
+  # changed: a writable token on a machine somebody owns is what turns a
+  # compromised job into a compromised repository.
+  # ==========================================================================
+  badges:
+    name: badges
+    needs: lab
+    if: always() && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Take the numbers the gate produced
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: badges
+          path: out/badges
+
+      - name: Publish badges
+        uses: ./.github/actions/publish-badges
+        with:
+          path: out/badges
+          token: ${{ secrets.GITHUB_TOKEN }}
+          message: badges
+
+      - name: Summarise what was published
+        if: always()
+        run: |
+          {
+            echo '## HDT badges'
+            echo
+            echo "- from run [${{ github.run_id }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})"
+            echo "- the lab job concluded: ${{ needs.lab.result }}"
+          } >> "$GITHUB_STEP_SUMMARY"

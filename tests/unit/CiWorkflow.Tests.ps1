@@ -43,7 +43,7 @@ Describe 'CI workflow (DESIGN 12.2.5)' {
         $script:repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
         Import-Module -Name (Join-Path -Path $script:repoRoot -ChildPath 'tests/helpers/HDTTestTools/HDTTestTools.psd1') -Force -ErrorAction Stop
 
-        $script:workflowPath = Join-Path -Path $script:repoRoot -ChildPath '.github/workflows/ci.yml'
+        $script:workflowPath = Join-Path -Path $script:repoRoot -ChildPath '.github/workflows/gate.yml'
 
         $script:workflowText = ''
         if (Test-Path -Path $script:workflowPath -PathType Leaf) {
@@ -61,7 +61,7 @@ Describe 'CI workflow (DESIGN 12.2.5)' {
         }
     }
 
-    It 'exists at .github/workflows/ci.yml' {
+    It 'exists at .github/workflows/gate.yml' {
         Test-Path -Path $script:workflowPath -PathType Leaf | Should -BeTrue
     }
 
@@ -396,7 +396,7 @@ Describe 'Coverage workflow' {
 
     BeforeAll {
         $script:coverageRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
-        $script:coveragePath = Join-Path -Path $script:coverageRoot -ChildPath '.github/workflows/coverage.yml'
+        $script:coveragePath = Join-Path -Path $script:coverageRoot -ChildPath '.github/workflows/gate.yml'
 
         $script:coverageText = ''
         if (Test-Path -Path $script:coveragePath -PathType Leaf) {
@@ -409,7 +409,7 @@ Describe 'Coverage workflow' {
         }
     }
 
-    It 'exists at .github/workflows/coverage.yml' {
+    It 'exists at .github/workflows/gate.yml' {
         Test-Path -Path $script:coveragePath -PathType Leaf | Should -BeTrue
     }
 

@@ -215,3 +215,134 @@ jobs:
       # how the two came to race each other on a branch neither of them locked.
       # The push is one composite action now - .github/actions/publish-badges -
       # and every job that calls it shares a `badges` concurrency group.
+
+  # ==========================================================================
+  # COVERAGE, WHICH WAS coverage.yml AND IS A JOB HERE FOR ONE REASON.
+  #
+  # IT BELONGS TO THE SAME PRIVILEGE CLASS AS THE GATE ABOVE: a hosted runner,
+  # contents: read, nothing a pull request could steal by editing this file.
+  # That - not subject matter - is what decides which file a job lives in, and
+  # it is why e2e and the lab gate are NOT here: they run on a machine on a
+  # private LAN, and a file carrying `pull_request` runs from the pull
+  # request's own head.
+  #
+  # IT IS STILL SLOW AND STILL SCHEDULED. Pester traces every command the suite
+  # executes; the last two runs took 1h4m and 1h5m. The `if:` below keeps it off
+  # every other trigger this file answers.
+  # ==========================================================================
+  coverage:
+    name: coverage
+
+    # NEVER ON A PULL REQUEST. Four hours of a hosted runner is not a thing a
+    # PR should be able to start, and the number it produces is about main
+    # rather than about a proposal. Its own file used to express this by having
+    # no pull_request trigger; in a shared file it is an `if:`, and that is
+    # safe HERE - unlike a guard on a self-hosted job - because this file holds
+    # nothing a fork could want. It runs on windows-latest with contents: read,
+    # which is what a fork already gets.
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: windows-latest
+
+    # The suite takes 20 minutes here without coverage. This one is allowed to
+    # take two hours, and is killed rather than left burning if it takes six.
+    timeout-minutes: 240
+
+    defaults:
+      run:
+        shell: powershell
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+
+          Install-PackageProvider -Name NuGet -MinimumVersion 2.8.5.201 -Force | Out-Null
+
+          Set-PSRepository -Name PSGallery -InstallationPolicy Trusted
+          Install-Module Pester            -RequiredVersion 5.7.1  -Scope CurrentUser -Force -SkipPublisherCheck
+          Install-Module powershell-yaml   -RequiredVersion 0.4.12 -Scope CurrentUser -Force
+
+          "$($PSVersionTable.PSEdition) $($PSVersionTable.PSVersion): dependencies installed"
+
+      - name: Test with coverage
+        run: ./build.ps1 -Task test -Coverage -Verbosity None
+
+      # continue-on-error on both, for the reason ci.yml's upload step spells
+      # out: a 403 from GitHub's artifact storage is not a verdict on the code,
+      # and a diagnostic copy does not get to fail the run that produced it.
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        continue-on-error: true
+        with:
+          name: coverage-jacoco
+          path: out/coverage/coverage.xml
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        continue-on-error: true
+        with:
+          name: pester-coverage-run
+          path: out/testResults/*.xml
+
+      - name: Summarise the run
+        if: always()
+        run: |
+          $summary = @('## HDT coverage', '')
+
+          foreach ($name in 'tests', 'coverage') {
+              $path = "out/badges/$name.json"
+              if (Test-Path -LiteralPath $path) {
+                  $badge = ConvertFrom-Json ([System.IO.File]::ReadAllText((Resolve-Path $path)))
+                  $summary += ('- **{0}**: {1}' -f $badge.label, $badge.message)
+              }
+          }
+
+          [System.IO.File]::AppendAllText($env:GITHUB_STEP_SUMMARY, ($summary -join "`n") + "`n")
+
+      # THE NUMBERS, ON THEIR WAY TO A JOB THAT IS ALLOWED TO QUEUE FOR THE
+      # BRANCH. This job used to push them itself, from inside a measurement
+      # that takes up to four hours - see the `badges` job below for why that
+      # could not stay where it was.
+      - name: Upload the badges
+        if: always()
+        uses: actions/upload-artifact@v4
+        continue-on-error: true
+        with:
+          name: badges
+          path: out/badges/*.json
+          if-no-files-found: warn
+
+  # ==========================================================================
+  # THE BADGE PUSH, IN A JOB OF ITS OWN, AND THE SPLIT IS THE FIX RATHER THAN
+  # THE TIDYING.
+  #
+  # TWO WRITERS, NO LOCK, NO RETRY. This workflow and ci.yml each carried a
+  # verbatim copy of the same forty lines of git: clone the orphan `badges`
+  # branch shallow, copy out/badges/*.json in, commit, push. No rebase, no
+  # retry, and `throw` on a non-zero exit. So a nightly coverage run overlapping
+  # a push to main means one of the two pushes is rejected as non-fast-forward
+  # and a build that passed every check it makes reports failure - for a reason
+  # that appears nowhere in its own log. It is rare only because 03:00 UTC is a
+  # quiet time here, which is not a control.
+  #
+  # SO EVERY BADGE PUSH NAMES THE SAME CONCURRENCY GROUP and they queue instead.
+  # CiLabWorkflow.Tests.ps1 asserts that over the SET of workflow files, so the
+  # third writer somebody adds is judged too, and asserts cancel-in-progress is
+  # false on all of them: a push cancelled halfway leaves the branch carrying a
+  # tests badge from one run and a coverage badge from another.
+  #
+  # AND IT IS A SEPARATE JOB BECAUSE A GROUP IS HELD FOR THE LENGTH OF WHATEVER
+  # HOLDS IT. Put `concurrency: badges` on the measurement job and this workflow
+  # owns the badges branch for four hours a night, during which every push to
+  # main has a badge run sitting in a queue. The push itself takes seconds; it
+  # is the only thing that should be in the group.
+  #
+  # THE PUSH ITSELF IS .github/actions/publish-badges, ONE PLACE, shared with
+  # badges.yml - the two copies had already begun to differ in their comments,
+  # and a badge push is exactly the kind of thing where the copy nobody looked
+  # at is the one that corrupts the branch.
+  # ==========================================================================

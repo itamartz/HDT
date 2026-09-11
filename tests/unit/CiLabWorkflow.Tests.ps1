@@ -41,7 +41,7 @@ Describe 'CI-Lab workflow' {
         $script:repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
         Import-Module -Name (Join-Path -Path $script:repoRoot -ChildPath 'tests/helpers/HDTTestTools/HDTTestTools.psd1') -Force -ErrorAction Stop
 
-        $script:workflowPath = Join-Path -Path $script:repoRoot -ChildPath '.github/workflows/ci-lab.yml'
+        $script:workflowPath = Join-Path -Path $script:repoRoot -ChildPath '.github/workflows/lab.yml'
 
         $script:workflowText = ''
         if (Test-Path -Path $script:workflowPath -PathType Leaf) {
@@ -85,7 +85,7 @@ Describe 'CI-Lab workflow' {
         }
     }
 
-    It 'exists at .github/workflows/ci-lab.yml' {
+    It 'exists at .github/workflows/lab.yml' {
         Test-Path -Path $script:workflowPath -PathType Leaf | Should -BeTrue
     }
 
@@ -166,7 +166,7 @@ Describe 'CI-Lab workflow' {
         $mine.Count | Should -Be 1
 
         $e2e = ConvertFrom-Yaml (Get-Content -LiteralPath (
-                Join-Path -Path $script:repoRoot -ChildPath '.github/workflows/e2e.yml') -Raw)
+                Join-Path -Path $script:repoRoot -ChildPath '.github/workflows/lab.yml') -Raw)
 
         $theirs = @($e2e['jobs']['e2e']['steps'] | Where-Object {
                 $_ -is [System.Collections.IDictionary] -and [string] $_['name'] -eq 'Check the build dependencies'
@@ -396,7 +396,7 @@ Describe 'Badges workflow' {
 
     BeforeAll {
         $script:badgeRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
-        $script:badgePath = Join-Path -Path $script:badgeRoot -ChildPath '.github/workflows/badges.yml'
+        $script:badgePath = Join-Path -Path $script:badgeRoot -ChildPath '.github/workflows/lab.yml'
 
         $script:badgeText = ''
         if (Test-Path -Path $script:badgePath -PathType Leaf) {
@@ -409,7 +409,7 @@ Describe 'Badges workflow' {
         }
     }
 
-    It 'exists at .github/workflows/badges.yml' {
+    It 'exists at .github/workflows/lab.yml' {
         Test-Path -Path $script:badgePath -PathType Leaf | Should -BeTrue
     }
 
