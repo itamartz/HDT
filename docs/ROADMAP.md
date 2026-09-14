@@ -206,14 +206,16 @@ about (SPIKES S9):
   harness types one line at the WinPE prompt instead of `startnet.cmd` doing it.
 - **No PXE.** M4.
 - **WinRE is not configured by HDT** — see finding 4 above.
-- **Domain join is unproven end to end.** There is no domain controller in this
-  lab, and the `HDT Lab` switch is isolated by design. `JoinDomain` is verified
-  against a fake only (PROJECT.md says so explicitly).
-
-  **The step exists as of 2026-09-01** and is still fake-verified only: it has
-  never joined a real domain, and nothing in this repository has. The logic is
-  tested — the wire is not. See M6 below for what it does and what it does not
-  answer, and Post-v1 for the hardware proof it is still owed.
+- ~~**Domain join is unproven end to end.**~~ **CLOSED on 2026-09-07.** It was
+  true when M3 was written — there was no domain controller in this lab, and
+  `HDT Lab` is isolated by design — and it stayed written here for a week after
+  it stopped being true. The lab was built instead: `AD-DC-2025` promoted
+  `HDT-M6-DC01` to serve `hdtlab.test` on `HDT External`, and `AD-JOIN` deployed
+  `HDT-M6-CL01` onto the same segment and joined it, step 12 completed, the run
+  ending `Succeeded: 13 completed, 0 failed`
+  (`Logs\HDT-M6-CL01-run-20260907-233547`). The wire is proven, not just the
+  logic. See M6 below for what the step does, and Post-v1 for the cost of having
+  left this paragraph standing.
 
 ---
 
@@ -372,9 +374,14 @@ all.
   ceremony arms autologon through the registry and an LSA secret, and in WinPE
   those belong to the RAM disk. The first logon of the deployed machine is
   configured by the unattend, which `ApplyUnattend` stages.
-- **Domain join is still unproven end to end**, for the reason `PROJECT.md`
+- ~~**Domain join is still unproven end to end**, for the reason `PROJECT.md`
   gives: there is no domain controller in this lab, and the `HDT Lab` switch is
-  isolated by design.
+  isolated by design.~~ **The reason expired and the gap CLOSED on 2026-09-07.**
+  `DEMO-M4` still does not join a domain — nothing in that demo does — but the
+  lab reason given here is no longer the truth about HDT: `HDT-M6-DC01` serves
+  `hdtlab.test` on `HDT External`, and `HDT-M6-CL01` joined it on a real
+  deployment (`Logs\HDT-M6-CL01-run-20260907-233547`). Left here corrected
+  rather than deleted, because it was read back as current a week later.
 - **DESIGN 11's technician UI is absent.** It is M8.
 - **On the ISO / local-boot path, the boot image carries the ADK's bootloader,
   and a fully patched machine with Secure Boot on will refuse it.**
@@ -717,11 +724,27 @@ records, which say which `.inf` answered which id and at what rank.
   `HDTDomainAdminDomain` and `HDTDomainAdminPassword`. Closing that gap is the
   reason it was built.
 
-  **It has never joined a real domain, and it cannot be proven here.** There is
+  ~~**It has never joined a real domain, and it cannot be proven here.** There is
   no domain controller on this host and the isolated switch is isolated by
   design (M3, above; PROJECT.md says so explicitly). Every assertion about it is
   made against a hand-written fake. Said plainly rather than left to be
-  discovered: the logic is tested and the wire is not.
+  discovered: the logic is tested and the wire is not.~~
+
+  **IT JOINED ONE ON 2026-09-07, and "it cannot be proven here" was wrong rather
+  than merely stale.** The thing it said was impossible was a lab build, and the
+  lab build was done: `AD-DC-2025` promoted `HDT-M6-DC01` to `hdtlab.test` on
+  `HDT External` — the routed switch, not the isolated one — and `AD-JOIN`
+  deployed `HDT-M6-CL01` onto the same segment:
+
+      step 12 'Join Domain' (JoinDomain) starting, attempt 1 of 4
+      this machine is now a member of hdtlab.test, joined as HDTLAB\Administrator.
+      step 12 'Join Domain' completed
+      Run run-20260907-233547 ended Succeeded: 13 completed, 0 failed, 1 skipped
+
+  Confirmed four ways rather than by the step reporting itself successful:
+  `PartOfDomain True`, a working secure channel, the controller still resolving,
+  and a directory object whose SID is this machine's (`Test-DomainMembership.ps1`).
+  Evidence in `Logs\HDT-M6-CL01-run-20260907-233547`.
 
   **One thing it surfaces rather than solves.** `state.json` redacts every
   secret and the leg after a restart rehydrates its variables from it, so a
@@ -730,9 +753,16 @@ records, which say which `.inf` answered which id and at what rank.
   than attempting the join, because one wrong-password attempt per machine locks
   out the account that joins every machine in the estate. DESIGN §4.5.2 already
   named the durable answer, an LSA-carried secret bag written alongside each
-  checkpoint, and recorded that it is not built; that is still true. Until it
+  checkpoint, ~~and recorded that it is not built; that is still true. Until it
   is, an unattended domain join needs `HDTDomainAdminPassword` set in the leg
-  that runs the step.
+  that runs the step.~~ **It was BUILT on 2026-09-08** (`4366281`, shipped in
+  0.24.0): `Save-HDTSecretBag` / `Restore-HDTSecretBag` / `Clear-HDTSecretBag`
+  over the same `ILsaService`, called from `Invoke-HDTTaskSequence` at the top of
+  every leg. A full-OS leg that resumes after a restart no longer sees
+  `(set, not shown)` where `HDTDomainAdminPassword` was, so the workaround this
+  paragraph prescribed is no longer needed. What remains is narrower and is
+  stated in Post-v1 below. DESIGN §4.5.2 has said "THE SECRET BAG, AND IT IS
+  BUILT" since the same day; only this paragraph lagged.
 - Server task sequence in `samples/`.
 - ~~**`WindowsUpdate` is deferred to v2**~~ — **built on 2026-09-06**; see below.
 
@@ -1377,12 +1407,25 @@ not what survived it. The design is DESIGN §3.2.
   is explicitly resumed, rather than until the next boot — because a Refresh
   reboots more than once.
 
-  **Proven against fakes only.** The ordering claim is asserted on the ordered
+  ~~**Proven against fakes only.** The ordering claim is asserted on the ordered
   operation list of the real template
   (`tests/unit/RefreshTemplate.EndToEnd.Tests.ps1`), and nothing here has run on
   a real machine: whether a real `Suspend-BitLocker` on a real TPM leaves the
   one-shot boot entry reachable is not something a hand-written double can
-  answer.
+  answer.~~ **ANSWERED ON A MACHINE, 2026-09-11.** The ordered-operation-list
+  assertion still stands and is still where the ordering is pinned, but the
+  question it could not answer has been answered by a run:
+  `HDT-M9-REF01` suspended a `FullyEncrypted` C: for 0 reboots, armed the
+  one-shot entry, and **came back in WinPE rather than at a recovery prompt** —
+
+      step 3 'Suspend BitLocker' (SuspendBitLocker) starting, attempt 1 of 1
+      BitLocker protection on C: is suspended for 0 reboot(s). The volume is
+      still encrypted (FullyEncrypted) - this is a suspend, not a decrypt.
+      step 3 'Suspend BitLocker' completed
+
+  (`Logs\HDT-M9-REF01-run-20260911-022616`, and the step-3 log under its
+  `Steps` folder). A real `Suspend-BitLocker` on a real TPM does leave the
+  one-shot boot entry reachable.
 - **Refresh-only validation — the three guards MDT runs in `ZTIValidate.wsf`,
   built.** They are three more checks on the existing `Validate` step rather than
   a step type of their own, because a guard an author can leave out of a sequence
@@ -1406,10 +1449,23 @@ not what survived it. The design is DESIGN §3.2.
   because the boot disk a Refresh replaces is the one disk the target-disk rules
   exclude absolutely.
 
-  **Proven against fakes only**, like everything else in M9: the guards are
-  asserted over the scoped SET read back out of that table
-  (`tests/unit/Invoke-HDTValidateStep.Refresh.Tests.ps1`), and no run has yet
-  refused a real machine.
+  **The guards themselves are proven against fakes only**~~, like everything
+  else in M9~~: they are asserted over the scoped SET read back out of that
+  table (`tests/unit/Invoke-HDTValidateStep.Refresh.Tests.ps1`), and no run has
+  yet **refused** a real machine — the hardware runs all had a valid target, so
+  the refusal path was never taken.
+
+  **The struck clause was over-broad and must not be read across the
+  milestone.** M9 ran end to end on hardware on 2026-09-11 — suspend, arm,
+  WinPE, `CleanVolume`, apply, and a third leg inside the installation it had
+  just written (`Logs\HDT-M9-REF01-run-20260911-022616`) — so "everything else
+  in M9" has hardware behind it. What the hardware shows of these three checks
+  is exactly the `NEWCOMPUTER` half: on every seed run they reported themselves
+  `skipped` with their reasons
+  (`Logs\HDT-M9-REF01-run-20260911-021200`, thirteen such runs in all). The
+  narrow claim — no real machine has been turned away by one of them — is
+  worth keeping; a clause that generalises it to a whole milestone is how a
+  closed gap gets read back as an open one.
 - **`BootToWinPE` is reused unchanged.** `Invoke-HDTBootToWinPEStep`,
   `Get-HDTLocalWinPePlan` and `Get-HDTBcdCommand` shipped in M7 and were
   deliberately kept out of the forbidden set so a resumed leg can tear down its
@@ -1489,13 +1545,36 @@ Ordered by likely value, all pending the open questions in DESIGN §14:
   paragraph rather than from the logs. A roadmap that records a gap somebody has
   since closed is worse than one that records nothing, because it is read as
   current. Evidence lives in `Logs\HDT-M6-CL01-run-20260907-233547`.
-- **A secret bag that survives a reboot** (DESIGN §4.5.2, named there and not
+- ~~**A secret bag that survives a reboot** (DESIGN §4.5.2, named there and not
   built). `HDTAdminPassword` is recovered from the autologon LSA secret because
   it happens to be the same value; every other secret a full-OS step reads after
-  a restart gets the checkpoint's redaction instead. `JoinDomain` is the first
-  step to hit it and it refuses loudly, which is the right behaviour and not a
-  fix. The mechanism is an LSA-carried bag written alongside each checkpoint —
-  the same store §4.5.2 already chose for the autologon password.
+  a restart gets the checkpoint's redaction instead.~~ **BUILT on 2026-09-08**
+  (`4366281`, shipped in 0.24.0), and this entry sat in the post-v1 list for six
+  days after the code landed. `Save-HDTSecretBag`, `Restore-HDTSecretBag` and
+  `Clear-HDTSecretBag` carry it over the same `ILsaService` the autologon
+  password uses; `Invoke-HDTTaskSequence` restores then saves the bag at the top
+  of every leg that has an LSA service, and `Test-HDTSecretVariable` decides what
+  counts as secret so the writer and the redactor cannot disagree. It is cleared
+  with the autologon, in the `finally` and again at the boot-time reconcile, and
+  the value reaches no log at any level. Covered by `tests/unit/SecretBag.Tests.ps1`
+  and `tests/contract/SecretRedaction.Contract.Tests.ps1`. DESIGN §4.5.2 reads
+  "THE SECRET BAG, AND IT IS BUILT"; only this list lagged.
+
+  **What is genuinely still open is much narrower, and it stays on this list.**
+  The bag is written twice per leg — once before the first step, once
+  immediately after a restart is armed — and deliberately **not** at every
+  checkpoint, because an LSA call per step buried
+  `TaskSequence.EndToEnd.Tests.ps1`'s ordered operation list (DESIGN 12.2.1)
+  under bookkeeping that changed nothing. So one case is uncovered: a secret
+  **first set by a `SetVariable` step mid-leg**, on a leg then taken down by a
+  **surprise servicing restart** — SPIKES S25, where a cumulative update
+  restarted the machine and the engine never reached its own `Restart` step —
+  is not in the bag when the machine comes back. Everything resolved from the
+  rules, the wizard or a per-machine override is, because all of that is in the
+  bag before the first step runs. Two further boundaries are decisions rather
+  than gaps (DESIGN §4.5.2): WinPE's LSA is on a RAM disk, so the bag covers
+  full-OS leg to full-OS leg and not the first crossing, and a NewComputer run's
+  full-OS secrets resolve from `rules.yaml` through `Restore-HDTRuleVariable`.
 
 ---
 

@@ -50,10 +50,19 @@ They are simply not in v1:
   recognised the model; and the network/mass-storage class filter picks the
   classes a boot image actually needs. `driver-index.json` was never written —
   see §7.
-- **§9.3 Capture** and **§6.2 standalone media.** v1 applies images; it does not
+- ~~**§9.3 Capture** and **§6.2 standalone media.** v1 applies images; it does not
   sysprep and capture its own, and it does not project a workspace onto a USB
-  stick. `New-HDTBootIso` still ships in v1 — a bootable WinPE ISO is not the
-  same thing as offline media carrying the OS and applications.
+  stick.~~ **BOTH BUILT — capture 2026-08-31, media 2026-09-03**, and M7 records
+  both exits as met. §9.3's `Sysprep` and `CaptureImage` steps write to
+  `Captures\` and `Import-HDTOperatingSystem` promotes the result; §6.2's
+  `New-HDTMedia` / `Update-HDTMediaContent` project the share through a selection
+  profile, swap the provider to `Local` and burn an ISO, proven by booted VMs
+  rather than by a green suite. The entry is kept rather than deleted because
+  ROADMAP records that the deferral outlived the work by longer than it was true.
+  One clause of it survives as a decision, not a gap: **HDT never writes a USB
+  stick itself** — ISO only (§6.2, decided 2026-09-03), and Rufus or `dd` does
+  the destructive half. `New-HDTBootIso` still ships — a bootable WinPE ISO is
+  not the same thing as offline media carrying the OS and applications.
 - ~~**§10.1 Windows Update.**~~ **Built on 2026-09-06.** The entry is kept
   rather than deleted, because what it cost while it was true is the reason the
   step exists: a machine HDT built left the bench with exactly the patches its
@@ -2708,8 +2717,10 @@ reverses the "no offline servicing pipeline" half of §15's open question 4 — 
 the note there for what changed and what did not.
 
 **It is not §10.1.** That step is online, full-OS, and talks to WSUS through the
-Windows Update Agent; it is deferred to v2. This one needs no network, no server
-and no reboot loop.
+Windows Update Agent. ~~it is deferred to v2.~~ **§10.1 was built on 2026-09-06**
+(see its own heading, which has said so since) — the two are different features
+that happen to share a subject, and this one is still the offline half: it needs
+no network, no server and no reboot loop.
 
 #### 7.5.1 The `.msu` is a WIM, and that killed MDT's mechanism
 
