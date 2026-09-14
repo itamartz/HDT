@@ -590,6 +590,49 @@ Describe 'Invoke-HDTValidateStep on the machine a Refresh runs on' {
             Should -BeNullOrEmpty -Because 'the reader has to be able to tell a skip from a pass'
     }
 
+    # THE ONE LINE THAT SAYS WHAT THIS RUN IS ABOUT TO REPLACE, and on a Refresh
+    # it said nothing at all. Captured from a real run:
+    #
+    #   disk  is the deployment target: disk  - the only disk of 0 that qualified.
+    #
+    # A Refresh chooses no disk - the assessment above is skipped deliberately,
+    # so $selected is $null and the assessment is empty - and the verdict printed
+    # that anyway. Both halves are wrong in the same way: an empty disk number,
+    # and a count of nothing standing beside a claim that something qualified.
+    # This is the only record of WHICH disk HDT decided to write to and why,
+    # which makes a blank one the worst sentence to leave in a log nobody can
+    # re-run.
+
+    It 'does not claim a deployment target it never chose' {
+        [string] $script:onItsOwnDisk.Message | Should -Not -Match 'disk\s+is the deployment target'
+        [string] $script:onItsOwnDisk.Message | Should -Not -Match 'of 0 that qualified'
+    }
+
+    It 'names the volume a Refresh replaces instead, and says no disk was chosen' {
+        [string] $script:onItsOwnDisk.Message | Should -Match 'C:'
+        [string] $script:onItsOwnDisk.Message | Should -Match 'REFRESH'
+    }
+
+    It 'still names the disk it chose on a NEWCOMPUTER run' {
+        # THE OTHER HALF OF THE SET. A fix that silenced the line on a Refresh
+        # by silencing it everywhere would pass both tests above.
+        $disk = New-HDTFakeDiskService -Disk @(
+            @{ Number = 0; FriendlyName = 'Virtual HD'; SizeBytes = 137438953472
+                BusType = 'SAS'; PartitionStyle = 'RAW'
+            })
+
+        $step = & $script:newStep ([ordered] @{})
+        $context = & $script:contextFor $disk ([ordered] @{
+                HDTDeploymentType   = 'NEWCOMPUTER'
+                HDTOSCurrentVersion = ''
+            }) 'X:' 'WinPE'
+
+        $result = Invoke-HDTValidateStep -Step $step -Context $context
+
+        $result.Status | Should -BeExactly 'Completed' -Because ('it said: {0}' -f $result.Message)
+        [string] $result.Message | Should -Match 'disk 0 is the deployment target'
+    }
+
     It 'still chooses a target disk on a NEWCOMPUTER run, boot disk excluded' {
         # THE OTHER HALF OF THE SET, so the fix cannot turn into "the check never
         # runs". A bare-metal run on this same machine still refuses: the only

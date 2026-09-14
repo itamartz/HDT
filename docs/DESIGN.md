@@ -3061,7 +3061,7 @@ mode in this class of tool.
 | 2 | holds a protected drive letter | the disk carrying the workspace or the log | **Never** |
 | 3 | `IsReadOnly` | a disk that cannot be written | **Never** |
 | 4 | `IsOffline` | a disk HDT cannot bring online | **Never** |
-| 5 | existing data | a disk carrying a formatted volume | No — `wipe: true` declares it instead |
+| 5 | existing data | a disk carrying a formatted volume, or a partition HDT cannot read | No — `wipe: true` declares it instead |
 | 6 | `BusType` USB | the stick the technician booted from | Yes, with a warning |
 | 7 | under the minimum size | too small to hold Windows | Yes, with a warning |
 
@@ -3071,6 +3071,38 @@ sequence. Rule 2 is rule 1 for the share: `DiskPartition` always passes the driv
 letters of the workspace root and the log path, unconditionally. Rule 5 is
 overridden by the *sequence* rather than by the number, because naming a disk
 explicitly is not the same statement as declaring its contents expendable.
+
+**Rule 5 has a half that no drive letter can describe, and it is the half that
+matters most.** `IDiskService` reports volumes *by access path* — `GetVolume()`
+lists the ones that have a drive letter, because a letter is the only handle the
+rest of HDT can address a volume by. A volume mounted to a folder, or to nothing
+at all, is therefore absent from that listing, and a disk lifted out of another
+machine is exactly that shape. Matching volumes to a disk by letter found an
+empty set on a full disk and cleared it with no `wipe: true` anywhere in the
+sequence, so the rule is evaluated from the **partition** listing instead — it is
+the only one whose rows name their own disk:
+
+- a partition whose volume HDT can read, and which has a file system, is
+  existing data, named by its letter and file system as before;
+- a partition with **no drive letter** is one HDT cannot read at all, so it
+  cannot report the disk as empty. An unreadable target is an ambiguous one, and
+  an ambiguous target is refused rather than assumed expendable;
+- a lettered partition whose volume has *no* file system is neither. That one was
+  read, and what it held was an unformatted volume — counting it would make the
+  rule stricter than "a formatted volume" in the one direction nobody notices,
+  because a wrong refusal reads exactly like the guard working.
+
+Both halves stay overridable by `wipe: true`: a sequence that has declared the
+target's contents expendable has answered this question whether or not HDT could
+read what it is replacing. A RAW disk carries no partitions and trips neither.
+The refusal names the partitions it could not read — number, size and type, the
+three things `diskpart` will show the administrator — because a volume with no
+letter has no letter to be named by.
+
+**A `REFRESH` runs none of this, and says so.** It keeps the partition table it
+is already running on, so there is no disk to choose; the pre-flight reports the
+target-disk rows as *skipped* with that reason, and its verdict line names the
+volume being replaced instead of a disk number it never selected.
 
 **No rule filters on bus type expecting a virtual value.** SPIKES S6: a
 Generation 2 VM's own system disk reports `BusType = SAS`, not `SCSI` and not

@@ -426,6 +426,108 @@ Describe 'Select-HDTTargetDisk' {
             (Select-HDTTargetDisk -Disk $disk -Partition @() -Volume @()).Number | Should -Be 0
         }
 
+        # THE UNLETTERED HALF OF RULE 5, AND IT WAS MISSING.
+        #
+        # DESIGN 9.1 states rule 5 as "a disk carrying a formatted volume",
+        # unqualified - but IDiskService reports volumes BY ACCESS PATH, so a
+        # volume mounted to a folder, or to nothing at all, is not in the listing
+        # at all. Matching volumes to a disk by drive letter therefore found
+        # nothing on a data disk from another machine, rule 5 never fired, and
+        # DiskPartition cleared it with no wipe: true anywhere in the sequence.
+        #
+        # HDT CANNOT READ AN UNLETTERED PARTITION, and the answer to a target it
+        # cannot read is the same as everywhere else in this file: refuse it.
+        # A partition whose contents are invisible is an ambiguous target.
+
+        It 'excludes a disk whose partitions carry no drive letter' {
+            $disk = @(
+                (New-HDTTestDiskRow -Number 0),
+                (New-HDTTestDiskRow -Number 1 -PartitionStyle 'GPT')
+            )
+            $partition = @(New-HDTTestPartitionRow -DiskNumber 1 -PartitionNumber 1)
+
+            (Select-HDTTargetDisk -Disk $disk -Partition $partition -Volume @()).Number | Should -Be 0
+        }
+
+        It 'refuses an explicit diskNumber naming a disk whose partitions carry no drive letter' {
+            $disk = @(New-HDTTestDiskRow -Number 1 -PartitionStyle 'GPT')
+            $partition = @(New-HDTTestPartitionRow -DiskNumber 1 -PartitionNumber 1)
+
+            $record = $null
+            try { Select-HDTTargetDisk -Disk $disk -Partition $partition -Volume @() -DiskNumber 1 } catch { $record = $_ }
+
+            $record.FullyQualifiedErrorId | Should -BeLike 'HDTUnsafeTargetError*'
+        }
+
+        It 'includes a disk whose partitions carry no drive letter when AllowExistingData is set' {
+            # Rule 5 is overridable by the SEQUENCE, per DESIGN 9.1's table, and
+            # that has to hold for the half of it a letter cannot describe.
+            $disk = @(New-HDTTestDiskRow -Number 1 -PartitionStyle 'GPT')
+            $partition = @(New-HDTTestPartitionRow -DiskNumber 1 -PartitionNumber 1)
+
+            (Select-HDTTargetDisk -Disk $disk -Partition $partition -Volume @() -AllowExistingData).Number |
+                Should -Be 1
+        }
+
+        It 'names the partitions it could not read in the refusal' {
+            # An unlettered volume has no letter to print, and the first cut of
+            # this printed 'volume ' followed by nothing - a refusal an
+            # administrator cannot act on. It names the partition instead.
+            $disk = @(New-HDTTestDiskRow -Number 1 -PartitionStyle 'GPT')
+            $partition = @(New-HDTTestPartitionRow -DiskNumber 1 -PartitionNumber 3 -SizeBytes 1021820002304 -Type 'Basic')
+
+            $record = $null
+            try { Select-HDTTargetDisk -Disk $disk -Partition $partition -Volume @() } catch { $record = $_ }
+
+            $record.Exception.Message | Should -BeLike '*partition 3*'
+            $record.Exception.Message | Should -BeLike '*Basic*'
+            $record.Exception.Message | Should -BeLike '*1021820002304*'
+            $record.Exception.Message | Should -BeLike '*no drive letter*'
+        }
+
+        It 'names both the volumes and the partitions when a disk carries each' {
+            $disk = @(New-HDTTestDiskRow -Number 1 -PartitionStyle 'GPT')
+            $partition = @(
+                (New-HDTTestPartitionRow -DiskNumber 1 -PartitionNumber 1 -Type 'System'),
+                (New-HDTTestPartitionRow -DiskNumber 1 -PartitionNumber 3 -DriveLetter 'D')
+            )
+            $volume = @(New-HDTTestVolumeRow -DriveLetter 'D' -FileSystem 'NTFS')
+
+            $record = $null
+            try { Select-HDTTargetDisk -Disk $disk -Partition $partition -Volume $volume } catch { $record = $_ }
+
+            $record.Exception.Message | Should -BeLike '*volume D (NTFS)*'
+            $record.Exception.Message | Should -BeLike '*partition 1*'
+        }
+
+        It 'ignores an unlettered partition on another disk' {
+            $disk = @(New-HDTTestDiskRow -Number 1 -PartitionStyle 'GPT')
+            $partition = @(New-HDTTestPartitionRow -DiskNumber 7 -PartitionNumber 1)
+
+            (Select-HDTTargetDisk -Disk $disk -Partition $partition -Volume @()).Number | Should -Be 1
+        }
+
+        It 'treats an initialised disk with no partition at all as empty' {
+            # Initialised is not the same statement as occupied: a GPT disk with
+            # no partition table entry carries nothing, and refusing it would
+            # make rule 5 stricter than DESIGN 9.1 states it.
+            $disk = @(New-HDTTestDiskRow -Number 1 -PartitionStyle 'GPT')
+
+            (Select-HDTTargetDisk -Disk $disk -Partition @() -Volume @()).Number | Should -Be 1
+        }
+
+        It 'includes a disk whose lettered partition holds no file system' {
+            # HDT CAN read this one, and what it reads is an unformatted volume.
+            # Rule 5 is about a FORMATTED volume, so a letter HDT can see and
+            # finds empty is not existing data - only a partition it cannot see
+            # is judged on the assumption that it might be.
+            $disk = @(New-HDTTestDiskRow -Number 1 -PartitionStyle 'GPT')
+            $partition = @(New-HDTTestPartitionRow -DiskNumber 1 -PartitionNumber 1 -DriveLetter 'D')
+            $volume = @(New-HDTTestVolumeRow -DriveLetter 'D' -FileSystem '')
+
+            (Select-HDTTargetDisk -Disk $disk -Partition $partition -Volume $volume).Number | Should -Be 1
+        }
+
         It 'names the volumes it found in the refusal' {
             $disk = @(New-HDTTestDiskRow -Number 1 -PartitionStyle 'GPT')
             $partition = @(New-HDTTestPartitionRow -DiskNumber 1 -PartitionNumber 1 -DriveLetter 'D')

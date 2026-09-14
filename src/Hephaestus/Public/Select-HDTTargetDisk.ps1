@@ -24,7 +24,8 @@
               2  holds a protected letter      the disk carrying the workspace  NEVER
               3  IsReadOnly                    a disk that cannot be written    NEVER
               4  IsOffline                     a disk HDT cannot online         NEVER
-              5  existing data                 a disk with a file system on it  no
+              5  existing data                 a file system, or a partition
+                                              with no letter to read one from  no
               6  BusType USB                   the stick the technician booted  yes, warned
               7  under the minimum size        too small to hold Windows        yes, warned
 
@@ -42,6 +43,13 @@
             data on it is used when the step declares it, which reaches here as
             -AllowExistingData. Naming the disk explicitly is not the same
             statement as declaring that its contents are expendable.
+
+            AND RULE 5 IS JUDGED FROM THE PARTITIONS, NOT FROM THE VOLUMES.
+            -Volume reports only volumes with an access path, so a partition
+            with no drive letter - a data disk out of another machine is the
+            ordinary case - is invisible to it, and matching by letter found an
+            empty set on a full disk. A partition HDT cannot read is refused
+            rather than assumed empty; see Get-HDTTargetDiskAssessment.
 
             NO RULE FILTERS ON BUS TYPE EXPECTING A VIRTUAL VALUE. In the lab, a
             Generation 2 VM's own system disk reports BusType = SAS, not SCSI

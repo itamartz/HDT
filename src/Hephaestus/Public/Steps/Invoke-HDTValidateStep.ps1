@@ -605,8 +605,15 @@ function Invoke-HDTValidateStep {
             ([string] $row.PartitionStyle).Trim()
         )
 
+        # BOTH HALVES OF WHAT THE DISK CARRIES, because "no volumes" against a
+        # disk with four unlettered partitions on it is the pre-flight telling
+        # an administrator the disk is empty - and rule 5 exists precisely
+        # because HDT cannot know that. Opaque is the partitions with no access
+        # path, which GetVolume does not and cannot report.
+        $carried = @(@($entry.Data) + @($entry.Opaque) | Where-Object { -not [string]::IsNullOrWhiteSpace([string] $_) })
+
         $volumeText = 'no volumes'
-        if (@($entry.Data).Count -gt 0) { $volumeText = (@($entry.Data) -join ', ') }
+        if ($carried.Count -gt 0) { $volumeText = ($carried -join ', ') }
         $descriptor += $volumeText
 
         $reasonText = (@($entry.Reason | ForEach-Object { [string] $_.Text }) -join '; ')
@@ -1013,6 +1020,28 @@ function Invoke-HDTValidateStep {
     }
 
     $chosen = 'disk {0} is the deployment target: {1} - {2}.' -f $selected, $selectedText, $why
+
+    # A REFRESH CHOSE NO DISK, AND THE LINE ABOVE SAID SO IN THE WORST WAY
+    # AVAILABLE. Both halves of it are computed from a selection this leg
+    # deliberately never ran - $selected is $null and $assessment is empty by
+    # design, a few hundred lines up - so a real Refresh log carried:
+    #
+    #   disk  is the deployment target: disk  - the only disk of 0 that qualified.
+    #
+    # An empty disk number, and a count of nothing beside a claim that something
+    # qualified. This is the ONE line recording what HDT decided to write to,
+    # read once, later, by somebody who cannot re-run it - so on the leg that
+    # chooses no disk it has to say that, and then say what the run does target
+    # instead. The partition-match guard above has already established that
+    # volume and refused the run if it was wrong; this reports its answer.
+    if ($isRefresh) {
+        $refreshTarget = 'the volume this machine is running from ({0})' -f $runningText
+        if ($targetText -ne $runningText) {
+            $refreshTarget = '{0}, while this machine is running from {1} - allowed by allowOtherPartition on this step' -f $targetText, $runningText
+        }
+
+        $chosen = 'no disk was chosen, and none is: this run is a REFRESH, which keeps the partition table it is already running on and replaces the installation in place. The image will be applied to {0}.' -f $refreshTarget
+    }
 
     Write-HDTLog -Context $Context.Log -Message $summary -Component 'Validate' -Data $data
     Write-HDTLog -Context $Context.Log -Message $chosen -Component 'Validate'
