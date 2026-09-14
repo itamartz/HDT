@@ -1467,11 +1467,28 @@ Ordered by likely value, all pending the open questions in DESIGN §14:
 - SQL or REST per-machine settings provider.
 - Reference image build pipeline (scheduled patch-and-capture).
 - Server OS roles and features.
-- **`JoinDomain` against a real domain controller.** The step ships fake-verified
-  only and always has been (M3, M6): there is no DC on this host, and `HDT Lab`,
-  the isolated switch, has no DHCP and nothing on it to join. Proving it needs a
-  domain controller VM and a machine deployed onto the same segment, which is a
-  lab build rather than a code change — and it is the last v1 step type with no hardware evidence behind it.
+- ~~**`JoinDomain` against a real domain controller.**~~ **DONE on 2026-09-07,
+  and this entry was wrong for a week afterwards.** The lab build it asks for was
+  done: `AD-DC-2025` promoted `HDT-M6-DC01` to serve `hdtlab.test` on
+  `HDT External`, and `AD-JOIN` deployed `HDT-M6-CL01` onto the same segment and
+  joined it —
+
+      step 12 'Join Domain' (JoinDomain) starting, attempt 1 of 4
+      this machine is now a member of hdtlab.test, joined as HDTLAB\Administrator.
+      step 12 'Join Domain' completed
+      Run run-20260907-233547 ended Succeeded: 13 completed, 0 failed, 1 skipped
+
+  Verified four ways rather than by the step reporting itself successful:
+  `PartOfDomain True`, a working secure channel, the controller still resolving,
+  and a directory object whose SID is this machine's
+  (`Test-DomainMembership.ps1`). **No v1 step type is now without hardware
+  evidence** — the sentence this entry used to end with.
+
+  **IT COST A WRONG ANSWER TO A DIRECT QUESTION.** On 2026-09-14 "can we release
+  v1" was answered "no, JoinDomain has never run on hardware", from this
+  paragraph rather than from the logs. A roadmap that records a gap somebody has
+  since closed is worse than one that records nothing, because it is read as
+  current. Evidence lives in `Logs\HDT-M6-CL01-run-20260907-233547`.
 - **A secret bag that survives a reboot** (DESIGN §4.5.2, named there and not
   built). `HDTAdminPassword` is recovered from the autologon LSA secret because
   it happens to be the same value; every other secret a full-OS step reads after
