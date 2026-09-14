@@ -852,6 +852,210 @@ rules:
         }
     }
 
+    # AN EMPTY VALUE IS A VALUE, AND EVERY SOURCE BUT ONE TREATS IT AS ONE.
+    #
+    # THE CLAIM THIS PINS. "A machine override that sets a variable to the empty
+    # string is treated as unset, so rules.yaml wins instead." It is NOT true,
+    # and this context exists so it cannot quietly become true. An administrator
+    # blanking HDTApplications for one machine - the documented way to say "this
+    # machine installs nothing" - must beat the rule that would have supplied a
+    # list, or the override is unusable for the one thing it is most needed for.
+    #
+    # THE MECHANISM THAT MAKES IT WORK, and the line a future edit would break:
+    # Add-HDTResolvedVariable asks $Resolution.Provenance.Contains($Name) - the
+    # PRESENCE of the key - and never whether the value is truthy. In PowerShell
+    # '', $null, '   ' and @() are all falsy, so an `if ($value)` or an
+    # [string]::IsNullOrWhiteSpace() guard introduced at any of these five call
+    # sites would silently demote the source and hand the variable to the one
+    # below it. The provenance row is what makes that visible, so every test here
+    # asserts the SOURCE and not just the value.
+    #
+    # WHY THE WIZARD IS DIFFERENT AND IS NOT AN INCONSISTENCY. DESIGN 3.1: "An
+    # empty box is not an answer - a value the technician left blank is skipped
+    # rather than resolved, or it would silence the rule that would have supplied
+    # a real one." A wizard collects '' for every box nobody touched, so blank
+    # there means "no opinion"; a rules.yaml, an override or a command line that
+    # says '' was WRITTEN that way on purpose. Same bytes, opposite intent. The
+    # wizard's skip is pinned in ResolveWizardSource.Tests.ps1 ("ignores a value
+    # the technician left empty") and the contrast is asserted below.
+    #
+    # AND EMPTY IS NOT ABSENT. That distinction is the entire point, so each
+    # source is proved BOTH ways: an empty key resolves and locks the lower
+    # source out, a missing key falls through to it.
+    Context 'an empty value resolves rather than falling through' {
+
+        BeforeEach {
+            $script:overridePath = 'C:\HDTLab\does-not-exist\ws\Control\machines\U.yaml'
+
+            # The loser in every test below. If an empty value were ever read as
+            # "unset", this rule's value is what would surface instead.
+            $script:blankRules = New-HDTTestRuleDocument @'
+schemaVersion: 1
+rules:
+  - name: Fallback
+    set:
+      HDTComputerName: PC-FROM-A-RULE
+'@
+        }
+
+        Context 'the per-machine override' {
+
+            It 'resolves an empty string and locks the rule out, naming the file it came from' {
+                $result = Resolve-HDTVariable -RuleDocument $script:blankRules `
+                    -MachineOverride @{ HDTComputerName = '' } -MachineOverridePath $script:overridePath
+
+                Should -BeExactly '' -ActualValue $result.Variable['HDTComputerName']
+                $result.Provenance['HDTComputerName'].Source | Should -BeExactly 'MachineOverride'
+                $result.Provenance['HDTComputerName'].File | Should -BeExactly $script:overridePath
+            }
+
+            It 'resolves a null and locks the rule out' {
+                $result = Resolve-HDTVariable -RuleDocument $script:blankRules `
+                    -MachineOverride @{ HDTComputerName = $null } -MachineOverridePath $script:overridePath
+
+                ($null -eq $result.Variable['HDTComputerName']) | Should -BeTrue
+                $result.Provenance['HDTComputerName'].Source | Should -BeExactly 'MachineOverride'
+            }
+
+            It 'resolves a whitespace-only value and locks the rule out' {
+                $result = Resolve-HDTVariable -RuleDocument $script:blankRules `
+                    -MachineOverride @{ HDTComputerName = '   ' } -MachineOverridePath $script:overridePath
+
+                $result.Variable['HDTComputerName'] | Should -BeExactly '   '
+                $result.Provenance['HDTComputerName'].Source | Should -BeExactly 'MachineOverride'
+            }
+
+            It 'resolves an empty collection and locks the rule out' {
+                # THE SHAPE AN ADMINISTRATOR ACTUALLY WRITES for "install
+                # nothing": HDTApplications is a list, and the empty list is how
+                # a machine opts out of one a rule would otherwise supply.
+                $result = Resolve-HDTVariable -RuleDocument $script:blankRules `
+                    -MachineOverride @{ HDTComputerName = @() } -MachineOverridePath $script:overridePath
+
+                @($result.Variable['HDTComputerName']).Count | Should -Be 0
+                $result.Provenance['HDTComputerName'].Source | Should -BeExactly 'MachineOverride'
+            }
+
+            It 'falls through to the rule when the key is ABSENT, which empty is not' {
+                $result = Resolve-HDTVariable -RuleDocument $script:blankRules `
+                    -MachineOverride @{ HDTModel = 'Latitude 7450' } -MachineOverridePath $script:overridePath
+
+                $result.Variable['HDTComputerName'] | Should -BeExactly 'PC-FROM-A-RULE'
+                $result.Provenance['HDTComputerName'].Source | Should -BeExactly 'Rule'
+            }
+        }
+
+        Context 'the command line' {
+
+            It 'resolves an empty string and locks the rule out' {
+                $result = Resolve-HDTVariable -RuleDocument $script:blankRules -CommandLine @{ HDTComputerName = '' }
+
+                Should -BeExactly '' -ActualValue $result.Variable['HDTComputerName']
+                $result.Provenance['HDTComputerName'].Source | Should -BeExactly 'CommandLine'
+            }
+
+            It 'falls through to the rule when the key is ABSENT' {
+                $result = Resolve-HDTVariable -RuleDocument $script:blankRules -CommandLine @{ HDTModel = 'Latitude 7450' }
+
+                $result.Variable['HDTComputerName'] | Should -BeExactly 'PC-FROM-A-RULE'
+                $result.Provenance['HDTComputerName'].Source | Should -BeExactly 'Rule'
+            }
+        }
+
+        Context 'what the engine publishes' {
+
+            It 'resolves an empty string and locks the rule out' {
+                $result = Resolve-HDTVariable -RuleDocument $script:blankRules -EngineVariable @{ HDTComputerName = '' }
+
+                Should -BeExactly '' -ActualValue $result.Variable['HDTComputerName']
+                $result.Provenance['HDTComputerName'].Source | Should -BeExactly 'Engine'
+            }
+
+            It 'falls through to the rule when the key is ABSENT' {
+                $result = Resolve-HDTVariable -RuleDocument $script:blankRules -EngineVariable @{ HDTModel = 'Latitude 7450' }
+
+                $result.Variable['HDTComputerName'] | Should -BeExactly 'PC-FROM-A-RULE'
+                $result.Provenance['HDTComputerName'].Source | Should -BeExactly 'Rule'
+            }
+        }
+
+        Context 'a gathered fact, against the sequence default below it' {
+
+            It 'resolves an empty string and locks the sequence default out' {
+                $result = Resolve-HDTVariable -Fact @{ HDTComputerName = '' } `
+                    -SequenceDefault @{ HDTComputerName = 'PC-FROM-A-DEFAULT' }
+
+                Should -BeExactly '' -ActualValue $result.Variable['HDTComputerName']
+                $result.Provenance['HDTComputerName'].Source | Should -BeExactly 'GatheredFact'
+            }
+
+            It 'falls through to the sequence default when the key is ABSENT' {
+                $result = Resolve-HDTVariable -Fact @{ HDTModel = 'Latitude 7450' } `
+                    -SequenceDefault @{ HDTComputerName = 'PC-FROM-A-DEFAULT' }
+
+                $result.Variable['HDTComputerName'] | Should -BeExactly 'PC-FROM-A-DEFAULT'
+                $result.Provenance['HDTComputerName'].Source | Should -BeExactly 'SequenceDefault'
+            }
+        }
+
+        Context 'rules.yaml, where first-match-wins is per variable' {
+
+            It 'lets a rule that sets an empty value beat a later rule that sets a real one' {
+                # Through the real importer, so the empty scalar is the one YAML
+                # actually produces rather than a hand-built object.
+                $rules = New-HDTTestRuleDocument @'
+schemaVersion: 1
+rules:
+  - name: This site names nothing
+    set:
+      HDTComputerName: ''
+  - name: Fallback
+    set:
+      HDTComputerName: PC-FROM-A-RULE
+'@
+
+                $result = Resolve-HDTVariable -RuleDocument $rules
+
+                Should -BeExactly '' -ActualValue $result.Variable['HDTComputerName']
+                $result.Provenance['HDTComputerName'].Source | Should -BeExactly 'Rule'
+                $result.Provenance['HDTComputerName'].Rule | Should -BeExactly 'This site names nothing'
+            }
+
+            It 'falls through to the later rule when the earlier one does not set the name at all' {
+                $rules = New-HDTTestRuleDocument @'
+schemaVersion: 1
+rules:
+  - name: This site sets something else
+    set:
+      HDTTaskSequenceID: STD-CLIENT
+  - name: Fallback
+    set:
+      HDTComputerName: PC-FROM-A-RULE
+'@
+
+                $result = Resolve-HDTVariable -RuleDocument $rules
+
+                $result.Variable['HDTComputerName'] | Should -BeExactly 'PC-FROM-A-RULE'
+                $result.Provenance['HDTComputerName'].Rule | Should -BeExactly 'Fallback'
+            }
+        }
+
+        Context 'the wizard, which is the one deliberate exception' {
+
+            It 'skips an empty box and lets the rule supply the value, unlike every source above' {
+                # DESIGN 3.1, and the contrast is the point: the SAME empty
+                # string that wins from an override loses from a wizard, because
+                # a box nobody typed in is not an instruction. Pinned in full by
+                # ResolveWizardSource.Tests.ps1; asserted here so a reader of
+                # this context sees the difference is intended.
+                $result = Resolve-HDTVariable -RuleDocument $script:blankRules -Wizard @{ HDTComputerName = '' }
+
+                $result.Variable['HDTComputerName'] | Should -BeExactly 'PC-FROM-A-RULE'
+                $result.Provenance['HDTComputerName'].Source | Should -BeExactly 'Rule'
+            }
+        }
+    }
+
 }
 
 # MDT'S #Left(...)#, THROUGH THE PATH A RULE ACTUALLY TAKES.
