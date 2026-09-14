@@ -475,3 +475,90 @@ Describe 'the Welcome screen asks the theme for its look, like every other windo
         $code | Should -Match 'DynamicResource HDTAddressBox'
     }
 }
+
+# THE RECOVERY SCREEN, WHEN IT IS THE THING THAT BREAKS.
+#
+# Show-HDTWizard draws the Welcome screen, and the Welcome screen is what a
+# technician gets when the deployment share could not be reached. It is already
+# the second thing to go wrong on that machine, so a window that will not open
+# or will not answer has to produce a sentence somebody can act on - not a
+# relay of whatever .NET said three frames down.
+#
+# WHAT IT SAID BEFORE, VERBATIM, OFF A REAL MACHINE IN WinPE ON 2026-09-14:
+#
+#   Exception calling "Show" with "9" argument(s): "Exception calling
+#   "ShowDialog" with "0" argument(s): "Unable to index into an object of type
+#   System.Boolean.""
+#
+# Three nested "Exception calling" wrappers, no file name, no window name, and
+# the one useful clause buried at the end. The defect behind it is fixed and
+# pinned by tests/contract/TypedParameterShadow.Contract.Tests.ps1; this is
+# about the NEXT one, because a screen loaded out of a boot image has plenty of
+# other ways to fail - a missing PresentationFramework, a theme that will not
+# merge, a control the markup and the harvest disagree about.
+#
+# IT STILL THROWS, AND THAT IS DELIBERATE. Turning a crashed window into a
+# 'Cancel' would be quieter and would be a lie: Cancel means a technician
+# dismissed the screen, and the payload reads it as one. What changes is that
+# the record NAMES THE WINDOW and carries the innermost cause.
+Describe 'the Welcome screen when the window itself will not answer' {
+
+    It 'names the window rather than relaying nested .NET wrappers' {
+        $record = $null
+        try {
+            Show-HDTWizard -XamlPath $script:xamlPath -Title 'HDT' `
+                -FileSystem (New-HDTWizardTestFileSystem) `
+                -WizardHost (New-HDTFakeWizardHost -FailShow)
+        } catch {
+            $record = $PSItem
+        }
+
+        $record | Should -Not -BeNullOrEmpty
+        [string] $record.Exception.Message | Should -BeLike ('*{0}*' -f $script:xamlPath) -Because (
+            'a technician reading the log a week later has to know which window died')
+    }
+
+    It 'carries the innermost cause, not the outer call wrapper' {
+        $record = $null
+        try {
+            Show-HDTWizard -XamlPath $script:xamlPath -Title 'HDT' `
+                -FileSystem (New-HDTWizardTestFileSystem) `
+                -WizardHost (New-HDTFakeWizardHost -FailShow)
+        } catch {
+            $record = $PSItem
+        }
+
+        [string] $record.Exception.Message | Should -BeLike "*PresentationFramework*" -Because (
+            'the reason the window would not open is the whole content of the message'
+        )
+        [string] $record.Exception.Message | Should -Not -BeLike '*Exception calling*' -Because (
+            'the wrapper is what hid the cause on the machine that found this'
+        )
+    }
+
+    It 'says what the exception type was, so a boot image with no WPF is telling apart from a bad page' {
+        $record = $null
+        try {
+            Show-HDTWizard -XamlPath $script:xamlPath -Title 'HDT' `
+                -FileSystem (New-HDTWizardTestFileSystem) `
+                -WizardHost (New-HDTFakeWizardHost -FailShow)
+        } catch {
+            $record = $PSItem
+        }
+
+        [string] $record.Exception.Message | Should -BeLike '*FileNotFoundException*'
+    }
+
+    It 'keeps the original exception attached, so the stack is not thrown away' {
+        $record = $null
+        try {
+            Show-HDTWizard -XamlPath $script:xamlPath -Title 'HDT' `
+                -FileSystem (New-HDTWizardTestFileSystem) `
+                -WizardHost (New-HDTFakeWizardHost -FailShow)
+        } catch {
+            $record = $PSItem
+        }
+
+        $record.Exception.InnerException | Should -Not -BeNullOrEmpty
+    }
+}

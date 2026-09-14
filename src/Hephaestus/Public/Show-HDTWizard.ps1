@@ -247,13 +247,60 @@
     # reads .Name off under Set-StrictMode. The window never opened: it threw
     # "The property 'Name' cannot be found on this object" while it was being
     # built, in WinPE, with the console already hidden.
-    $answer = [string] $WizardHost.Show($xaml, $themeXaml, $Title,
-        @($Field | Where-Object { $null -ne $_ }),
-        @($Pane | Where-Object { $null -ne $_ }),
-        $CommandPrompt,
-        @($Collect | Where-Object { $null -ne $_ }),
-        $string,
-        [bool] $Foreground)
+    # AND A WINDOW THAT WILL NOT ANSWER NAMES ITSELF, RATHER THAN RELAYING THREE
+    # NESTED .NET WRAPPERS. This is the RECOVERY screen - it is what a technician
+    # sees once the deployment share could not be reached - so it is already the
+    # second thing to have gone wrong on that machine, and what the log says
+    # about it is the only thing anybody will have to work from.
+    #
+    # WHAT IT SAID BEFORE, OFF A REAL MACHINE IN WinPE ON 2026-09-14:
+    #
+    #   Exception calling "Show" with "9" argument(s): "Exception calling
+    #   "ShowDialog" with "0" argument(s): "Unable to index into an object of
+    #   type System.Boolean.""
+    #
+    # Three wrappers, no window named, and the one clause worth reading pushed to
+    # the end. That particular defect is fixed in New-HDTWizardHost and pinned by
+    # tests/contract/TypedParameterShadow.Contract.Tests.ps1 - but a window built
+    # out of a boot image has plenty of other ways to fail: no
+    # PresentationFramework where WinPE-NetFx was not injected, a theme that will
+    # not merge, a control the markup and the harvest disagree about.
+    #
+    # THE INNERMOST EXCEPTION IS THE CAUSE. PowerShell wraps a method call
+    # failure once per frame, so the message on the outside describes the CALL
+    # and the message at the bottom describes the PROBLEM. This walks to the
+    # bottom and reports that, with its type - the type is what separates "this
+    # image has no WPF" from "this page is wrong".
+    #
+    # IT STILL THROWS, AND THAT IS DELIBERATE. Reading a crashed window as
+    # 'Cancel' would be quieter and would be a lie: Cancel means a technician
+    # dismissed the screen, and the payload acts on it as one. The run has to
+    # fail here - loudly, and in a sentence that says why.
+    $answer = ''
+
+    try {
+        $answer = [string] $WizardHost.Show($xaml, $themeXaml, $Title,
+            @($Field | Where-Object { $null -ne $_ }),
+            @($Pane | Where-Object { $null -ne $_ }),
+            $CommandPrompt,
+            @($Collect | Where-Object { $null -ne $_ }),
+            $string,
+            [bool] $Foreground)
+    } catch {
+        $cause = $_.Exception
+        while ($null -ne $cause.InnerException) { $cause = $cause.InnerException }
+
+        $reason = '{0} [{1}]' -f [string] $cause.Message, $cause.GetType().FullName
+
+        $message = ("the wizard window '{0}' could not be shown, or could not be answered once it was: {1}. " -f
+            $XamlPath, $reason)
+        $message += 'In a boot image the window and its theme are staged to X:\HDT\UI\ by Update-HDTBootImage, '
+        $message += 'and WPF is present there only because WinPE-NetFx was injected.'
+
+        $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $XamlPath `
+                    -ErrorId 'HDTEnvironmentError' -Category OperationStopped `
+                    -InnerException $_.Exception -Message $message))
+    }
 
     # THE ALLOW-LIST, AND IT IS THE WHOLE SAFETY PROPERTY. See the header:
     # anything that is not one of these exactly is a Cancel.

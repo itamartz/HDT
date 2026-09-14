@@ -405,7 +405,30 @@
         #   Busy        a force is in flight on this thread; see Add_Deactivated
         #   Suppressed  the technician has taken the front on purpose, and keeps it
         #   LastUtc     when the last force ran, for the cooldown
-        $foreground = @{ Busy = $false; Suppressed = $false; LastUtc = [datetime]::MinValue }
+        #
+        # AND IT IS NOT CALLED $foreground, WHICH IS THE NAME IT SHIPPED UNDER.
+        # PowerShell variable names are case-INSENSITIVE, so $foreground and the
+        # [bool] $Foreground parameter above are ONE variable - and a parameter's
+        # type constraint stays attached to the name for the life of the call.
+        # The hashtable was therefore never stored: it was converted, silently,
+        # and [bool] @{...} is $true. Every line below then read
+        #
+        #     Unable to index into an object of type System.Boolean.
+        #
+        # and the Add_Click handler that does it has no try/catch, so THE FIRST
+        # PRESS OF ANY BUTTON ON THIS WINDOW KILLED IT. That is the Welcome
+        # screen - the one shown when the deployment share cannot be reached -
+        # and it went out on a real machine in WinPE: a technician retyped the
+        # share that was wrong, pressed Next, and the run ended. The two reads
+        # in Add_Deactivated are inside a try/catch, so the Start menu fix this
+        # state was added for had also been dead since the day it landed, and
+        # `if ($Foreground)` above was a hashtable-turned-$true, so every wizard
+        # window was forcing the foreground - injecting an Escape and an Alt into
+        # a screen a technician types a computer name into - without asking.
+        #
+        # tests/contract/TypedParameterShadow.Contract.Tests.ps1 is what stops
+        # it coming back, here or anywhere else.
+        $foregroundState = @{ Busy = $false; Suppressed = $false; LastUtc = [datetime]::MinValue }
 
         $this.Apply($window, $Field, $Pane)
 
@@ -457,7 +480,7 @@
                     # itself back over the command prompt Open CMD had just
                     # launched, on its way out. Set for every answer, because
                     # a window that has been answered has no front to defend.
-                    $foreground['Suppressed'] = $true
+                    $foregroundState['Suppressed'] = $true
 
                     # READ BEFORE IT CLOSES, and read for EVERY answer rather
                     # than only for Next: a technician who typed the right share
@@ -495,7 +518,7 @@
                     # deliberately opened. So the technician says so here: from
                     # this keypress on nothing re-forces, and the summary is an
                     # ordinary window they can click back to.
-                    $foreground['Suppressed'] = $true
+                    $foregroundState['Suppressed'] = $true
 
                     & $CommandPrompt
                 }.GetNewClosure())
@@ -540,7 +563,7 @@
                     try {
                         $hwnd = [System.Windows.Interop.WindowInteropHelper]::new($window).Handle
                         [void] (Set-HDTWindowForeground -Handle $hwnd -DismissStartMenu)
-                        $foreground['LastUtc'] = [datetime]::UtcNow
+                        $foregroundState['LastUtc'] = [datetime]::UtcNow
                     } catch {
                         Write-Verbose ("the window could not be brought to the front: {0}" -f [string] $_.Exception.Message)
                     }
@@ -605,20 +628,20 @@
             # happened.
             $window.Add_Deactivated({
                     try {
-                        if ($foreground['Suppressed']) { return }
-                        if ($foreground['Busy']) { return }
+                        if ($foregroundState['Suppressed']) { return }
+                        if ($foregroundState['Busy']) { return }
 
                         $now = [datetime]::UtcNow
-                        if (($now - $foreground['LastUtc']).TotalMilliseconds -lt 750) { return }
+                        if (($now - $foregroundState['LastUtc']).TotalMilliseconds -lt 750) { return }
 
-                        $foreground['Busy'] = $true
+                        $foregroundState['Busy'] = $true
 
                         try {
-                            $foreground['LastUtc'] = $now
+                            $foregroundState['LastUtc'] = $now
                             $hwnd = [System.Windows.Interop.WindowInteropHelper]::new($window).Handle
                             [void] (Set-HDTWindowForeground -Handle $hwnd -DismissStartMenu)
                         } finally {
-                            $foreground['Busy'] = $false
+                            $foregroundState['Busy'] = $false
                         }
                     } catch {
                         Write-Verbose ("the window could not be brought back to the front: {0}" -f [string] $_.Exception.Message)
