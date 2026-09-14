@@ -51,18 +51,28 @@ function Invoke-HDTValidateStep {
             model had to break a machine to read the rules.
 
             THE THRESHOLD IS THE PART THAT WAS UNKNOWABLE, and it is what the
-            Debug enumeration exists to publish. MDT does the same thing with two
+            enumeration exists to publish. MDT does the same thing with two
             adjacent lines - "Disk Size : ..." then "Min Size : ..." - and says
             so on the pass path as well ("Computer has sufficient memory.").
             Here it is one line per check, with the observed value, the bound it
             was measured against, and the verdict.
 
-            INFO IS TWO LINES AND NO MORE. A technician reads the verdict and the
-            warning count at a glance; the enumeration is at Debug, where it does
-            not cost anything to have. Where HDT departs from MDT is that the
-            CHOSEN DISK IS NAMED AT INFO - ZTIUtility logs its answer at Verbose,
-            so on a default-verbosity MDT run the disk it picked never appears
-            and has to be inferred from the free-space messages.
+            AND THE ENUMERATION IS AT INFO, NOT AT Debug. It was at Debug, which
+            meant a run not configured for debug logging kept the summary and
+            lost every row behind it - a real one said "pre-flight passed: 10
+            checks, 0 warnings." and showed none of the ten. The summary COUNTS
+            these rows, so a summary whose rows are invisible is unverifiable,
+            and this step's whole content is its checks. Debug is for volume, not
+            for importance; a dozen lines an administrator needs in order to
+            understand the outcome belong where they will see them without
+            re-running a deployment they cannot re-run. The verdict line and the
+            warning count still come last, so a technician standing at the
+            machine still reads the answer at a glance.
+
+            THE CHOSEN DISK IS NAMED AT INFO TOO, and that is where HDT departs
+            from MDT: ZTIUtility logs its answer at Verbose, so on a
+            default-verbosity MDT run the disk it picked never appears and has to
+            be inferred from the free-space messages.
 
             THE DISK DECISION CARRIES ITS REASON. "disk 0 is the deployment
             target" is a CHOICE: on a laptop with an NVMe, an SD reader and the
@@ -86,7 +96,11 @@ function Invoke-HDTValidateStep {
             exactly one disk of a usable size is present. An undeclared check is
             still REPORTED, as 'skipped' - a check absent from the log and a
             check that passed look identical, and the reader needs to know it
-            exists.
+            exists. A SKIP CARRIES THE CONDITION THAT SKIPPED IT: which key the
+            sequence did not declare, or that this leg is a REFRESH and the check
+            belongs to a NEWCOMPUTER run. "skipped" on its own leaves a reader
+            choosing between "nobody asked for this" and "HDT could not tell",
+            which are opposite findings.
 
             IT DOES NOT ASK WHETHER THE DISK IS EMPTY, and it used to. Mirroring
             DiskPartition's `wipe` guard meant a machine carrying C: and D: -
@@ -255,7 +269,11 @@ function Invoke-HDTValidateStep {
 
         & $addCheck 'memory' 'minRamMB' $memoryText $memoryThreshold $memoryResult $memoryReason
     } else {
-        & $addCheck 'memory' 'minRamMB' $memoryText 'not declared' 'skipped' ''
+        # A SKIP SAYS WHAT SKIPPED IT. 'skipped' on its own leaves the reader
+        # to decide between "the sequence did not ask" and "HDT could not tell",
+        # which are opposite findings.
+        & $addCheck 'memory' 'minRamMB' $memoryText 'not declared' 'skipped' (
+            'this sequence declares no minRamMB, so no memory floor is imposed and this machine passes on any amount. Declare minRamMB to have a machine with too little memory refused here rather than by Windows Setup.')
     }
 
     # -- firmware ---------------------------------------------------------
@@ -286,7 +304,8 @@ function Invoke-HDTValidateStep {
 
         & $addCheck 'firmware' 'requireUefi' $firmwareText 'required: UEFI' $firmwareResult $firmwareReason
     } else {
-        & $addCheck 'firmware' 'requireUefi' $firmwareText 'not declared' 'skipped' ''
+        & $addCheck 'firmware' 'requireUefi' $firmwareText 'not declared' 'skipped' (
+            'this sequence declares no requireUefi, so the firmware is reported and not required. Declare requireUefi: true to have a machine running legacy BIOS refused, which a GPT/UEFI image needs.')
     }
 
     # -- TPM ---------------------------------------------------------------
@@ -340,7 +359,8 @@ function Invoke-HDTValidateStep {
 
         & $addCheck 'TPM' 'minTpmVersion' $tpmText $tpmThreshold $tpmResult $tpmReason
     } else {
-        & $addCheck 'TPM' 'minTpmVersion' $tpmText 'not declared' 'skipped' ''
+        & $addCheck 'TPM' 'minTpmVersion' $tpmText 'not declared' 'skipped' (
+            'this sequence declares no minTpmVersion, so the TPM is reported and not required. Declare minTpmVersion: 2.0 to have a machine that cannot run Windows 11 refused before its disk is wiped.')
     }
 
     # -- authored variables -----------------------------------------------
@@ -371,7 +391,8 @@ function Invoke-HDTValidateStep {
     }
 
     if ($declaredVariable.Count -eq 0) {
-        & $addCheck 'required variables' 'requireVariable' 'none declared' 'not declared' 'skipped' ''
+        & $addCheck 'required variables' 'requireVariable' 'none declared' 'not declared' 'skipped' (
+            'this sequence declares no requireVariable, so no variable has to have resolved before it runs. Declare requireVariable: [HDTComputerName] to have a deployment refused rather than proceeding on an unresolved name.')
     }
 
     # -- what kind of run this is, and it decides the whole disk block -------
@@ -483,7 +504,12 @@ function Invoke-HDTValidateStep {
 
         & $addCheck 'disk size' 'minDiskGB' $largestText ('minimum {0}' -f $minimumText) $sizeResult $sizeReason
     } else {
-        & $addCheck 'disk size' 'minDiskGB' $largestText ('minimum {0} (default)' -f $minimumText) 'skipped' ''
+        # THE DEFAULT FLOOR IS STILL IN FORCE, AND THE SKIP HAS TO SAY SO.
+        # Reporting 'skipped' with nothing beside it reads as "no size bound
+        # applies", and one does - Select-HDTTargetDisk applies it to the choice,
+        # and it is what excludes a disk below it in the rows further down.
+        & $addCheck 'disk size' 'minDiskGB' $largestText ('minimum {0} (default)' -f $minimumText) 'skipped' (
+            'this sequence declares no minDiskGB, so no size bound of its own is imposed. The default floor of {0} still applies, because the disk choice below applies it; declare minDiskGB to raise it.' -f $minimumText)
     }
 
     # THE PER-DISK ROWS AND THE TARGET-DISK ROW, on the same terms as the
@@ -719,6 +745,15 @@ function Invoke-HDTValidateStep {
     # a script from the product this one replaces.
     $notARefresh = ('this run is a {0} deployment and this check belongs to a REFRESH. A NEWCOMPUTER run repartitions the disk, so the volume this measures does not survive to be measured, and it lays Windows onto a machine that may carry none at all.' -f
         $deploymentTypeText)
+
+    # AND A RUN THAT RECORDED NO TYPE SAYS THAT, rather than calling itself one.
+    # Substituting the placeholder produced "this run is a not recorded
+    # deployment", which reads as a deployment type called "not recorded" - and
+    # the missing variable is itself the condition that skipped the check, so it
+    # is the part the sentence has to name.
+    if ([string]::IsNullOrWhiteSpace($deploymentType)) {
+        $notARefresh = 'this run did not record a deployment type - HDTDeploymentType is unset - so it is not a REFRESH, and this check belongs to one. A run that repartitions the disk measures a volume that does not survive to be measured, and lays Windows onto a machine that may carry none at all.'
+    }
 
     # -- which volume, and which volume this machine is running from ---------
     #
@@ -957,7 +992,25 @@ function Invoke-HDTValidateStep {
         & $addCheck 'Refresh free space' 'imageSizeMB' $spaceObserved $spaceThreshold $spaceResult $spaceReason
     }
 
-    # -- the enumeration, one Debug line per row ----------------------------
+    # -- the enumeration, one Info line per row ------------------------------
+    #
+    # THESE ARE THE ROWS THE SUMMARY COUNTS, AND THEY USED TO BE AT Debug. A
+    # real deployment log - HDT-M9-REF01, 2026-09-11 - said "pre-flight passed:
+    # 10 checks, 0 warnings." and carried not one of the ten, because the run was
+    # not configured for Debug and nothing here is. A count of checks nobody can
+    # see is a claim, not a record: a reader cannot tell which ten ran, whether a
+    # check was weakened last month, or which bound a machine cleared - which is
+    # the exact argument this step's own help makes for enumerating them at all.
+    #
+    # SO THE SEVERITY FOLLOWS THE RULE RATHER THAN THE VOLUME. Debug is for
+    # volume; something an administrator needs in order to understand an outcome
+    # belongs at Info, where they will see it without re-running a deployment
+    # they cannot re-run. This is at most a dozen lines - one per declared check,
+    # one per disk considered - against a log that already writes hundreds.
+    #
+    # AND IT KEEPS THE LOG SELF-CONSISTENT. $check is the same list the summary
+    # counts and the same list that travels in Data, so the three cannot disagree
+    # about how many checks this machine passed.
 
     foreach ($row in $check) {
         $verdict = [string] $row['result']
@@ -965,7 +1018,7 @@ function Invoke-HDTValidateStep {
             $verdict = '{0}: {1}' -f $verdict, [string] $row['reason']
         }
 
-        Write-HDTLog -Context $Context.Log -Severity Debug -Component 'Validate' -Data $row `
+        Write-HDTLog -Context $Context.Log -Severity Info -Component 'Validate' -Data $row `
             -Message ('{0,-26} {1,-34} {2,-30} {3}' -f
                 [string] $row['check'], [string] $row['observed'], [string] $row['threshold'], $verdict)
     }

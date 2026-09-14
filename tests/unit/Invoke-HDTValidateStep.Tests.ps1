@@ -542,10 +542,22 @@ Describe 'the pre-flight log' {
             $selected[0] | Should -BeLike '*the only disk*'
         }
 
-        It 'keeps the summary to two lines' {
+        It 'keeps the verdict and the disk decision to one line each, and puts them last' {
+            # THIS USED TO SAY Info WAS TWO LINES AND NO MORE, and that rule is
+            # what lost the check rows: the enumeration went to Debug, a normal
+            # run kept the count and dropped every row it counted. The glance is
+            # still protected - the verdict and the disk decision are one line
+            # each and they come LAST, so a technician standing at the machine
+            # reads the answer at the bottom of the pane.
             Invoke-HDTValidateStep -Step (& $script:newStep $script:everyCheck) -Context $script:context | Out-Null
 
-            @(& $script:infoLine).Count | Should -Be 2 -Because 'Info is a glance; the enumeration belongs at Debug'
+            $line = @(& $script:infoLine)
+
+            @($line | Where-Object { $_ -like 'pre-flight passed:*' }).Count | Should -Be 1
+            @($line | Where-Object { $_ -like '*is the deployment target*' }).Count | Should -Be 1
+
+            $line[$line.Count - 2] | Should -BeLike 'pre-flight passed:*'
+            $line[$line.Count - 1] | Should -BeLike '*is the deployment target*'
         }
 
         It 'carries both lines in the step result message' {
@@ -570,7 +582,125 @@ Describe 'the pre-flight log' {
         }
     }
 
-    Context 'the Debug enumeration' {
+    Context 'the check rows a normal run can see' {
+
+        # THE SUMMARY COUNTED TEN CHECKS AND THE LOG SHOWED NONE OF THEM. A real
+        # deployment log - HDT-M9-REF01, 2026-09-11 - carried "pre-flight
+        # passed: 10 checks, 0 warnings." and not one of the rows behind it,
+        # because every row was written at Debug and that run was not configured
+        # for Debug. A count of checks nobody can see is a claim, and this step's
+        # whole content IS its checks: an administrator reading the log a week
+        # later, on a machine they cannot touch, could not tell which ten ran.
+        #
+        # THE LOG CONTEXT HERE IS THE DEFAULT ONE, and that is the point. Every
+        # other test in this file raises the level to Debug and so cannot see the
+        # defect at all. New-HDTLogContext's Level is Info unless somebody says
+        # otherwise, which is what a deployment runs at - so a row that exists
+        # only at Debug does not exist.
+
+        BeforeEach {
+            $script:plainFileSystem = New-HDTFakeFileSystem
+
+            $catalog = New-HDTServiceCatalog -FileSystem $script:plainFileSystem -Clock $script:clock `
+                -Disk (New-HDTFakeDiskService -Disk @($script:targetDisk)) -Image $script:image
+
+            $plainLog = New-HDTLogContext -RunId 'run-0004' -Phase WinPE -LogPath 'X:\HDT\Logs' `
+                -FileSystem $script:plainFileSystem -Clock $script:clock
+
+            $live = [System.Collections.Specialized.OrderedDictionary]::new([System.StringComparer]::OrdinalIgnoreCase)
+            $live['HDTMemory'] = 32627
+            $live['HDTIsUEFI'] = $true
+            $live['HDTTPMVersion'] = '2.0'
+            $live['HDTComputerName'] = 'LT-7FJ45S2'
+
+            $script:plainContext = New-HDTExecutionContext -RunId 'run-0004' -Phase WinPE `
+                -WorkspaceRoot 'Z:\Deploy' -Variable $live -Service $catalog -Log $plainLog
+
+            $script:plainLine = {
+                param([string] $Severity)
+
+                @(Get-HDTLogRecord -FileSystem $script:plainFileSystem -Path 'X:\HDT\Logs\HDT.jsonl' -Severity $Severity |
+                        Where-Object { [string] $_.component -eq 'Validate' } | ForEach-Object { [string] $_.message })
+            }
+        }
+
+        It 'shows every check the summary counts, on a run never configured for Debug' {
+            $result = Invoke-HDTValidateStep -Step (& $script:newStep $script:everyCheck) -Context $script:plainContext
+
+            $visible = @(& $script:plainLine 'Info')
+
+            foreach ($row in @($result.Data['check'])) {
+                # NAME, OBSERVED AND THRESHOLD TOGETHER. 'disk 0 *' alone also
+                # matches the disk-decision summary line, which quotes the row.
+                @($visible | Where-Object {
+                        $_ -like ('{0} *{1}*{2}*' -f [string] $row['check'], [string] $row['observed'], [string] $row['threshold'])
+                    }).Count |
+                    Should -Be 1 -Because ('the summary counts the {0} check, so the log has to show it with its bound' -f $row['check'])
+            }
+        }
+
+        It 'shows exactly as many rows as the summary claims, and the two summary lines' {
+            $result = Invoke-HDTValidateStep -Step (& $script:newStep $script:everyCheck) -Context $script:plainContext
+
+            $claimed = [int] @($result.Data['check']).Count
+            $summary = @(& $script:plainLine 'Info' | Where-Object { $_ -match '^pre-flight passed: (\d+) checks?' })
+
+            $summary.Count | Should -Be 1
+            [int] ([regex]::Match($summary[0], '(\d+) checks?').Groups[1].Value) | Should -Be $claimed
+
+            @(& $script:plainLine 'Info').Count | Should -Be ($claimed + 2) -Because (
+                'the verdict, the disk decision, and one line per check the verdict counted')
+        }
+
+        It 'leaves no check row at Debug, even on a log that would have kept one' {
+            # $script:context IS THE Debug-LEVEL LOG, so a row still written at
+            # Debug would be recorded here and nowhere a real run can see it.
+            # Asserting this against the Info-level log above would pass by
+            # filtering rather than by severity.
+            Invoke-HDTValidateStep -Step (& $script:newStep $script:everyCheck) -Context $script:context | Out-Null
+
+            @(& $script:debugLine).Count |
+                Should -Be 0 -Because 'a row an admin needs in order to understand the outcome belongs at Info'
+        }
+    }
+
+    Context 'a check that did not run' {
+
+        # THE THING THAT WAS SKIPPED AND THE CONDITION THAT SKIPPED IT. A row
+        # reading 'TPM  2.0  not declared  skipped' says the check exists and
+        # leaves the reader to work out why it did nothing - and a Refresh skips
+        # five at once, which reads like a pre-flight that gave up rather than
+        # one that was never asked.
+
+        It 'says what skipped an undeclared check, and names the key to declare' {
+            $result = Invoke-HDTValidateStep -Step (& $script:newStep ([ordered] @{ minRamMB = 2048 })) `
+                -Context $script:context
+
+            foreach ($key in @('minTpmVersion', 'requireUefi', 'requireVariable', 'minDiskGB')) {
+                $row = @($result.Data['check'] | Where-Object { [string] $_['key'] -eq $key })
+
+                $row.Count | Should -Be 1
+                [string] $row[0]['result'] | Should -BeExactly 'skipped'
+                [string] $row[0]['reason'] | Should -Not -BeNullOrEmpty -Because (
+                    'a skipped {0} has to say what skipped it' -f $key)
+                [string] $row[0]['reason'] | Should -BeLike ('*{0}*' -f $key) -Because (
+                    'the reader needs the key to declare, not only the word skipped')
+            }
+        }
+
+        It 'carries that reason into the line an administrator reads' {
+            Invoke-HDTValidateStep -Step (& $script:newStep ([ordered] @{ minRamMB = 2048 })) -Context $script:context | Out-Null
+
+            @(& $script:infoLine | Where-Object { $_ -like 'TPM*skipped: *minTpmVersion*' }).Count | Should -Be 1
+        }
+    }
+
+    Context 'the check enumeration' {
+
+        # IT READS Info NOW, AND THAT IS THE DEFECT THESE TESTS MISSED. Every
+        # assertion below was written against $script:infoLine, and every one
+        # of them passed while a real run - which is not at Debug - showed none
+        # of these rows at all.
 
         It 'enumerates every check with its observed value and its threshold' {
             # THE THRESHOLD IS THE PART THAT IS CURRENTLY UNKNOWABLE. MDT logs
@@ -578,7 +708,7 @@ Describe 'the pre-flight log' {
             # the same information, one line per check.
             Invoke-HDTValidateStep -Step (& $script:newStep $script:everyCheck) -Context $script:context | Out-Null
 
-            $line = @(& $script:debugLine)
+            $line = @(& $script:infoLine)
 
             @($line | Where-Object { $_ -like 'memory*32627 MB*2048 MB*pass' }).Count | Should -Be 1
             @($line | Where-Object { $_ -like 'firmware*UEFI*pass' }).Count | Should -Be 1
@@ -590,8 +720,8 @@ Describe 'the pre-flight log' {
             # "skipped" is what tells an administrator the check EXISTS.
             Invoke-HDTValidateStep -Step (& $script:newStep ([ordered] @{ minRamMB = 2048 })) -Context $script:context | Out-Null
 
-            @(& $script:debugLine | Where-Object { $_ -like 'TPM*skipped' }).Count | Should -Be 1
-            @(& $script:debugLine | Where-Object { $_ -like 'firmware*skipped' }).Count | Should -Be 1
+            @(& $script:infoLine | Where-Object { $_ -like 'TPM*skipped: *' }).Count | Should -Be 1
+            @(& $script:infoLine | Where-Object { $_ -like 'firmware*skipped: *' }).Count | Should -Be 1
         }
 
         It 'lists every disk it considered, not only the one it chose' {
@@ -600,10 +730,13 @@ Describe 'the pre-flight log' {
 
             Invoke-HDTValidateStep -Step (& $script:newStep ([ordered] @{ minDiskGB = 60 })) -Context $context | Out-Null
 
-            $line = @(& $script:debugLine)
+            $line = @(& $script:infoLine)
 
-            @($line | Where-Object { $_ -like 'disk 0 *' }).Count | Should -Be 1
-            @($line | Where-Object { $_ -like 'disk 1 *' }).Count | Should -Be 1
+            # THE ROW, NOT THE DECISION LINE. Both are at Info now, and the
+            # disk-decision summary quotes the chosen row verbatim - so a row is
+            # identified by carrying the bound it was measured against.
+            @($line | Where-Object { $_ -like 'disk 0 *minimum 60.0 GB*' }).Count | Should -Be 1
+            @($line | Where-Object { $_ -like 'disk 1 *minimum 60.0 GB*' }).Count | Should -Be 1
         }
 
         It 'gives the reason each rejected disk was rejected' {
@@ -614,7 +747,7 @@ Describe 'the pre-flight log' {
 
             Invoke-HDTValidateStep -Step (& $script:newStep ([ordered] @{ minDiskGB = 60 })) -Context $context | Out-Null
 
-            $rejected = @(& $script:debugLine | Where-Object { $_ -like 'disk 1 *excluded*' })
+            $rejected = @(& $script:infoLine | Where-Object { $_ -like 'disk 1 *excluded*' })
 
             $rejected.Count | Should -Be 1
             $rejected[0] | Should -BeLike '*under the minimum*'
@@ -633,7 +766,7 @@ Describe 'the pre-flight log' {
 
             Invoke-HDTValidateStep -Step (& $script:newStep ([ordered] @{ minDiskGB = 60 })) -Context $context | Out-Null
 
-            @(& $script:debugLine | Where-Object { $_ -like 'disk 0 *excluded*booted from*' }).Count | Should -Be 1
+            @(& $script:infoLine | Where-Object { $_ -like 'disk 0 *excluded*booted from*' }).Count | Should -Be 1
         }
 
         It 'enumerates the checks on the failure path too' {
@@ -645,7 +778,7 @@ Describe 'the pre-flight log' {
             # The verdict carries its reason on the failure path, so the line
             # does not end at the word - which is the whole difference from a
             # pass, and why -like needs the trailing wildcard here.
-            @(& $script:debugLine | Where-Object { $_ -like 'memory*65536 MB*fail: *' }).Count | Should -Be 1
+            @(& $script:infoLine | Where-Object { $_ -like 'memory*65536 MB*fail: *' }).Count | Should -Be 1
         }
     }
 
