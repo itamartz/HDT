@@ -6,12 +6,22 @@
             which actions are available.
 
         .DESCRIPTION
-            THIS IS WHAT LETS THE WINDOW STAY BRANCH-FREE. Wiring the toolbar
-            means deciding things - which buttons are live for the selected row,
-            what the tree looks like after a splice, whether the edited text
-            still parses - and this toolkit puts decisions in commands
-            rather than in an adapter nothing tests. With this in place every
-            handler in New-HDTConsoleHost is one call and one assignment.
+            THIS IS WHERE THE EDITOR'S DECISIONS LIVE. Wiring the toolbar means
+            deciding things - which buttons are live for the selected row, what
+            the tree looks like after a splice, whether the edited text still
+            parses, where Up and Down would land - and this toolkit puts
+            decisions in commands rather than in a WPF handler nothing tests.
+
+            THE BOUNDARY, EXACTLY: this command COMPUTES and
+            New-HDTConsoleEditorView's handlers ORCHESTRATE. A handler is not
+            one line - it calls an edit command (Add-, Remove-, Move-,
+            Copy-HDTStep, Set-HDTStepFlag), updates the window's own bookkeeping
+            of lines, dirty state and selected row, and re-runs the refresh. But
+            it computes no value it shows and decides no button's state: every
+            string and every IsEnabled on the window is one assignment out of
+            this object, which is the property
+            tests/contract/ConsoleEditorState.Contract.Tests.ps1 keeps true by
+            reading the call sites out of the source.
 
             THE EDITED LINES ARE RE-READ THROUGH THE ENGINE, NOT TRACKED AS A
             MODEL. After each splice the text is handed to

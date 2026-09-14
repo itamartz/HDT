@@ -5,14 +5,30 @@
             shows the window.
 
         .DESCRIPTION
-            THIS IS AN ADAPTER OVER AN EXTERNAL TOOL AND IS DELIBERATELY
-            BRANCH-FREE. The only exception to TDD in this toolkit is a thin
-            adapter over something that cannot be faked - here WPF itself - and
-            the price of that exception is that there is nothing in it worth
-            testing. It formats nothing, counts nothing, and decides nothing:
-            every string it puts on the screen was decided by
-            Get-HDTConsoleTreeNode and every one of them is asserted in
-            tests/unit/ConsoleTreeNode.Tests.ps1.
+            THE WPF EDGE. It loads markup, hangs handlers off the tree by name,
+            opens windows and owns the build's runspace and the timer that
+            drains it. IT IS NOT BRANCH-FREE, and it does not claim rule 1's
+            thin-adapter exemption from TDD - what keeps that honest is WHERE
+            the decisions are, not a count of them.
+
+            IT COMPUTES NO VALUE IT DISPLAYS, AND THAT IS THE LINE. Every string
+            on a window and every button's enabled state comes back from a
+            command a test can run: Get-HDTConsoleTreeNode for the tree
+            (tests/unit/ConsoleTreeNode.Tests.ps1), Test-HDTConsole* for whether
+            a dialog's answers can be used, and Get-HDTConsoleBuildBusy,
+            -BuildProgress, -BuildFailure and -BuildLogPath for every line the
+            build window shows. Each has its own unit suite.
+
+            WHAT DOES DECIDE HERE IS THE WINDOW'S OWN LIFECYCLE, named so nobody
+            reads "adapter" as "nothing to see": the suggested id is filled once
+            and never written back over what somebody typed; the build runspace
+            guarantees an ending for a command that exits without reporting one;
+            the drain reads the queue once more after the handle completes; and
+            Closing is refused while a build still holds a mount. None of those
+            is reachable from Pester - a WPF handler is the one place in this
+            repository nothing can run - which is the reason to keep them few
+            and to move a decision into a command the moment it grows a second
+            case.
 
             IT IS THE SAME SHAPE AS New-HDTWizardHost, on purpose. The console
             runs on a desktop with pwsh 7 and the full framework available, so
@@ -48,9 +64,9 @@
             $consoleHost = New-HDTConsoleHost
             @($consoleHost | Get-Member -MemberType ScriptMethod | ForEach-Object { $_.Name })
 
-            Every window the console can open. The adapter decides nothing: each of
-            these loads markup, sets text by name and shows it, and the decisions
-            are in the helpers it calls.
+            Every window the console can open. Each of these loads markup, sets
+            text by name and shows it; the values on it, and whether its buttons
+            are live, come back from the helpers it calls.
     #>
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',
         Justification = 'Builds a stateless service adapter object; it changes no state. Show is where a window appears, and it is a method.')]

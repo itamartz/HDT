@@ -108,32 +108,15 @@
 
     $clear = [string]::IsNullOrWhiteSpace($Value)
 
-    # A HEADER KEY IS ONE LINE, and a value carrying a newline is what happens
-    # when one is read back out of a FOLDED block: YAML's > yields a string
-    # ending in a newline, so the console hands back what it was shown and the
-    # writer quoted it across three lines -
+    # A HEADER KEY IS ONE LINE. A value read back out of a FOLDED block carries
+    # newlines - YAML's > yields a string ending in one - and writing those back
+    # puts the NEXT key inside this one's value, so the value is collapsed here
+    # rather than quoted across lines.
     #
-    #     description: 'Deploys Windows to a bare machine: ... make it boot.
-    #     folder: Clients\Bare metal
-    #     '
-    #
-    # - which put the NEXT key inside the description and took the folder off
-    # the tree. Nothing in a document header is meant to carry a paragraph, so
-    # the value is collapsed rather than quoted across lines.
-    #
-    # \r?\n AS TWO-CHARACTER ESCAPES, NEVER AS A REAL NEWLINE PASTED INTO THE
-    # PATTERN. This regex used to be written with an actual line break sitting
-    # inside the single-quoted string in place of \n - which parses, and even
-    # passes here, because a single-quoted string does not need an escape
-    # sequence to contain one. But it makes the regex's MEANING depend on the
-    # end-of-line bytes THIS SOURCE FILE happens to be saved with, and git's
-    # CRLF normalisation can rewrite those bytes on checkout. A local working
-    # tree edited in place kept LF and passed; a CI runner's fresh checkout
-    # normalised to CRLF, the embedded newline stopped matching what it used
-    # to, the collapse silently did nothing, and Import-HDTSequenceDocument
-    # died on 'did not find expected key' - the exact failure this comment
-    # block above already describes, reintroduced by the fix for it. Found
-    # 2026-09-04 from a CI-only failure that would not reproduce locally.
+    # \r?\n AS TWO-CHARACTER ESCAPES, NEVER A REAL NEWLINE INSIDE THE PATTERN:
+    # an embedded one makes this regex mean whatever end-of-line bytes the file
+    # is checked out with. Both failures, and how the second was found, are in
+    # docs/MAINTENANCE-NOTES.md, 'Header-key newline normalisation'.
     $oneLine = ($Value -replace '\s*\r?\n\s*', ' ').Trim()
     $written = '{0}: {1}' -f $Key, (Get-HDTConsoleScalarText -Value $oneLine)
 
