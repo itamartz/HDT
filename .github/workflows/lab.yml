@@ -257,9 +257,18 @@ concurrency:
   group: ci-lab-${{ github.ref }}
   cancel-in-progress: true
 
-# READ ONLY, AND NOTHING ELSE - the same rule as e2e.yml, asserted over the set
-# of workflow files in E2eWorkflow.Tests.ps1. The badges leave here as an
-# artifact and are written by badges.yml.
+# READ ONLY AS THE DEFAULT, asserted over the set of workflow files in
+# E2eWorkflow.Tests.ps1. One job below raises it - `badges`, on ubuntu-latest,
+# because publishing a badge is a push to the badges branch. That job used to be
+# a workflow of its own for exactly this reason and does not need to be: no
+# trigger on this file is reachable from a fork.
+#
+# THIS IS NO LONGER WHAT KEEPS THE LAB MACHINE READ-ONLY. When publish.yml calls
+# this file it must grant contents: write or GitHub rejects the run at startup
+# over `badges` - so on the release path the ceiling is write, and a job here
+# that declares nothing would take it. The two self-hosted jobs therefore state
+# `contents: read` themselves, which WorkflowPermission.Tests.ps1 requires of
+# every self-hosted job in every workflow file.
 permissions:
   contents: read
 
@@ -473,6 +482,18 @@ jobs:
 
     runs-on: [self-hosted, windows, hdt-ci]
 
+    # STATED, NOT INHERITED, AND THAT IS THE WHOLE POINT OF WRITING IT HERE.
+    # The workflow default below `jobs:` is contents: read and this job would
+    # take it anyway - but publish.yml now calls this file with contents: write
+    # so that the hosted `badges` job can push, and a called workflow's jobs get
+    # the CALLER's grant wherever nothing narrower is declared. Delete the
+    # workflow-level default one day and this job would silently hold a writable
+    # token on a machine somebody owns. Stating it means only an edit to THIS
+    # line can do that, and WorkflowPermission.Tests.ps1 fails the file if the
+    # line goes.
+    permissions:
+      contents: read
+
     # ~10 minutes on a developer machine, ~20 on a hosted runner. GitHub's
     # default is 360, and six hours of a machine there is exactly one of is six
     # hours nothing else can be tested on. 60 catches a hang without tripping
@@ -603,6 +624,12 @@ jobs:
     # see the workflow_call note in the trigger block.
     if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/')
     runs-on: [self-hosted, windows, hyperv-nested]
+
+    # SAME PIN AS THE GATE JOB ABOVE, AND IT MATTERS MORE HERE: this is the job
+    # the release path actually runs on GHRUNNER01, in the run whose caller
+    # grants contents: write for the badges. It takes read and nothing else.
+    permissions:
+      contents: read
 
     # It deploys Windows to VMs from a WinPE image it builds first. Six hours is
     # not a target, it is the point past which something has hung - and it is

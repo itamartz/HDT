@@ -324,12 +324,28 @@ Describe 'the lab gate in front of a release' {
         [int] $script:labJob['with']['timeoutMinutes'] | Should -BeLessThan 360
     }
 
-    It 'hands the lab job read and no secrets' -Skip:$script:yamlMissing {
-        # The publishing job needs contents: write for `gh release create`.
-        # The job that runs on a machine in somebody's lab must not inherit it,
-        # and must not be handed PSGALLERY_API_KEY either - it has no use for
-        # a key that can write to the Gallery.
-        $script:labJob['permissions']['contents'] | Should -BeExactly 'read'
+    It 'hands the lab job a grant it states, and no secrets' -Skip:$script:yamlMissing {
+        # THIS SAID `contents: read` AND IT IS WHY v1.0.0 NEVER BUILT. lab.yml's
+        # `badges` job declares contents: write, a called workflow may not
+        # request more than its caller grants, and GitHub checks that at startup
+        # before it creates a job - so the tag produced a `startup_failure` with
+        # zero jobs and no logs (run 35009921583), rejected by a job that the
+        # `if:` on it would have skipped anyway.
+        #
+        # SO THE GRANT IS write AND IT IS A CEILING, NOT AN ASSIGNMENT. What
+        # keeps the lab machine read-only is no longer this line: the two
+        # self-hosted jobs in lab.yml STATE `contents: read` of their own, which
+        # WorkflowPermission.Tests.ps1 asserts over every self-hosted job in
+        # every workflow file - along with the rule this line broke, over every
+        # call site. Asserting `read` here again would put the release back in
+        # the state that could not start.
+        #
+        # WHAT HAS NOT CHANGED IS THE SECRETS. `secrets:` is absent rather than
+        # `inherit`: nothing behind this call has any use for PSGALLERY_API_KEY,
+        # and a key that can write to the Gallery does not go to a machine in
+        # somebody's lab.
+        $script:labJob['permissions'] | Should -Not -BeNullOrEmpty -Because (
+            'a call site that declares nothing hands over the repository default, which is a GitHub setting no test here can read')
         $script:labJob.ContainsKey('secrets') | Should -BeFalse
     }
 

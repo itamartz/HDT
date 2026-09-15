@@ -234,9 +234,36 @@ jobs:
   # without a lab run. That includes the dry-run path: a rehearsal that skips
   # the thing being rehearsed is not a rehearsal.
   #
-  # READ, AND NO SECRETS. This job runs on a machine in somebody's lab. It has
-  # no use for the token that creates Releases or for PSGALLERY_API_KEY, so it
-  # is handed neither. `secrets:` is absent rather than `inherit`.
+  # NO SECRETS. The jobs behind this call run on a machine in somebody's lab.
+  # They have no use for PSGALLERY_API_KEY, so they are handed none: `secrets:`
+  # is absent rather than `inherit`.
+  #
+  # contents: write, AND IT COSTS THE LAB NOTHING - BUT IT HAD TO BE SAID OUT
+  # LOUD. This was contents: read, and tagging v1.0.0 produced a
+  # `startup_failure` with zero jobs and no logs (run 35009921583). lab.yml's
+  # `badges` job declares contents: write, A CALLED WORKFLOW MAY NOT REQUEST
+  # MORE THAN ITS CALLER GRANTS, and GitHub validates that before it creates a
+  # single job - so the `if:` that skips `badges` on a tag never got the chance
+  # to run. The whole release was rejected by a job that would not have
+  # executed.
+  #
+  # WHAT THIS DOES NOT DO IS HAND THE LAB MACHINE A WRITABLE TOKEN. This is a
+  # CEILING, not an assignment: each job in lab.yml still gets what that file
+  # gives it, and the two self-hosted jobs there now STATE `contents: read` of
+  # their own rather than inheriting it. That pin is the load-bearing half -
+  # inheritance is what let this rot unnoticed for a whole restructure, and a
+  # future edit to lab.yml's workflow-level default must not be able to widen
+  # what GHRUNNER01 holds.
+  #
+  # BOTH HALVES ARE ASSERTED OVER THE SET in WorkflowPermission.Tests.ps1: every
+  # call site grants at least what the workflow it calls asks for, and every
+  # self-hosted job in every file states a read-only grant of its own.
+  #
+  # THE ALTERNATIVE WAS A FOURTH WORKFLOW - move the badge publisher back out of
+  # lab.yml into a `workflow_run` file, which is how it worked before the six
+  # were consolidated into three. Cleaner in isolation, and rejected: the ask
+  # was to keep this at three files, and workflow_run's indirection buys nothing
+  # in a file no fork can trigger.
   #
   # 180 MINUTES, NOT THE 360 A HAND-STARTED RUN GETS. Four of the nine e2e suites skip on
   # GHRUNNER01 for want of the 50 GB share, so what actually runs there is
@@ -255,7 +282,7 @@ jobs:
     needs: ci
     uses: ./.github/workflows/lab.yml
     permissions:
-      contents: read
+      contents: write
     with:
       timeoutMinutes: 180
 
