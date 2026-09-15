@@ -1,0 +1,111 @@
+# DESIGN 9.1 RULE 5, ON A REAL MACHINE, AGAINST THE DISK SHAPE THAT DEFEATED IT.
+#
+# Commit d807c60 fixed a defect with one outcome: a non-RAW disk whose partitions
+# carry NO DRIVE LETTER was cleared by DiskPartition though the sequence never
+# declared wipe: true. Rule 5 was evaluated by matching VOLUMES to a disk BY
+# LETTER, and IDiskService.GetVolume() reports only volumes that have one - so a
+# disk lifted out of another machine, or one carrying nothing but an ESP and a
+# folder-mounted data volume, produced an empty set on a disk that was full.
+#
+# THAT FIX IS PROVEN AGAINST HAND-WRITTEN FAKES AND NOTHING ELSE. This document
+# is the instrument that proves it on hardware, and it is four steps because the
+# proof needs four:
+#
+#   1. Preflight              the pre-flight's own account of what the disk
+#                             carries. It must name the unlettered partitions
+#                             rather than say "no volumes" - which is the second
+#                             half of d807c60, and which is also how this run
+#                             proves the DISK SHAPE SURVIVED INTO WinPE. If WinPE
+#                             had lettered the volumes, rule 5 would still refuse
+#                             - through its $data arm, which worked before the
+#                             fix - and this whole file would pass while proving
+#                             the OLD behaviour. The word to look for in the log
+#                             is 'no drive letter'.
+#
+#   2. Refuse Without Wipe    THE ASSERTION. A DiskPartition step naming disk 0
+#                             and declaring NO wipe. Before d807c60 this cleared
+#                             the disk; it must now fail with HDTUnsafeTargetError
+#                             and name the partitions it could not read.
+#
+#                             continueOnError: true IS WHAT LETS STEP 4 RUN. A
+#                             refusal is classed Configuration, so it is never
+#                             retried and it would otherwise end the run - and a
+#                             file that proved only the refusal could not tell
+#                             "correctly refuses this disk" from "refuses every
+#                             disk". This is the one place in this repository
+#                             where a failed step is the expected outcome, and
+#                             the harness asserts its status is Failed.
+#
+#   3. Verify Untouched       THE SAME PRE-FLIGHT AGAIN, read back off the
+#                             machine AFTER the refusal. The three unlettered
+#                             partitions must still be there, which is how this
+#                             run proves the refusal WROTE NOTHING rather than
+#                             merely reported a refusal. Nothing else can ask
+#                             that question: step 4 destroys the evidence, and
+#                             the host cannot read the VHDX while the VM has it.
+#
+#   4. Accept With Wipe       THE NEGATIVE CONTROL. The same disk, the same
+#                             step type, the same diskNumber - and wipe: true.
+#                             Rule 5 is overridable by DECLARATION (DESIGN 9.1),
+#                             so this must COMPLETE. Without it a guard that
+#                             refused everything would pass step 2 and look
+#                             correct.
+#
+# THERE IS NO ApplyImage, ApplyUnattend OR ConfigureBoot HERE, AND THAT IS THE
+# POINT. Deployment.E2E already proves a machine boots. This file proves one
+# refusal and one acceptance, which takes a WinPE boot and about a minute of
+# disk work rather than half an hour of imaging - so it can be run often enough
+# to be worth having.
+#
+# diskNumber IS NAMED ON EVERY STEP, INCLUDING THE TWO Validate STEPS, and that
+# is not decoration. Invoke-HDTValidateStep passes AllowExistingData = $true
+# deliberately - rule 5 is INERT in the pre-flight, because asking "may this be
+# erased" is DiskPartition's question and not Validate's. A Validate step that
+# did not name diskNumber would reach the AMBIGUITY guard instead ("2 disks
+# qualify... HDT will not guess which one to wipe"), fail two steps before the
+# proof, and this file would report a refusal that had nothing to do with rule 5.
+
+schemaVersion: 1
+id: DISK-GUARD
+name: Rule 5 against a disk whose partitions carry no drive letter
+description: >
+  Refuse a non-RAW disk with no readable volumes when the step did not declare
+  wipe: true, prove the refusal wrote nothing, then accept the same disk when it
+  did. DESIGN 9.1 rule 5, the regression test for commit d807c60.
+
+steps:
+  - group: Preinstall
+    runIn: WinPE
+    steps:
+      # minRamMB is 2048 rather than 4096 ON PURPOSE: a 4 GB VM reports slightly
+      # under 4096 MB, because the firmware keeps some of it (DEMO-M3).
+      #
+      # minDiskGB is what excludes the 8 GB content disk from the choice. It is
+      # belt and braces here, because diskNumber names the target outright.
+      - name: Preflight
+        type: Validate
+        minRamMB: 2048
+        minDiskGB: 60
+        diskNumber: 0
+
+      # NO wipe KEY AT ALL. Its ABSENCE is the whole experiment - naming the
+      # disk explicitly is NOT the same statement as declaring its contents
+      # expendable (DESIGN 9.1), and a `wipe: false` would be a third thing that
+      # invites somebody to "fix" it later.
+      - name: Refuse Without Wipe
+        type: DiskPartition
+        layout: uefi-standard
+        diskNumber: 0
+        continueOnError: true
+
+      - name: Verify Untouched
+        type: Validate
+        minRamMB: 2048
+        minDiskGB: 60
+        diskNumber: 0
+
+      - name: Accept With Wipe
+        type: DiskPartition
+        layout: uefi-standard
+        diskNumber: 0
+        wipe: true

@@ -50,6 +50,13 @@ BeforeAll {
         'C:\HDTLab\scratch\e2e-refdep'           # M7 application round trip, leg 2: HDT.jsonl and refdep-*.png
         'C:\HDTLab\scratch\e2e-wsusupdate'       # WSUS patching: HDT.jsonl and wsus-*.png
 
+        # DESIGN 9.1 rule 5 on hardware. FIXTURE-BEFORE.json is the disk whose
+        # partitions carried no drive letter, read off the metal before the VM
+        # ever saw it, and FIXTURE-AFTER.json is what the accepted wipe left -
+        # so the two together are the only record that the refusal and the
+        # acceptance happened to the SAME disk.
+        'C:\HDTLab\scratch\e2e-diskguard-artifacts' # FIXTURE-BEFORE/AFTER.json, RESULT.json, HDT.jsonl, state.json, LAUNCHER.log, diskguard-*.png
+
         # M9 Refresh. The only evidence a BitLocker recovery prompt ever leaves
         # is refresh-04-after-arm-Neither.png - the machine writes nothing to
         # any volume in that state - so this root is not merely convenient, it
@@ -171,6 +178,7 @@ Describe 'each E2E suite removes the build root it created' {
         @{ Suite = 'UnattendedDeployment.E2E.Tests.ps1'; Root = 'C:\HDTLab\scratch\e2e-bootimage' }
         @{ Suite = 'WinPeSmoke.E2E.Tests.ps1'; Root = 'C:\HDTLab\scratch\e2e-probeimage' }
         @{ Suite = 'Wizard.E2E.Tests.ps1'; Root = 'C:\HDTLab\scratch\wizard-e2e' }
+        @{ Suite = 'DiskGuard.E2E.Tests.ps1'; Root = 'C:\HDTLab\scratch\e2e-diskguard' }
     ) {
         $file = Join-Path -Path $script:repoRoot -ChildPath ('tests/e2e/{0}' -f $Suite)
 
