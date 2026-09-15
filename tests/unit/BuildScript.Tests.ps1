@@ -507,6 +507,28 @@ Describe 'build.ps1' {
             $body | Should -Match '(?s)try[^\r\n]*\r?\n[^\r\n]*Import-Clixml'
         }
 
+        It 'clears the last sharded run''s NUnit documents before it writes its own' {
+            # A WORKER NO LONGER WRITES ONE DOCUMENT PER SHARD. It batches its
+            # list into fresh processes - that is what stopped ./build.ps1 -Task
+            # ci dying of System.OutOfMemoryException - and each batch writes its
+            # own sibling, named '<stem>-shard<N>of<M>-batch<i>of<n>.xml'. Both
+            # counts are in the name, so a run with fewer workers, or a shard
+            # that now needs fewer batches, does not overwrite the last run's
+            # documents file for file; it leaves the tail of them behind.
+            #
+            # AND BOTH CI WORKFLOWS UPLOAD out/testResults/*.xml AS A GLOB, so
+            # those leftovers are published beside today's as though they were
+            # today's - green results for tests this run never executed.
+            $body = & $script:functionBody 'Invoke-HDTShardedTest'
+
+            $body | Should -Match '\$resultDirectory -Filter \$staleFilter'
+            $body | Should -Match "'\{0\}-shard\*\.xml'"
+
+            # NOT the single-process document. -Worker 1 still writes
+            # '<stem>.xml' and it is not this run's to delete.
+            $body | Should -Not -Match "Filter '\{0\}\.xml'"
+        }
+
         It 'reads the previous run''s timings from somewhere the next run will look' {
             # THE BALANCING WAS SILENTLY OFF. The shard directory is keyed by
             # $PID, and the durations were read from that same directory - so a

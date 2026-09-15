@@ -39,7 +39,23 @@ $path = @(Get-Content -LiteralPath $ListPath | Where-Object { $_ })
 # FLATTENED TO STRINGS AND PRIMITIVES. A live DiagnosticRecord does not survive
 # Export-Clixml intact, and the parent only ever formats these five fields.
 $diagnostic = @($path | ForEach-Object {
-        Invoke-ScriptAnalyzer -Path $_ -Settings $SettingsPath
+        $record = @(Invoke-ScriptAnalyzer -Path $_ -Settings $SettingsPath)
+
+        # COLLECT AFTER EVERY FILE, BECAUSE THE ANALYZER LEAVES A LOT BEHIND.
+        # Each Invoke-ScriptAnalyzer parses the file into an AST, walks it with
+        # every rule, and drops the lot; without a collection between files a
+        # worker climbed to about 250 MB and stayed there, and with one it sits
+        # flat at about 178 MB. That is 8 x 72 MB not being asked of a host whose
+        # commit limit is its physical RAM - the same pressure that made
+        # ./build.ps1 -Task ci die of System.OutOfMemoryException.
+        #
+        # HERE AND NOT IN THE TEST SHARD. Lint plateaus and the test worker did
+        # not: a forced collection reclaimed only 31% of a test worker, which is
+        # why that one batches into fresh processes instead of collecting.
+        [GC]::Collect()
+        [GC]::WaitForPendingFinalizers()
+
+        $record
     } | ForEach-Object {
         [pscustomobject] @{
             Severity   = [string] $_.Severity

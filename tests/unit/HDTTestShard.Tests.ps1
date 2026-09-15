@@ -29,7 +29,7 @@ BeforeAll {
     $script:hostPath = (Get-Process -Id $PID).Path
 
     $script:shardRun = {
-        param([string] $Root, [string[]] $TestFile)
+        param([string] $Root, [string[]] $TestFile, [int] $BatchSize = -1)
 
         $listPath = Join-Path -Path $Root -ChildPath 'list.txt'
         Set-Content -LiteralPath $listPath -Value $TestFile -Encoding UTF8
@@ -48,6 +48,12 @@ BeforeAll {
             '-DurationPath', $durationPath,
             '-ResultPath', $resultPath,
             '-Verbosity', 'None')
+
+        # -1 MEANS "SAY NOTHING", so the default the real build gets is the one
+        # under test. Every other value is passed through.
+        if ($BatchSize -ge 0) {
+            $argument += @('-BatchSize', [string] $BatchSize)
+        }
 
         $process = Start-Process -FilePath $script:hostPath -ArgumentList $argument -PassThru -Wait -WindowStyle Hidden `
             -RedirectStandardOutput $outputPath -RedirectStandardError $errorPath
@@ -69,6 +75,26 @@ BeforeAll {
             ResultPath    = $resultPath
             StandardError = $standardError
         }
+    }
+
+    # A PROBE SUITE WHOSE COUNTS ARE ALL DIFFERENT. Batching is only proved by
+    # the numbers ADDING UP, and files that each pass one test add up to the
+    # file count whether the batches were merged or the last one simply won.
+    $script:writeProbe = {
+        param([string] $Root, [int] $Index, [int] $Passing, [int] $Skipped)
+
+        $probePath = Join-Path -Path $Root -ChildPath ('HDTShardBatchProbe{0:D2}.Tests.ps1' -f $Index)
+        $line = @(("Describe 'HDTShardBatchProbe{0:D2}' {{" -f $Index))
+        for ($i = 1; $i -le $Passing; $i++) {
+            $line += ("    It 'passes {0}' {{ 1 | Should -Be 1 }}" -f $i)
+        }
+        for ($i = 1; $i -le $Skipped; $i++) {
+            $line += ("    It 'is skipped {0}' -Skip {{ 1 | Should -Be 2 }}" -f $i)
+        }
+        $line += '}'
+
+        Set-Content -LiteralPath $probePath -Value $line -Encoding UTF8
+        return $probePath
     }
 }
 
@@ -159,6 +185,176 @@ Describe 'HDTTestShard.ps1' {
 
             Test-Path -LiteralPath ([string] $resolved) -PathType Leaf |
                 Should -BeTrue -Because ("HDTTestShard.ps1 imports '{0}', and every worker dies on Import-Module if that is not the manifest." -f $resolved)
+        }
+    }
+    # ONE PROCESS PER BATCH, BECAUSE THE MEMORY DOES NOT COME BACK.
+    #
+    # A worker process retained about 10 MB per test file, linearly and with no
+    # plateau: 282 MB after 10 files, 349 MB after 25, 739 MB after 50, 921 MB
+    # after 75. Measured on the real suite, 68 files - 541 across 8 workers -
+    # peaked at 876 MB, so eight of them cost about 7 GB at once. This host has
+    # no page file, so the commit limit IS physical RAM and './build.ps1 -Task
+    # ci' died with System.OutOfMemoryException while physical RAM still looked
+    # free.
+    #
+    # A FORCED [GC]::Collect() RECLAIMED ONLY 31% of it - 921 MB went to 636 MB
+    # - so collecting between batches is not enough. Only a process that exits
+    # gives the whole of it back, which is why the worker now runs its list in
+    # fresh grandchildren rather than calling the collector. The same 68-file
+    # shard, batched five at a time, peaks at 570 MB.
+    #
+    # THESE ASSERT THE TWO THINGS BATCHING COULD BREAK: that the counts of every
+    # batch add up in the one summary the parent reads, and that a batch which
+    # dies still fails the shard instead of being quietly left out of the sum.
+    Context 'a worker given more files than fit in one batch' {
+
+        BeforeAll {
+            # DIFFERENT COUNTS PER FILE, on purpose. Five files of one test each
+            # total five whether the batches were added up or the last one
+            # simply overwrote the others; 1+2+3+4+5 only totals 15 if they were.
+            $script:batchProbe = @(
+                (& $script:writeProbe $TestDrive 1 1 1),
+                (& $script:writeProbe $TestDrive 2 2 0),
+                (& $script:writeProbe $TestDrive 3 3 1),
+                (& $script:writeProbe $TestDrive 4 4 0),
+                (& $script:writeProbe $TestDrive 5 5 1))
+
+            $script:batchRun = & $script:shardRun $TestDrive $script:batchProbe 2
+        }
+
+        It 'exits cleanly' {
+            $script:batchRun.ExitCode | Should -Be 0 -Because $script:batchRun.StandardError
+        }
+
+        It 'writes nothing to standard error' {
+            $script:batchRun.StandardError.Trim() | Should -BeNullOrEmpty
+        }
+
+        It 'adds every batch up into the one summary the parent reads' {
+            Test-Path -LiteralPath $script:batchRun.SummaryPath -PathType Leaf | Should -BeTrue
+
+            $summary = Import-Clixml -LiteralPath $script:batchRun.SummaryPath
+            $summary.PassedCount | Should -Be 15
+            $summary.SkippedCount | Should -Be 3
+            $summary.FailedCount | Should -Be 0
+            $summary.FailedContainersCount | Should -Be 0
+        }
+
+        It 'reports the seconds of every file, not just the last batch' {
+            $row = @(Import-Csv -LiteralPath $script:batchRun.DurationPath)
+            $row.Count | Should -Be 5
+
+            # Keyed by full path, which is what Split-HDTTestBucket is handed.
+            @($row | ForEach-Object { $_.Path } | Sort-Object) |
+                Should -Be @($script:batchProbe | Sort-Object)
+        }
+
+        It 'writes one NUnit document per batch, all named off the shard' {
+            # The parent hands one -ResultPath per shard and both CI workflows
+            # collect out/testResults/*.xml as a glob, so several siblings are
+            # fine - but they have to be siblings, and every batch has to leave
+            # one or its tests are absent from the artefact.
+            $stem = [IO.Path]::GetFileNameWithoutExtension($script:batchRun.ResultPath)
+            $written = @(Get-ChildItem -Path (Split-Path -Parent $script:batchRun.ResultPath) `
+                    -Filter ('{0}-batch*.xml' -f $stem) -File)
+
+            $written.Count | Should -Be 3
+            @($written | ForEach-Object { $_.Name } | Sort-Object) | Should -Be @(
+                ('{0}-batch1of3.xml' -f $stem),
+                ('{0}-batch2of3.xml' -f $stem),
+                ('{0}-batch3of3.xml' -f $stem))
+        }
+
+        It 'runs every file exactly once across the batches' {
+            # The whole point of the exercise is to spend LESS memory on the
+            # same tests. A batching bug that drops a file spends less memory
+            # too, and looks identical in every number but this one.
+            $total = 0
+            foreach ($probe in $script:batchProbe) {
+                $total += @(Select-String -LiteralPath $probe -Pattern "^\s+It " -AllMatches).Count
+            }
+
+            $summary = Import-Clixml -LiteralPath $script:batchRun.SummaryPath
+            ($summary.PassedCount + $summary.FailedCount + $summary.SkippedCount) | Should -Be $total
+        }
+    }
+
+    Context 'a batch whose process dies' {
+
+        BeforeAll {
+            # WHAT AN OUT-OF-MEMORY KILL LOOKS LIKE: the process is gone before
+            # it writes anything. Kill() rather than a throw, because a throw is
+            # caught by Pester and reported as a failed test - which is the case
+            # that already worked.
+            $script:killer = Join-Path -Path $TestDrive -ChildPath 'HDTShardKiller.Tests.ps1'
+            Set-Content -LiteralPath $script:killer -Encoding UTF8 -Value @(
+                "Describe 'HDTShardKiller' {",
+                "    It 'dies the way an out-of-memory worker does' {",
+                '        [System.Diagnostics.Process]::GetCurrentProcess().Kill()',
+                '    }',
+                '}')
+
+            $script:deadProbe = @(
+                (& $script:writeProbe $TestDrive 6 1 0),
+                (& $script:writeProbe $TestDrive 7 1 0),
+                $script:killer,
+                (& $script:writeProbe $TestDrive 8 1 0))
+
+            $script:deadRun = & $script:shardRun $TestDrive $script:deadProbe 2
+        }
+
+        It 'leaves no summary behind, which is how the parent detects it' {
+            # Merge-HDTPesterSummary turns a missing summary into a thrown
+            # failure. A batch that vanished must not be able to produce a
+            # shard summary holding only the batches that survived - that is a
+            # green build over a suite that partly did not run.
+            Test-Path -LiteralPath $script:deadRun.SummaryPath -PathType Leaf | Should -BeFalse
+        }
+
+        It 'exits non-zero' {
+            $script:deadRun.ExitCode | Should -Not -Be 0
+        }
+
+        It 'says which batch died, and what it was given' {
+            $script:deadRun.StandardError | Should -Match 'batch 2 of 2'
+            $script:deadRun.StandardError | Should -Match 'file'
+        }
+    }
+
+    Context 'the batch size the real build gets' {
+
+        It 'batches by default, without the parent having to ask' {
+            # build.ps1 passes no -BatchSize, so a default of 0 would leave the
+            # memory ceiling exactly where it was and every assertion above
+            # would still pass.
+            $text = Get-Content -LiteralPath $script:shardScript -Raw
+            $parseError = $null
+            $token = $null
+            $ast = [System.Management.Automation.Language.Parser]::ParseInput($text, [ref] $token, [ref] $parseError)
+
+            $parameter = @($ast.ParamBlock.Parameters |
+                    Where-Object { $_.Name.VariablePath.UserPath -eq 'BatchSize' })
+
+            $parameter.Count | Should -Be 1
+            $parameter[0].DefaultValue | Should -Not -BeNullOrEmpty
+            [int] $parameter[0].DefaultValue.Extent.Text | Should -BeGreaterThan 0
+        }
+
+        It 'runs in this process when it is told not to batch' {
+            # The grandchildren are started with -BatchSize 0, so this is what
+            # stops the recursion. A non-terminating one forks until the machine
+            # gives up - which is the failure mode this whole change exists to
+            # avoid.
+            $probe = & $script:writeProbe $TestDrive 9 2 0
+            $root = Join-Path -Path $TestDrive -ChildPath 'noBatch'
+            $null = New-Item -Path $root -ItemType Directory -Force
+
+            $run = & $script:shardRun $root @($probe) 0
+
+            $run.ExitCode | Should -Be 0 -Because $run.StandardError
+            (Import-Clixml -LiteralPath $run.SummaryPath).PassedCount | Should -Be 2
+
+            @(Get-ChildItem -Path $root -Filter '*-batch*.xml' -File).Count | Should -Be 0
         }
     }
 }

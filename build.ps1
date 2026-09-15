@@ -728,11 +728,14 @@ function Invoke-HDTTest {
     }
 
     # THE PATH IT NAMES HAS TO BE ONE THAT EXISTS. A sharded run never writes
-    # $resultPath - each worker writes a sibling of it - so printing it would
-    # send whoever reads the log to a file that is not there.
+    # $resultPath - each worker writes siblings of it, one per batch of files it
+    # ran - so printing it would send whoever reads the log to a file that is
+    # not there. '-shard*' and not '-shard*of*': the batch number comes after
+    # the shard number, and a glob that assumes the name ENDS at the shard count
+    # is a glob that stops matching the day the name grows.
     $written = $resultPath
     if ($Worker -gt 1 -and -not $Coverage) {
-        $written = '{0}-shard*of*.xml' -f (Join-Path -Path (Split-Path -Parent $resultPath) -ChildPath ([IO.Path]::GetFileNameWithoutExtension($resultPath)))
+        $written = '{0}-shard*.xml' -f (Join-Path -Path (Split-Path -Parent $resultPath) -ChildPath ([IO.Path]::GetFileNameWithoutExtension($resultPath)))
     }
 
     Write-Information ("test: {0} passed, {1} failed, {2} skipped -> {3}" -f $result.PassedCount, $result.FailedCount, $result.SkippedCount, $written)
@@ -775,9 +778,22 @@ function Invoke-HDTShardedTest {
             durations live in out/testResults, which -Task clean deletes; the
             first run after a clean is merely unbalanced, never wrong.
 
-            EVERY WORKER WRITES ITS OWN NUnit XML. Nothing merges them because
+            EVERY WORKER WRITES ITS OWN NUnit XML - several of them, in fact,
+            one per batch of files it ran. Nothing merges the documents because
             nothing needs to: both CI workflows collect out/testResults/*.xml as
             a glob, and the verdict comes from the summaries, not the documents.
+            The COUNTS are merged, twice: each worker adds its batches up into
+            the one summary it writes, and Merge-HDTPesterSummary adds the
+            workers up into the one result this returns.
+
+            WHY THE WORKER BATCHES AT ALL is in HDTTestShard.ps1's header, and
+            the short version is that it ran out of memory: a worker retained
+            about 10 MB per test file with no plateau, eight of them cost about
+            7 GB at once, and this host has no page file - so the commit limit
+            is physical RAM and `./build.ps1 -Task ci` died with
+            System.OutOfMemoryException while physical RAM still looked free.
+            A forced collection gave back only 31% of it; a process that exits
+            gives back all of it.
 
         .PARAMETER Path
             The suite directories to run.
@@ -867,6 +883,23 @@ function Invoke-HDTShardedTest {
             -RegistryPath $registryFile)
 
     Get-ChildItem -Path $shardDirectory -File -ErrorAction SilentlyContinue |
+        Remove-Item -Force -ErrorAction SilentlyContinue
+
+    # AND THE NUnit DOCUMENTS OF THE LAST SHARDED RUN, WHICH THIS ONE MAY NOT
+    # OVERWRITE FILE FOR FILE. Every worker names its documents after
+    # $ResultPath, and the names carry the shard and batch counts - so a run
+    # with fewer workers, or a worker whose list now fits in fewer batches,
+    # leaves the tail of the previous run behind under names this run never
+    # writes. Both CI workflows upload out/testResults/*.xml as a glob, so what
+    # is left behind is published beside this run's as though it belonged to it:
+    # green results for tests that were not run today.
+    #
+    # ONLY THIS RUN'S OWN NAMESPACE, AND ONLY FILES. '<stem>-shard*.xml' is what
+    # a sharded run writes and nothing else does - the single-process run writes
+    # '<stem>.xml', which is left alone because -Worker 1 is still a real way to
+    # produce it.
+    $staleFilter = '{0}-shard*.xml' -f [IO.Path]::GetFileNameWithoutExtension($ResultPath)
+    Get-ChildItem -Path $resultDirectory -Filter $staleFilter -File -ErrorAction SilentlyContinue |
         Remove-Item -Force -ErrorAction SilentlyContinue
 
     # BUILD THE BUNDLE HERE, IN ONE PROCESS, BEFORE ANY WORKER STARTS.
