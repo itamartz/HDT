@@ -691,11 +691,22 @@ Describe 'the disk this run built for the engine to refuse' -Tag 'E2E' -Skip:$sk
         # THE FIXTURE'S WHOLE POINT. A lettered volume is read by GetVolume,
         # lands in rule 5's $data arm - which worked before d807c60 - and this
         # suite then proves the old behaviour while looking green.
+        #
+        # AN UNLETTERED PARTITION IS [char] 0, NOT EMPTY, and that is what this
+        # assertion got wrong on its first real run: [string] [char] 0 is a
+        # one-character string holding a NUL, which is neither null nor
+        # whitespace, so IsNullOrWhiteSpace called every partition lettered and
+        # printed the NUL as nothing - '1:', '2:', '3:' were partition numbers
+        # with an invisible character after them. New-HDTDiskService says the
+        # same thing about Get-Volume in its own words, and
+        # Get-HDTResumeCandidate already matches the letter rather than testing
+        # for emptiness. Match it here too: a drive letter is A-Z and anything
+        # else is no letter at all.
         $lettered = @($script:shapeBefore['Partition'] |
-                Where-Object { -not [string]::IsNullOrWhiteSpace([string] $_.DriveLetter) } |
-                ForEach-Object { '{0}:{1}' -f $_.PartitionNumber, $_.DriveLetter })
+                Where-Object { ([string] $_.DriveLetter) -match '^[A-Za-z]$' } |
+                ForEach-Object { 'partition {0} carries {1}:' -f $_.PartitionNumber, $_.DriveLetter })
 
-        $lettered | Should -BeNullOrEmpty -Because ($lettered -join ', ')
+        $lettered | Should -BeNullOrEmpty -Because ($lettered -join '; ')
     }
 
     It 'set NoDefaultDriveLetter on the data partition, which is what survives into WinPE' {
