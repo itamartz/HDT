@@ -97,6 +97,12 @@ steps:
         layout: uefi-standard
         diskNumber: 0
         continueOnError: true
+        # NOT ON A REFRESH, and the contract over every shipped sequence is what
+        # asks for this: a DiskPartition with nothing between it and running that
+        # rules out REFRESH would repartition the disk a Refresh exists to keep.
+        # This suite only ever runs NEWCOMPUTER, so the guard changes nothing here
+        # and is still the thing that must be true of any sequence that ships.
+        condition: '$HDTDeploymentType -ne "REFRESH"'
 
       - name: Verify Untouched
         type: Validate
@@ -109,3 +115,9 @@ steps:
         layout: uefi-standard
         diskNumber: 0
         wipe: true
+        # NOT ON A REFRESH, and the contract over every shipped sequence is what
+        # asks for this: a DiskPartition with nothing between it and running that
+        # rules out REFRESH would repartition the disk a Refresh exists to keep.
+        # This suite only ever runs NEWCOMPUTER, so the guard changes nothing here
+        # and is still the thing that must be true of any sequence that ships.
+        condition: '$HDTDeploymentType -ne "REFRESH"'
