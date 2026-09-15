@@ -34,7 +34,14 @@ engine on PowerShell instead of VBScript/WSH.
 ### Deferred to v2 (designed, scheduled out)
 
 These are **fully designed below and not cut** — v2 starts from a written plan.
-They are simply not in v1:
+~~They are simply not in v1:~~
+
+**Every entry in this list was built and shipped in 1.0.0 (2026-09-15)**, and
+each is struck below with the date. The heading is kept because it records what
+was scheduled out and when, which is how the drivers entry came to be
+half-deferred and half-built in the same bullet. **The one thing still scheduled
+for v2 is not in this list:** PXE boot from WDS, moved there by the user on
+2026-08-25 — it is a ROADMAP M4 exit clause, not a DESIGN section.
 
 - **§7 Driver management — partly built.** There **is** an out-of-box driver
   store now: `New-HDTDriverFolder` and `Import-HDTDriver` fill it, a **selection

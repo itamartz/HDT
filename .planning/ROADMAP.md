@@ -16,19 +16,35 @@ Milestone → phase directory mapping:
 | 05.5 | **M4.5 — Technician UI (WinPE wizard + progress)** | `.planning/phases/05.5-technician-ui/` | 04, 05 |
 | 06 | M5 — Drivers — **met 2026-08-30 on hardware** | `.planning/phases/06-drivers/` | 04 |
 | 07 | M6 — Applications and full-OS steps — **met 2026-08-30** | `.planning/phases/07-apps-fullos/` | 03, 04 |
-| ~~08~~ | ~~M7 — Capture and standalone media~~ **DEFERRED TO v2** | `.planning/phases/08-capture-media/` | 04, 05, 07 |
+| 08 | ~~M7 — Capture and standalone media~~ ~~**DEFERRED TO v2**~~ — **UN-DEFERRED, both exits met: capture 2026-08-31, media 2026-09-03** | `.planning/phases/08-capture-media/` | 04, 05, 07 |
 | 09 | M8 — Admin console (WPF) | `.planning/phases/09-console/` | 02–05, 05.5, 07 |
 
 ## v1 scope
 
+> **RELEASED as 1.0.0 on 2026-09-15**, and it shipped with **more** than this
+> section scopes: 08 capture and standalone media came back and both its exits
+> were met, and so did the `WindowsUpdate` step. `docs/ROADMAP.md`'s
+> "v1.0.0 — released 2026-09-15" block is the authoritative list of what the
+> number claims, milestone by milestone, with the evidence for each. The
+> paragraphs below are kept as what was decided at the time; where one has since
+> stopped being true it is struck rather than deleted, because this section is
+> read back as current.
+
 **v1 ships:** 01 harness, 02 rules, 03 sequence engine, 04 imaging, 05 boot image
 and the zero-keystroke boot path, 05.5 technician UI, 07 applications and full-OS
-steps, 09 admin console.
+steps, 09 admin console — **and, built after this line was written, 08 capture
+and standalone media, the `WindowsUpdate` step, and 06 drivers and M9 Refresh,
+which this table predates.**
 
-**v2:** 08 capture + standalone media, — added 2026-08-16 — the `WindowsUpdate`
-step out of 07, and — added 2026-08-25 — **PXE boot from WDS out of 05**. All
-keep their full design and roadmap entries below; they are scheduled out, not
-cut, and nothing in v1 was built in a way that assumes they are absent.
+**v2:** ~~08 capture + standalone media,~~ ~~— added 2026-08-16 — the
+`WindowsUpdate` step out of 07,~~ and — added 2026-08-25 — **PXE boot from WDS
+out of 05**. All keep their full design and roadmap entries below; they are
+scheduled out, not cut, and nothing in v1 was built in a way that assumes they
+are absent.
+
+**Only the PXE deferral survived.** 08 was un-deferred and met both exits —
+capture 2026-08-31, media 2026-09-03 — and the `WindowsUpdate` step was built on
+2026-09-06. Both shipped in 1.0.0.
 
 **PXE boot was demonstrated on 2026-09-10, ahead of its milestone.** A client
 network booted from the lab's own WDS and reached the HDT engine in 28 seconds
@@ -48,12 +64,20 @@ pruned twice and took two earlier proofs with it.
 
 What deferring the rest actually costs, stated so it is not discovered later:
 
-- **No reference-image capture.** v1 applies images; it does not sysprep and
-  capture its own. Images come from Microsoft media or an existing pipeline.
-- **No standalone offline media.** v1 deploys from a share, over PXE or from the
+- ~~**No reference-image capture.** v1 applies images; it does not sysprep and
+  capture its own. Images come from Microsoft media or an existing pipeline.~~
+  **BUILT 2026-08-31 and in 1.0.0.** The `Sysprep` and `CaptureImage` steps write
+  to `Captures\` and `Import-HDTOperatingSystem` promotes the result; the round
+  trip is the two recordings at the top of `README.md`.
+- ~~**No standalone offline media.** v1 deploys from a share, over PXE or from the
   boot ISO. `New-HDTBootIso` (phase 05) still produces a bootable WinPE ISO —
   what moves to v2 is `New-HDTMedia`, the full content projection that puts the
-  OS, applications and sequences on a USB stick for a site with no server.
+  OS, applications and sequences on a USB stick for a site with no server.~~
+  **BUILT 2026-09-03 and in 1.0.0.** `New-HDTMedia` / `Update-HDTMediaContent`
+  project the share through a selection profile, swap the provider to `Local` and
+  burn an ISO. One clause of this survives as a decision rather than a gap: **HDT
+  writes no USB stick itself** — ISO only (DESIGN §6.2, decided 2026-09-03), and
+  Rufus or `dd` does the destructive half.
 - **No PXE boot in v1.** v1 boots the ISO `New-HDTBootIso` builds, which is
   proven end to end and is what the lab uses. A site that wants a machine to
   boot off the wire burns the ISO to a USB stick or attaches it, exactly as it
@@ -71,11 +95,13 @@ What deferring the rest actually costs, stated so it is not discovered later:
   is a **complete PXE-to-installed-Windows deployment**; the test client had no
   disk. And it owes nothing to `New-HDTPxePayload`'s own store, which took no
   part — WDS composes its per-client BCD at request time (S27.4).
-- **No in-sequence patching.** A machine HDT builds leaves the bench with exactly
+- ~~**No in-sequence patching.** A machine HDT builds leaves the bench with exactly
   the patches its source image carried. There is no `WindowsUpdate` step, so
   currency after deployment is whatever Windows Update does on its own schedule
   once the technician hands the machine over. The step type is additive — v2
-  brings it back by adding files, not by changing them.
+  brings it back by adding files, not by changing them.~~ **BUILT 2026-09-06 and
+  in 1.0.0.** It was additive exactly as predicted: the step arrived by adding
+  files, and nothing already in v1 had to change.
 - **The console (09) will show Drivers and Captures nodes with nothing behind
   them** unless it hides them; it should read the workspace and omit what is not
   present rather than showing empty branches.

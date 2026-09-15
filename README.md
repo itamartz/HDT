@@ -439,6 +439,14 @@ dying mid-write, and it never contains the deployment password.
 
 ## Status
 
+**v1.0.0, released 2026-09-15.** M0 through M9, each exit criterion met. M3
+through M9 were proven on a machine rather than in a Pester run; M2's criterion
+is *"having touched nothing real"*, so fakes are the criterion there and not a
+shortfall. **PXE boot from WDS is v2** — moved there by the user on 2026-08-25,
+a decision rather than a gap — and M6's idempotency clause was cut on
+2026-08-30. `docs/ROADMAP.md` has the release block with the evidence for every
+row, what 1.0.0 does not contain, and what remains proven against fakes alone.
+
 A milestone is not done until its exit criteria are met with a green suite.
 `docs/ROADMAP.md` holds each one and how it was proven.
 
@@ -447,7 +455,7 @@ A milestone is not done until its exit criteria are met with a green suite.
 | **M0** — skeleton and harness | complete |
 | **M1** — variables and rules | complete |
 | **M2** — task sequence engine | met |
-| **M3** — imaging | met |
+| **M3** — imaging | met. And **the guard that decides which disk gets wiped has hardware evidence since 2026-09-15**: `tests/e2e/DiskGuard.E2E.Tests.ps1` boots WinPE against a GPT disk of three partitions, **not one of them lettered**, and the engine refuses to wipe it — through the arm `d807c60` added and not one that worked before it — writes a `step.fail` carrying the refusal, and leaves the disk intact for the next step to read. Then accepts the same disk, in the same boot, when the sequence declares `wipe: true`. 168 passed, 0 failed on GHRUNNER01 ([run `34998802966`](https://github.com/itamartz/HDT/actions/runs/34998802966), commit `5885942`). This is DESIGN §9.1 rule 5 only; the other six exclusion rules are still fakes-only |
 | **M4** — boot image, ISO and PXE | met, as scoped in the roadmap |
 | **M5** — drivers | **met** — group match, the catalog, the `ApplyDrivers` step, the PnP fallback, the class filter and `Get-HDTDriverCoverage`. Proven on 2026-08-30 on a physical Latitude 5420 with its driver group renamed out from under it: 105 devices, 44 `.inf` matched, 4.3 GB staged, and the machine came back over SMB on the NIC the fallback matched |
 | **M6** — applications and full-OS steps | **met** — the step types ship: `InstallApplications`, `InstallRoles`, `InstallCertificate`, `EnableBitLocker`, `PowerShell`, `Tattoo`. Proven on the same 2026-08-30 run: a rule naming one application produced a two-application plan with the dependency first, both installed after the reboot |

@@ -135,7 +135,7 @@ Each of those bullets, against the file that proves it:
 | Tests first | Proven by |
 |---|---|
 | layout planning for UEFI and BIOS, with the recovery partition | `tests/unit/Get-HDTDiskLayout.Tests.ps1`, `tests/unit/New-HDTDiskLayoutPlan.Tests.ps1` — arithmetic asserted to the byte on 64 GiB, 128 GiB and an awkward 32 GB disk |
-| **target-disk ambiguity refusing to proceed** | `tests/unit/Select-HDTTargetDisk.Tests.ps1` (the seven rules, both classes), and `tests/unit/Invoke-HDTDiskPartitionStep.Tests.ps1` — where the assertion that matters is *"writes nothing when it refuses"* |
+| **target-disk ambiguity refusing to proceed** | `tests/unit/Select-HDTTargetDisk.Tests.ps1` (the seven rules, both classes), and `tests/unit/Invoke-HDTDiskPartitionStep.Tests.ps1` — where the assertion that matters is *"writes nothing when it refuses"*. **And on a real machine since 2026-09-15**, `tests/e2e/DiskGuard.E2E.Tests.ps1` — see "the refusal itself has hardware evidence" below |
 | index resolution | `tests/unit/Resolve-HDTImageIndex.Tests.ps1`, `tests/unit/Invoke-HDTApplyImageStep.Tests.ps1` |
 | unattend placement | `tests/unit/Invoke-HDTApplyUnattendStep.Tests.ps1` — `Windows\Panther\unattend.xml` asserted exactly, because that is the path SPIKES S7 verified |
 | the whole WinPE leg, as one ordered operation list | `tests/unit/Imaging.EndToEnd.Tests.ps1` — DESIGN §12.2.1's benchmark for this milestone |
@@ -188,6 +188,70 @@ about (SPIKES S9):
 5. The MSR is 16 759 808 bytes at offset 17 408 — which together are exactly the
    16 MB the layouts carry as `ReservedSizeByte`.
 6. FAT32 uppercases a volume label; nothing may match one case-sensitively.
+
+**The refusal itself has hardware evidence — 2026-09-15.** `d807c60` had closed a
+defect in DESIGN §9.1 rule 5 the day before: the rule excludes "a disk carrying a
+formatted volume", and the code delivered "a formatted volume *with a drive
+letter*", so a non-RAW disk whose partitions carry no letter produced no data
+rows, rule 5 never fired, and `DiskPartition` cleared a disk the sequence had
+never declared expendable. **It was proven against fakes only** — which for the
+one refusal standing between a wrong `diskNumber` and somebody's data is not
+enough, and the row above said so.
+
+`tests/e2e/DiskGuard.E2E.Tests.ps1` now proves it on a machine. The fixture is a
+GPT disk of three partitions — an MSR, an ESP, and an NTFS volume carrying
+`NoDefaultDriveLetter` and a real marker file — **not one of them lettered**,
+re-read on a fresh mount before the boot so a fixture that quietly came up
+lettered proves nothing. Booted in WinPE, the run asserts:
+
+    [+] saw the unlettered partitions in WinPE rather than reporting an empty disk
+    [+] failed the step that did not declare wipe: true
+    [+] refused with the target-disk guard, naming the partitions it could not read
+    [+] refused through the arm only d807c60 can reach, not through one that worked before it
+    [+] wrote a step.fail record carrying the same refusal
+    [+] wrote nothing at all: the disk was still intact when the next step looked
+
+**The fourth line is what makes the other five mean anything.** The refusal has
+to match *"partitions HDT cannot read … no drive letter"* — the `$opaque` arm
+that did not exist before the fix — and must **not** match *"on volume "*, the
+`$data` arm that worked before it. If WinPE letters the fixture after all the
+test fails loudly instead of passing for the wrong reason, which is the failure
+mode that lets a guard rot. The sixth re-reads the disk after the refusal, a
+question nothing outside the run can ask.
+
+**And the same disk, in the same boot, is accepted when the sequence declares
+`wipe: true`** — the negative control, because a test that only proves refusal
+cannot tell a guard that refuses correctly from one that refuses everything. Rule
+5 is overridable by declaration, and the run asserts the exact status set
+Completed, Failed, Completed, Completed, plus the GPT type set the accepted pass
+left behind.
+
+**It runs on `HDT Lab`, the isolated switch, deliberately.** WDS answers every
+machine on `192.168.1.0/24` with no prompt and no prestaging, and a machine that
+boots there goes zero-touch into a sequence that partitions disk 0 with
+`wipe: true` on any disk of 60 GB or more. The fixture is a 64 GB disk whose
+entire purpose is to still be there when the step refuses it.
+
+Green on the nested-Hyper-V runner GHRUNNER01 rather than on whichever laptop was
+to hand: **168 passed, 0 failed** (128 skipped) across the e2e suite, GitHub
+Actions run
+[`34998802966`](https://github.com/itamartz/HDT/actions/runs/34998802966) on
+commit `5885942`.
+
+**What it cost to get the first green.** The first real run proved exactly what
+it was written to prove and then failed its own fixture sanity check, reporting
+three partitions as lettered `1:`, `2:`, `3:`. `Get-Partition` types
+`DriveLetter` as `[char]`, and an unlettered partition carries `[char] 0` — a
+one-character string holding a NUL, which is neither null nor whitespace, so
+`IsNullOrWhiteSpace` called all three lettered and the "letter" was a partition
+number with an invisible character after it (`5885942`). The fixture was never
+wrong, and the suite's own evidence said so: had those partitions really carried
+letters they would have reached rule 5 through the `$data` arm, and the assertion
+that the refusal came through `$opaque` passed on the same run.
+
+**What it does not claim.** Rule 5 only. The other six exclusion rules, and the
+whole of `Select-HDTTargetDisk`'s seven-rule table as a set, remain proven
+against fakes.
 
 **What M3 ships without, stated plainly:**
 
@@ -1513,9 +1577,59 @@ way it can look green and be wrong:
 
 ---
 
+## v1.0.0 — released 2026-09-15
+
+`src/Hephaestus/Hephaestus.psd1` reads `ModuleVersion = '1.0.0'`. The number
+claims what the milestone blocks above it claim and nothing more: **M0 through M9,
+each exit criterion met against the evidence its own block names.** Where that
+evidence is a Pester run against hand-written fakes, this table says so — a
+milestone met against fakes is met, and it is not the same sentence as a
+milestone met on a machine.
+
+| Milestone | Exit met | What proved it |
+|---|---|---|
+| **M0** — skeleton and harness | yes | `./build.ps1 test` green from a clean clone under both engines, and a deliberately failing test failing. Harness, not hardware — there is nothing here to prove on a machine |
+| **M1** — variables and rules | yes | `tests/unit/GatherAndResolve.EndToEnd.Tests.ps1` over captured CIM fixtures, **and** a live run against this machine's real facts resolving `HDTComputerName` with its provenance |
+| **M2** — task sequence engine | yes, **against fakes by design** | `tests/unit/TaskSequence.EndToEnd.Tests.ps1`: three legs, two reboots, the exact ordered list of 31 operations. The criterion is "having touched nothing real", so fakes are not a shortfall here — they are the criterion |
+| **M3** — imaging | yes, on hardware | `tests/e2e/Deployment.E2E.Tests.ps1` — a VM boots the ISO, runs all five steps against the real disk and image services, and reaches full Windows 11, asserted from the integration-services heartbeat. **Rule 5's refusal proven on a machine 2026-09-15** (above); the other six exclusion rules are fakes-only |
+| **M4** — boot image and ISO | yes, **as scoped** | a VM boots the ISO unattended with no keypress and deploys. **The PXE clause was moved to v2 by the user on 2026-08-25** and is a decision, not a gap — see below |
+| **M5** — drivers | yes, on hardware | 2026-08-30, a physical Latitude 5420 with its driver group renamed out from under it: 105 devices, 44 `.inf` matched, 4.3 GB staged, the machine back over SMB on the NIC the PnP fallback matched (`.planning/evidence/run-20260830-204613/`) |
+| **M6** — applications and full-OS steps | yes, on hardware | the same run: a rule naming one application produced a two-application plan with the dependency first, both installed after the reboot. **The idempotency clause was cut by the user on 2026-08-30** — a decision, and the criterion above is the reduced one. `JoinDomain` joined `hdtlab.test` on 2026-09-07, verified four ways |
+| **M7** — capture and standalone media | both, on hardware | capture 2026-08-31, media 2026-09-03. Scheduled out to v2 and then built anyway; both exits are met and the deferral is left standing above as what was decided at the time |
+| **M8** — console | yes | the four legs walked in the real window on 2026-08-27 — author, edit, build the boot image and ISO, watch the run land in Monitoring — not read out of the source |
+| **M9** — refresh | yes, on hardware | 2026-09-11, `HDT-M9-REF01`: a `FullyEncrypted` machine refreshed with nothing inserted, reaching WinPE rather than a recovery prompt, its partition table identical afterwards. The three Refresh-only validation guards' **refusal** path is fakes-only — no real machine has yet been turned away by one |
+
+**What 1.0.0 does not contain, and why each one is not a gap.**
+
+- **PXE boot from WDS.** Moved to v2 by the user on 2026-08-25, a decision taken
+  because waiting on lab hardware is not a reason to hold v1.
+  `Import-HDTBootImageToWds` and `New-HDTPxePayload` ship; nothing in v1 assumes
+  they are absent. A client did PXE boot on 2026-09-10 (SPIKES S27) — ahead of
+  the milestone, not part of this one. What v2 still owes it is a complete
+  PXE-to-installed-Windows deployment; that client had no disk.
+- **A second `InstallApplications` pass proving idempotency.** Cut by the user on
+  2026-08-30 rather than changing the run-scoped `_HDTApplicationInstalled`
+  checkpoint the clause collides with.
+- **Everything under "Post-v1 candidates" below.** They stay post-v1 — being
+  released does not promote them.
+- **A boot image a fully patched machine with Secure Boot on will accept, on the
+  ISO path.** The ADK bootloader's SVN wall (SPIKES S20). PXE is unaffected
+  (S27.6). The lab turns Secure Boot off; a fleet cannot, and this is the one
+  item on this list that is a real limitation rather than a scheduling decision.
+
+**What is still proven against fakes alone, said here so the release does not
+read as hardware evidence for all of it:** cycle detection in the application
+dependency sort (no share here authors a cycle), the refusal path of the three
+Refresh-only validation guards, the six target-disk exclusion rules other than
+rule 5, and a `3010` mid-list resuming at the next application rather than
+restarting it.
+
+---
+
 ## Post-v1 candidates
 
-Ordered by likely value, all pending the open questions in DESIGN §14:
+Ordered by likely value, all pending the open questions in DESIGN §14 — and
+**still post-v1 after the 1.0.0 release above**:
 
 - `Http` content provider (the interface exists from M4; this fills it in).
 - BitLocker **pre-provisioning in WinPE** (encrypt-before-apply; the full-OS
