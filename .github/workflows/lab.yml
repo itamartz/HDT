@@ -218,6 +218,7 @@ on:
   # COVERAGE, ON A CLOCK. It is an hour of a hosted runner and it measures
   # main, so it answers a schedule rather than a push - and it is in THIS file
   # because publishing its badge needs the write token only this file may hold.
+  # The lab does NOT answer it: `changes` decides false for a schedule.
   schedule:
     - cron: '0 3 * * *'
 
@@ -405,6 +406,12 @@ jobs:
           echo "event: ${HDT_EVENT}"
           echo "before: ${HDT_BEFORE:-none}"
           echo "head:   ${HDT_HEAD}"
+
+          # THE NIGHTLY CRON IS COVERAGE'S, NOT THE LAB'S. Nothing was pushed,
+          # so an unchanged main would rebuild on GHRUNNER01 every night.
+          if [ "${HDT_EVENT}" = 'schedule' ]; then
+            decide false "scheduled run (${HDT_EVENT}) is for coverage only; nothing was pushed, so GHRUNNER01 is not started."
+          fi
 
           # A HAND-STARTED RUN IS A DELIBERATE ACT and never skips. The
           # commonest reason to press the button is that the `clean` checkpoint

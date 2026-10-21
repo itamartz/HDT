@@ -402,6 +402,16 @@ Describe 'Lab workflow' {
             'the dispatch case has to be settled before the version is looked at, not after it')
     }
 
+    It 'never starts the lab for the nightly schedule' -Skip:$script:HDTYamlMissing {
+        # THE CRON IS THERE FOR COVERAGE AND NOTHING ELSE. A schedule is not a
+        # human and pushed nothing, so it must decide false BEFORE the clause
+        # that sends every non-push event to GHRUNNER01 - or the lab rebuilds
+        # an unchanged main every night.
+        $beforeDispatch = ($script:decisionScript -split 'HDT_EVENT.*!=.*push')[0]
+        $beforeDispatch | Should -Match "(?s)HDT_EVENT.{0,20}=\s*'schedule'.{0,200}decide false" -Because (
+            'a scheduled run has to be refused before the hand-started clause says yes to it')
+    }
+
     It 'compares against the whole push rather than against its last commit' -Skip:$script:HDTYamlMissing {
         # A PUSH IS NOT ONE COMMIT. Source in the first commit and a README fix
         # in the second, pushed together, and a HEAD~1 comparison sees only the
