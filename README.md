@@ -501,4 +501,4 @@ risk. This is enforced by a contract test in `tests/contract/`, not by review.
 - [docs/ROADMAP.md](docs/ROADMAP.md) — milestones M0–M8, each with a
   "Tests first" list and exit criteria.
 
-Product page and docs: sealgrid.ai/HDT — part of the SealGrid suite with the Athena Endpoint Platform.
+Product page and docs: [sealgrid.ai/HDT](https://sealgrid.ai/HDT/) — part of the SealGrid suite with the [Athena Endpoint Platform](https://sealgrid.ai/Athena/).
