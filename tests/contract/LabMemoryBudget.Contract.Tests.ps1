@@ -89,7 +89,8 @@ BeforeAll {
                 # exactly the copy this must still catch.
                 if ($window -match '(?i)memor|budget|LabByte') {
                     [pscustomobject] @{
-                        Path = $item.FullName.Substring($script:budgetRepoRoot.Length + 1)
+                        # Relative inside the repository; a file planted outside it keeps its full path.
+                        Path = $(if ($item.FullName.StartsWith($script:budgetRepoRoot + '\', [StringComparison]::OrdinalIgnoreCase)) { $item.FullName.Substring($script:budgetRepoRoot.Length + 1) } else { $item.FullName })
                         Line = $i + 1
                         Text = ([string] $line[$i]).Trim()
                     }
@@ -234,7 +235,10 @@ Describe 'Lab memory budget contract' {
         # THE ASSERTION THAT STOPS THIS FILE ROTTING INTO DECORATION. Everything
         # above is green when the scan finds nothing - including when the scan is
         # broken and can find nothing. So plant one and prove it is found.
-        $planted = Join-Path -Path $script:budgetRepoRoot -ChildPath 'tests\contract\LabMemoryBudget.Violation.tmp.ps1'
+        # PLANTED IN $TestDrive, NEVER IN THE TREE. Written under tests\contract it
+        # was a real .ps1 for the length of this It, and the PS 5.1 contract in a
+        # parallel shard listed it, then found it gone: Lab run 39536374158.
+        $planted = [IO.Path]::Combine($TestDrive, 'LabMemoryBudget.Violation.tmp.ps1')
 
         try {
             Set-Content -LiteralPath $planted -Encoding UTF8 -Value @(
