@@ -241,7 +241,7 @@ try {
     <div class="brand">
       <span class="mark">Hephaestus Deployment Toolkit</span>
       <h1>Command Reference</h1>
-      <span class="sub">Hephaestus 1.0.0 &middot; PowerShell 5.1</span>
+      <span class="sub">Hephaestus 1.0.1 &middot; PowerShell 5.1</span>
     </div>
     <div class="search">
       <label class="sr-only" for="q" style="position:absolute;left:-9999px">Filter commands</label>
@@ -8162,7 +8162,7 @@ $statusHost.Close()</pre><p>A line at a time, then gone. Start-HDTBootStatus bui
 <p>WHAT COUNTS AS WHICH BUMP. A file added or removed is a change in what the module IS - a new command, a page of markup, a template - so it takes the minor and resets the patch. Editing the inside of a file that already shipped takes the patch. Neither is semver&#x27;s promise about breakage, because 0.x makes no such promise; they are a build&#x27;s honest report of what moved.</p>
 <p>THE COMPARISON IS AGAINST A HASH THE LAST BUMP RECORDED, not against git. &quot;Does the working tree differ from the last commit&quot; bumps again on every build until somebody commits, so `ci` twice in a row would take 0.2.0 to 0.4.0 - and a fresh clone with no history at all could not answer the question. The two hashes live in the manifest under PrivateData.HDT, which makes the manifest the record of exactly which source tree its version stands for.</p>
 <p>THE FIRST RUN SEEDS AND DOES NOT BUMP. A manifest recording no hashes has nothing to compare against, and bumping on that would move the version for a tree nobody touched.</p>
-<p>WHAT IS NOT COUNTED: Hephaestus.psd1, because it is what this writes to, and Hephaestus.bundle.ps1, because every build regenerates it - counting either would make the build bump for its own output, for ever. Everything else under the module root is counted, markup and string tables included: a window is as much the module as a cmdlet is.</p>
+<p>WHAT IS NOT COUNTED: Hephaestus.bundle.ps1, because every build regenerates it, and the three values this writes into Hephaestus.psd1 - ModuleVersion, SourceHash and LayoutHash - which are blanked out of the manifest&#x27;s fingerprint so the build never bumps for its own output. The rest of the manifest counts: an IconUri, a FunctionsToExport entry or a RequiredModules line ships as surely as a cmdlet does, and an edit there takes the patch. Everything else under the module root is counted, markup and string tables included: a window is as much the module as a cmdlet is.</p>
 <p>THE MANIFEST IS SPLICED, NEVER RE-SERIALISED. Import-PowerShellDataFile followed by a rewrite drops every comment in the file, and this manifest is more comment than data. Three values are replaced in place, the file&#x27;s encoding and line endings are left as they were, and nothing else moves.</p></div></details>
 <div class="extra"><div class="kv"><span class="k">Outputs</span><div class="v"><p>System.Management.Automation.PSCustomObject with Changed, Version, PreviousVersion, Reason and FileCount.</p></div></div></div>
 <footer class="src"><code>src/Hephaestus/Hephaestus.bundle.ps1</code></footer>

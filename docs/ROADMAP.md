@@ -1624,6 +1624,22 @@ Refresh-only validation guards, the six target-disk exclusion rules other than
 rule 5, and a `3010` mid-list resuming at the next application rather than
 restarting it.
 
+## v1.0.1 — released 2026-10-25
+
+A patch: no milestone moved. What it carries:
+
+- **The Gallery page shows the HDT icon.** The manifest named no `IconUri`, so
+  1.0.0 showed the grey default (`2e20f69`).
+- **`Update-HDTModuleVersion` counts the manifest.** It used to skip
+  `Hephaestus.psd1` wholesale because it writes to it, so the `IconUri` edit
+  moved no version and could never have reached a Gallery that already held
+  1.0.0. Now only the three values it writes are blanked out of the
+  fingerprint, and any other manifest edit takes the patch.
+- **The nightly coverage cron no longer starts the lab on GHRUNNER01 with
+  nothing pushed** (`5d69996`).
+- **The lab memory-budget contract stopped flaking** under parallel shards: it
+  planted its violation inside the tree, where another shard read it (`33e493c`).
+
 ---
 
 ## Post-v1 candidates
