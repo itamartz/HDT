@@ -231,11 +231,46 @@ Describe 'Update-HDTModuleVersion' {
             (Update-HDTModuleVersion -ModuleRoot $script:moduleRoot).Changed | Should -BeFalse
         }
 
-        It 'ignores the manifest, which is what it writes to' {
+        It 'ignores a hand-typed ModuleVersion, which is one of the lines it writes' {
             $path = Join-Path -Path $script:moduleRoot -ChildPath 'Hephaestus.psd1'
-            Set-Content -LiteralPath $path -Value ((Get-Content -LiteralPath $path -Raw) + "`r`n# a later comment")
+            # WriteAllText, not Set-Content: Set-Content appends a newline, and that is an edit outside the line.
+            [System.IO.File]::WriteAllText($path, ([System.IO.File]::ReadAllText($path) -replace "ModuleVersion        = '0.2.0'", "ModuleVersion        = '0.2.7'"))
 
             (Update-HDTModuleVersion -ModuleRoot $script:moduleRoot).Changed | Should -BeFalse
+        }
+
+        It 'does not bump for the hashes it wrote itself, so a bump settles' {
+            Set-Content -LiteralPath (Join-Path -Path $script:moduleRoot -ChildPath 'Public\Get-HDTOther.ps1') -Value 'function Get-HDTOther { 3 }'
+            Update-HDTModuleVersion -ModuleRoot $script:moduleRoot | Out-Null
+
+            (Update-HDTModuleVersion -ModuleRoot $script:moduleRoot).Changed | Should -BeFalse
+        }
+    }
+
+    # THE MANIFEST SHIPS TOO. It was once left out wholesale because this writes
+    # to it, so 2e20f69's IconUri reached no version and the Gallery, which
+    # already held 1.0.0, could never have shown it. Only the three values this
+    # writes are blanked out of its fingerprint; every other line counts.
+    Context 'a manifest edited outside the lines it writes' {
+
+        It 'takes the patch for <Name>, never the minor' -ForEach @(
+            @{ Name = 'a new PSData key';        From = "Tags = @('MDT')";                   To = "Tags = @('MDT')`r`n            IconUri = 'https://example.invalid/icon.png'" }
+            @{ Name = 'an edited PSData key';    From = "Tags = @('MDT')";                   To = "Tags = @('MDT', 'WinPE')" }
+            @{ Name = 'FunctionsToExport';       From = "FunctionsToExport    = @('Get-HDTOther')"; To = "FunctionsToExport    = @('Get-HDTOther', 'Get-HDTThing')" }
+            @{ Name = 'a new top-level key';     From = "Author               = 'HDT'";       To = "Author               = 'HDT'`r`n    RequiredModules      = @('powershell-yaml')" }
+            @{ Name = 'an edited top-level key'; From = "Author               = 'HDT'";       To = "Author               = 'Someone'" }
+            @{ Name = 'a comment';               From = '# A COMMENT THAT MUST SURVIVE.';     To = '# A COMMENT THAT MUST SURVIVE, REWORDED.' }
+        ) {
+            $path = Join-Path -Path $script:moduleRoot -ChildPath 'Hephaestus.psd1'
+            $text = Get-Content -LiteralPath $path -Raw
+            $text.Contains($From) | Should -BeTrue
+            Set-Content -LiteralPath $path -Value $text.Replace($From, $To)
+
+            $answer = Update-HDTModuleVersion -ModuleRoot $script:moduleRoot
+
+            $answer.Reason | Should -Be 'file contents changed'
+            $answer.Version | Should -Be '0.2.1'
+            Get-HDTTestVersion -Path $script:moduleRoot | Should -Be '0.2.1'
         }
     }
 

@@ -31,12 +31,15 @@
             has nothing to compare against, and bumping on that would move the
             version for a tree nobody touched.
 
-            WHAT IS NOT COUNTED: Hephaestus.psd1, because it is what this writes
-            to, and Hephaestus.bundle.ps1, because every build regenerates it -
-            counting either would make the build bump for its own output, for
-            ever. Everything else under the module root is counted, markup and
-            string tables included: a window is as much the module as a cmdlet
-            is.
+            WHAT IS NOT COUNTED: Hephaestus.bundle.ps1, because every build
+            regenerates it, and the three values this writes into Hephaestus.psd1
+            - ModuleVersion, SourceHash and LayoutHash - which are blanked out of
+            the manifest's fingerprint so the build never bumps for its own
+            output. The rest of the manifest counts: an IconUri, a
+            FunctionsToExport entry or a RequiredModules line ships as surely as a
+            cmdlet does, and an edit there takes the patch. Everything else under
+            the module root is counted, markup and string tables included: a
+            window is as much the module as a cmdlet is.
 
             THE MANIFEST IS SPLICED, NEVER RE-SERIALISED. Import-PowerShellDataFile
             followed by a rewrite drops every comment in the file, and this
@@ -156,9 +159,6 @@
             }
         } | Sort-Object -Property Path)
 
-    $layoutHash = Get-HDTTextHash -Text (@($entry | ForEach-Object { $_.Path }) -join "`n")
-    $sourceHash = Get-HDTTextHash -Text (@($entry | ForEach-Object { '{0}|{1}' -f $_.Path, $_.Hash }) -join "`n")
-
     # READ THE MANIFEST AS TEXT, and read the recorded hashes out of the same
     # text that will be spliced. Import-PowerShellDataFile would answer from a
     # parse, and a key it found in a comment-free parse is not proof that the
@@ -168,6 +168,20 @@
     $versionPattern = "(?m)^(\s*ModuleVersion\s*=\s*')([^']*)(')"
     $sourcePattern = "(?m)^(\s*SourceHash\s*=\s*')([^']*)(')"
     $layoutPattern = "(?m)^(\s*LayoutHash\s*=\s*')([^']*)(')"
+
+    # THE MANIFEST JOINS THE SOURCE HASH, NOT THE LAYOUT. It is always there, so
+    # it never makes a file added or removed - which is also why the first run
+    # over a manifest recorded before it counted takes the patch, not the minor:
+    # the layout hash is unchanged and only the source hash moves. The three
+    # values this writes are blanked first, so its own output never bumps it.
+    $manifestText = $original.Replace("`r`n", "`n")
+    foreach ($written in @($versionPattern, $sourcePattern, $layoutPattern)) {
+        $manifestText = [regex]::Replace($manifestText, $written, '${1}${3}')
+    }
+
+    $layoutHash = Get-HDTTextHash -Text (@($entry | ForEach-Object { $_.Path }) -join "`n")
+    $sourceHash = Get-HDTTextHash -Text ((@($entry | ForEach-Object { '{0}|{1}' -f $_.Path, $_.Hash }) +
+            ('{0}|{1}' -f $manifestName, (Get-HDTTextHash -Text $manifestText))) -join "`n")
 
     foreach ($required in @(@{ Name = 'ModuleVersion'; Pattern = $versionPattern },
             @{ Name = 'SourceHash'; Pattern = $sourcePattern },
