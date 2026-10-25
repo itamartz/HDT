@@ -360,6 +360,10 @@
             # WHERE TO REPORT A BUG. A Gallery page with no project link is a
             # dead end for anybody who hit one.
             ProjectUri = 'https://github.com/itamartz/HDT'
+
+            # THE GALLERY PAGE'S ICON. Raw GitHub on main, so docs/images/icon.png
+            # must stay in the repository or the page shows a broken image.
+            IconUri = 'https://raw.githubusercontent.com/itamartz/HDT/main/docs/images/icon.png'
         }
 
         # WHICH SOURCE TREE THE VERSION ABOVE STANDS FOR, written by

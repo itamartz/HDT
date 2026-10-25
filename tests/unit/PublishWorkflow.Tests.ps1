@@ -196,6 +196,18 @@ Describe 'the manifest the Gallery would show' {
         [string] $script:manifest.PrivateData.PSData.ProjectUri | Should -Match '^https://github\.com/'
     }
 
+    It 'shows an icon that the repository actually carries' {
+        # A Gallery page with no icon gets the grey default. The link is raw
+        # GitHub on main, so the file behind it has to exist here or the page
+        # shows a broken image instead.
+        $prefix = '^https://raw\.githubusercontent\.com/itamartz/HDT/main/'
+        $iconUri = [string] $script:manifest.PrivateData.PSData['IconUri']
+
+        $iconUri | Should -Match $prefix
+        $relative = $iconUri -replace $prefix, ''
+        Test-Path -LiteralPath ([IO.Path]::Combine($script:repoRoot, $relative)) -PathType Leaf | Should -BeTrue
+    }
+
     It 'declares the minimum PowerShell version WinPE ships' {
         [string] $script:manifest.PowerShellVersion | Should -BeExactly '5.1'
     }
