@@ -4,7 +4,7 @@
     GUID                 = '9be61a01-0b74-4832-867d-f2b7cb51cf85'
     Author               = 'Itamartz'
     CompanyName          = 'Hephaestus Deployment Toolkit'
-    Copyright            = '(c) 2026 Itamartz. All rights reserved.'
+    Copyright            = '(c) 2026 Itamartz. Licensed under the GNU GPL v3.0.'
     Description          = 'Hephaestus Deployment Toolkit - a PowerShell replacement for MDT.'
 
     # The engine runs inside WinPE, which only ships Windows PowerShell 5.1.
@@ -360,6 +360,8 @@
             # WHERE TO REPORT A BUG. A Gallery page with no project link is a
             # dead end for anybody who hit one.
             ProjectUri = 'https://github.com/itamartz/HDT'
+
+            LicenseUri = 'https://github.com/itamartz/HDT/blob/main/LICENSE'
 
             # THE GALLERY PAGE'S ICON. Raw GitHub on main, so docs/images/icon.png
             # must stay in the repository or the page shows a broken image.
